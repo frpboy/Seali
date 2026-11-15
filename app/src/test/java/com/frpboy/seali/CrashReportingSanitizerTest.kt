@@ -27,6 +27,7 @@ import java.io.ByteArrayOutputStream
 import java.io.StringWriter
 import java.net.URI
 import java.util.concurrent.CountDownLatch
+import org.junit.After
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -49,6 +50,12 @@ class CrashReportingSanitizerTest {
     fun resetTransportState() {
         // The transport's rate-limit/in-flight state is shared and static;
         // isolate every test from the previous test's sends.
+        FixedEventTransport.resetForTests()
+    }
+
+    @After
+    fun restoreConnectionFactory() {
+        // Never leave the connection seam pointed at a stopped loopback.
         FixedEventTransport.resetForTests()
     }
 
@@ -325,15 +332,23 @@ class CrashReportingSanitizerTest {
         val requests: java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>,
         val handlerErrors: java.util.concurrent.CopyOnWriteArrayList<Throwable>,
         val handlerDone: java.util.concurrent.CountDownLatch,
+        val executor: java.util.concurrent.ExecutorService,
     )
+
+    private fun stopLoopback(loop: LoopbackServer) {
+        loop.server.stop(0)
+        // server.stop does not shut down an externally supplied executor.
+        loop.executor.shutdownNow()
+    }
 
     private fun startLoopbackServer(respond: Boolean): LoopbackServer {
         val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
         val handlerErrors = java.util.concurrent.CopyOnWriteArrayList<Throwable>()
         val handlerDone = java.util.concurrent.CountDownLatch(1)
         val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
-        server.executor = java.util.concurrent.Executors.newCachedThreadPool()
-        server.createContext("/api/envelope/") { exchange ->
+        val executor = java.util.concurrent.Executors.newCachedThreadPool()
+        server.executor = executor
+        server.createContext("/api/") { exchange ->
             try {
                 // A valid POST must declare a positive Content-Length
                 // (set by fixed-length streaming) and deliver exactly
@@ -370,7 +385,7 @@ class CrashReportingSanitizerTest {
             }
         }
         server.start()
-        return LoopbackServer(server, requests, handlerErrors, handlerDone)
+        return LoopbackServer(server, requests, handlerErrors, handlerDone, executor)
     }
 
     private fun wireLoopback(server: com.sun.net.httpserver.HttpServer) {
@@ -398,7 +413,7 @@ class CrashReportingSanitizerTest {
             assertTrue(req.auth!!.contains("sentry_key=key1"))
             assertTrue(req.body.contentEquals(payload))
         } finally {
-            loop.server.stop(0)
+            stopLoopback(loop)
         }
     }
 
@@ -412,19 +427,21 @@ class CrashReportingSanitizerTest {
             // The handler ran to completion (exact body consumed, then
             // close with no response) without a listener-side error.
             assertTrue(loop.handlerDone.await(5, TimeUnit.SECONDS))
-            assertEquals(emptyList<Throwable>(), loop.handlerErrors)
             // Bounded observation window for a hypothetical internal
             // replay: the listener stayed up, so a retried POST would
-            // be observed as a second request. This is a bounded
-            // observed-loopback claim, not a general no-retry guarantee.
+            // arrive as a second request (or a listener-side error).
             val deadline = System.currentTimeMillis() + 2_000
-            while (System.currentTimeMillis() < deadline && loop.requests.size < 2) {
+            while (System.currentTimeMillis() < deadline && loop.requests.size < 2 && loop.handlerErrors.isEmpty()) {
                 Thread.sleep(50)
             }
+            // Error check AFTER the window: a malformed/partial replay
+            // must not disappear from the evidence. This is a bounded
+            // observed-loopback claim, not a general no-retry guarantee.
+            assertEquals(emptyList<Throwable>(), loop.handlerErrors)
             assertEquals(1, loop.requests.size)
             assertTrue(loop.requests[0].body.contentEquals(payload))
         } finally {
-            loop.server.stop(0)
+            stopLoopback(loop)
         }
     }
 
