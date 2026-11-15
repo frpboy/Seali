@@ -14,14 +14,18 @@ import io.sentry.SentryItemType
 import io.sentry.SentryLevel
 import io.sentry.SentryOptions
 import io.sentry.android.core.SentryAndroid
-import io.sentry.hints.Flushable
+import io.sentry.hints.DiskFlushNotification
 import io.sentry.protocol.Message
 import io.sentry.protocol.SentryException
 import io.sentry.transport.ITransport
 import io.sentry.util.HintUtils
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URI
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -126,12 +130,19 @@ internal fun SentryOptions.applyPrivacyDefaults() {
  */
 internal class FixedEventTransport(
     private val options: SentryOptions,
-    private val poster: (ByteArray) -> Unit = { bytes ->
+    private val poster: (ByteArray) -> Boolean = { bytes ->
         // No DSN configured means nothing to send; the report is dropped.
-        options.dsn?.let { dsn -> defaultPost(dsn, bytes) }
+        options.dsn?.let { dsn -> defaultPost(dsn, bytes) } ?: false
     },
 ) : ITransport {
     override fun send(envelope: SentryEnvelope, hint: Hint) {
+        // The SDK's uncaught-exception integration attaches a flush latch
+        // (DiskFlushNotification) and blocks the crashing thread on
+        // waitFlush() after capture returns. It is released ONLY by
+        // markFlushed() after actual delivery - never on a drop, so a
+        // suppressed or failed report is logged as failed, not delivered.
+        val flushNotification =
+            HintUtils.getSentrySdkHint(hint) as? DiskFlushNotification
         // Gate: only an envelope carrying an error/crash event item is
         // worth reporting.
         if (envelope.items.none { it.header.type == SentryItemType.Event }) return
@@ -168,21 +179,18 @@ internal class FixedEventTransport(
             return
         }
         lastSendAt = won
-        worker.execute {
-            try {
-                poster(bytes.toByteArray())
-            } finally {
+        try {
+            worker.execute {
+                val delivered = runCatching { poster(bytes.toByteArray()) }.getOrDefault(false)
+                // Release the SDK crash flush latch only on confirmed
+                // delivery; a failed or dropped send stays unflushed.
+                if (delivered) runCatching { flushNotification?.markFlushed() }
                 inFlight.set(false)
                 synchronized(idleLock) { idleLock.notifyAll() }
             }
-        }
-        // Crash-time flushes: the SDK's uncaught-exception integration
-        // marks its hint Flushable and waits for the event to be written
-        // before the process exits. Block this caller until the in-flight
-        // POST finishes or the SDK flush deadline passes, so a fatal crash
-        // report is actually delivered, not just enqueued.
-        if (HintUtils.hasType(hint, Flushable::class.java)) {
-            waitForIdle(options.flushTimeoutMillis)
+        } catch (_: RejectedExecutionException) {
+            // Worker gone (process shutting down): release the flag and drop.
+            inFlight.set(false)
         }
     }
 
@@ -194,8 +202,10 @@ internal class FixedEventTransport(
     }
 
     override fun close(isRestarting: Boolean) {
+        // Drain only. The worker is a daemon retained for the process
+        // lifetime: the transport is stateless per call, and permanently
+        // shutting a static executor would kill later init/send cycles.
         waitForIdle(TIMEOUT_MS.toLong())
-        worker.shutdown()
     }
 
     /** Blocks the caller until no POST is in flight or the deadline passes. */
@@ -213,6 +223,8 @@ internal class FixedEventTransport(
     companion object {
         private const val MIN_INTERVAL_MS = 60_000L
         private const val TIMEOUT_MS = 10_000
+        private const val MAX_BACKOFF_SECONDS = 3_600L
+        private const val MAX_DRAIN_BYTES = 8_192
         @Volatile private var lastSendAt = 0L
         @Volatile private var rateLimitedUntilMs = 0L
         private val inFlight = AtomicBoolean(false)
@@ -236,10 +248,12 @@ internal class FixedEventTransport(
          * sent (this transport never installs a CookieHandler; it cannot
          * strip cookies a globally installed handler would add, and none
          * is installed by this app). The connect/read timeouts bound the
-         * connect and read phases; DNS resolution uses the JVM default.
-         * Runs only on the worker thread.
+         * connect and read phases only; DNS resolution uses the JVM
+         * default and the response drain is capped (see below), so there
+         * is no single whole-request deadline. Runs only on the worker
+         * thread. Returns true only on a 2xx response.
          */
-        internal fun defaultPost(dsn: String, bytes: ByteArray) {
+        internal fun defaultPost(dsn: String, bytes: ByteArray): Boolean {
             try {
                 val uri = URI(dsn)
                 require(uri.scheme == "https") { "DSN must be https" }
@@ -261,29 +275,75 @@ internal class FixedEventTransport(
                     )
                     conn.outputStream.use { it.write(bytes) }
                     val code = conn.responseCode // completes the request
-                    // Consume the response body fully so the exchange
-                    // actually completes; the outcome is dropped either way.
-                    (runCatching { conn.inputStream }.getOrNull() ?: conn.errorStream)?.use {
-                        it.readBytes()
-                    }
-                    // Honor a server rate-limit window: Retry-After or the
-                    // leading seconds field of X-Sentry-Rate-Limit.
-                    if (code == 429) {
-                        val seconds =
-                            conn.getHeaderField("Retry-After")?.toLongOrNull()
-                                ?: conn.getHeaderField("X-Sentry-Rate-Limit")
-                                    ?.substringBefore(':')
-                                    ?.toLongOrNull()
-                        val delayMs =
-                            if (seconds != null && seconds in 1..3600) seconds * 1000
-                            else MIN_INTERVAL_MS
-                        rateLimitedUntilMs = System.currentTimeMillis() + delayMs
-                    }
+                    // Honor server rate-limit windows immediately, before
+                    // touching the body: X-Sentry-Rate-Limits (plural,
+                    // comma-separated "seconds:categories:scope" entries -
+                    // take the maximum), legacy X-Sentry-Rate-Limit, and
+                    // Retry-After (delta-seconds or HTTP-date). Applies on
+                    // any status carrying the header; values clamp to 1h,
+                    // an unparseable 429 falls back to the 1-minute floor.
+                    applyRateLimitHeaders(conn, code)
+                    // Bounded drain: read at most MAX_DRAIN_BYTES so the
+                    // exchange completes for keep-alive purposes without an
+                    // unbounded allocation or an indefinite slow-trickle
+                    // read, then cancel the rest via disconnect().
+                    val stream = runCatching { conn.inputStream }.getOrNull() ?: conn.errorStream
+                    stream?.let { discardBounded(it) }
+                    return code in 200..299
                 } finally {
                     conn.disconnect()
                 }
             } catch (_: Exception) {
                 // Reporting must never crash the app or retry: drop.
+                return false
+            }
+        }
+
+        private fun applyRateLimitHeaders(conn: HttpURLConnection, code: Int) {
+            var seconds: Long? = null
+            conn.getHeaderField("X-Sentry-Rate-Limits")
+                ?.split(',')
+                ?.mapNotNull { it.trim().substringBefore(':').toLongOrNull() }
+                ?.maxOrNull()
+                ?.let { seconds = it }
+            if (seconds == null) {
+                seconds =
+                    conn.getHeaderField("X-Sentry-Rate-Limit")
+                        ?.substringBefore(':')
+                        ?.trim()
+                        ?.toLongOrNull()
+            }
+            if (seconds == null) {
+                val retryAfter = conn.getHeaderField("Retry-After")
+                seconds =
+                    retryAfter?.trim()?.toLongOrNull()
+                        ?: retryAfter?.let {
+                            runCatching {
+                                ZonedDateTime.parse(it, DateTimeFormatter.RFC_1123_DATE_TIME)
+                                    .toEpochSecond() - System.currentTimeMillis() / 1000
+                            }.getOrNull()
+                        }
+            }
+            when {
+                seconds != null && seconds!! > 0 ->
+                    rateLimitedUntilMs =
+                        System.currentTimeMillis() + minOf(seconds!!, MAX_BACKOFF_SECONDS) * 1000
+                code == 429 ->
+                    rateLimitedUntilMs = System.currentTimeMillis() + MIN_INTERVAL_MS
+            }
+        }
+
+        private fun discardBounded(stream: InputStream) {
+            runCatching {
+                stream.use { s ->
+                    val buffer = ByteArray(4096)
+                    var remaining = MAX_DRAIN_BYTES
+                    while (remaining > 0) {
+                        val n = s.read(buffer, 0, minOf(buffer.size, remaining))
+                        if (n <= 0) break
+                        remaining -= n
+                    }
+                }
             }
         }
     }

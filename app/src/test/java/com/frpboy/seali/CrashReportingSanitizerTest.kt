@@ -16,6 +16,7 @@ import io.sentry.protocol.SentryId
 import io.sentry.SentryItemType
 import io.sentry.SentryLevel
 import io.sentry.SentryOptions
+import io.sentry.hints.BlockingFlushHint
 import io.sentry.protocol.Device
 import io.sentry.protocol.Request
 import io.sentry.protocol.SentryException
@@ -204,6 +205,7 @@ class CrashReportingSanitizerTest {
                 Thread.sleep(300) // slow POST still in flight when flush starts
                 captured.add(bytes)
                 finished.countDown()
+                true // delivered
             }
         val item = SentryEnvelopeItem.fromEvent(options.serializer, SentryEvent())
         transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(item)), Hint())
@@ -211,6 +213,44 @@ class CrashReportingSanitizerTest {
         // flush returned only after the worker finished the POST.
         assertTrue(finished.await(0, TimeUnit.MILLISECONDS))
         assertEquals(1, captured.size)
+    }
+
+    @Test
+    fun `a crash flush latch is released only after actual delivery`() {
+        val options = SentryOptions()
+        options.serializer = JsonSerializer(options)
+        val transport = FixedEventTransport(options) { _ -> true } // delivered
+        val flushable =
+            object : BlockingFlushHint(5_000, NoOpLogger.getInstance()) {
+                override fun isFlushable(eventId: SentryId?): Boolean = true
+                override fun setFlushable(eventId: SentryId?) {}
+            }
+        val hint = Hint()
+        hint.set("sentry:typeCheckHint", flushable)
+        val item = SentryEnvelopeItem.fromEvent(options.serializer, SentryEvent())
+        transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(item)), hint)
+        // waitFlush returns true only if the worker called markFlushed
+        // after a confirmed delivery - the SDK crash handler contract.
+        assertTrue(flushable.waitFlush())
+    }
+
+    @Test
+    fun `a failed delivery never releases the crash flush latch`() {
+        val options = SentryOptions()
+        options.serializer = JsonSerializer(options)
+        val transport = FixedEventTransport(options) { _ -> false } // failed
+        val flushable =
+            object : BlockingFlushHint(300, NoOpLogger.getInstance()) {
+                override fun isFlushable(eventId: SentryId?): Boolean = true
+                override fun setFlushable(eventId: SentryId?) {}
+            }
+        val hint = Hint()
+        hint.set("sentry:typeCheckHint", flushable)
+        val item = SentryEnvelopeItem.fromEvent(options.serializer, SentryEvent())
+        transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(item)), hint)
+        transport.flush(5_000)
+        // Timed out unflushed: the SDK logs a failed delivery, not a false one.
+        assertFalse(flushable.waitFlush())
     }
 
     @Test
