@@ -7,7 +7,10 @@ retained stage libraries (`libcrypto.so.3`, `libssl.so.3`,
 `libexpat.so.1.13.1`) for non-page-aligned RELRO starts. Two independent
 reviews against the Bionic linker source (API 24 `android-7.0.0_r1` and
 Android 15 `android-15.0.0_r1` `linker/linker_phdr.cpp`) established the
-actual runtime contract: the linker rounds the RELRO start DOWN and the end
+actual runtime contract for those linker generations. The 16 KiB
+app-compat segment-padding behavior across Android 16 releases was read
+but NOT fully traced, so the invariants below are page-size-agnostic and
+do not depend on it.: the linker rounds the RELRO start DOWN and the end
 UP to runtime page boundaries, and the true constraint is that the rounded
 mprotect range contains no byte that must stay writable or executable -
 not that the start is page-aligned. The strict check is therefore an
@@ -34,7 +37,8 @@ suppressed and no hash allowlist exists.
 The owned-source Python 3.11.18 + Cryptodome 3.24.2 build produced a
 refreshed `libpython.zip.so` (`83ce8864368b24a5ceb86005c6ae869c5c592469206eed9d9f66f012447f9d62`,
 20,285,721 bytes). Its full 128-ELF invariant audit is clean at both page
-sizes (3 strict findings preserved), and the launcher is bit-identical to
+sizes (3 libraries, 6 strict findings preserved - one per library per page
+size), and the launcher is bit-identical to
 the existing custody pin. The alpha7 lock update for the zip is NOT part of
 this change: it waits on a new unpublished custody archive for the
 refreshed inputs (originals preserved, never overwritten) so the staging
