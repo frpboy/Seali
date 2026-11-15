@@ -501,6 +501,10 @@
     <string name="runtime_nightly_save_hint">Allow selects Nightly for now. Confirm in Update settings to save your choice and this checkbox. Cancel here keeps Stable selected.</string>
     <string name="runtime_nightly_allow">Allow</string>
     <string name="app_update_signature_mismatch">Update package signature does not match this installation. Install canceled.</string>
+    <string name="app_update_invalid_apk">Downloaded update is not a valid Seali package.</string>
+    <string name="app_update_package_mismatch">Update package identity does not match this installation. Install canceled.</string>
+    <string name="app_update_not_newer">Update package is not newer than this installation. Install canceled.</string>
+    <string name="app_update_requires_newer_android">This update requires a newer Android version. Install canceled.</string>
     <string name="app_updates_unavailable_channel" translatable="false">App self-update is disabled for this distribution channel. Play builds update through Google Play; F-Droid builds update through the F-Droid client.</string>
     <string name="update_channel_stable">Stable</string>
     <string name="update_channel_prerelease">Prerelease</string>

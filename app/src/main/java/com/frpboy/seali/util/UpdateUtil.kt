@@ -131,9 +131,13 @@ object UpdateUtil {
                         App.isPlayBuild(),
                         App.isFDroidBuild(),
                     )
-                    if (downloadedApkSignatureMatches() == false) {
-                        ToastUtil.makeToast(R.string.app_update_signature_mismatch)
-                        return@runCatching
+                    when (val validation = validateDownloadedApk()) {
+                        is ApkValidation.Rejected -> {
+                            ToastUtil.makeToast(validation.reasonRes)
+                            return@runCatching
+                        }
+                        ApkValidation.Indeterminate,
+                        ApkValidation.Valid -> Unit
                     }
                     val contentUri =
                         FileProvider.getUriForFile(this, getFileProvider(), getLatestApk())
@@ -189,33 +193,123 @@ object UpdateUtil {
             val abiList = Build.SUPPORTED_ABIS
             val preferredArch = abiList.firstOrNull() ?: return@withContext emptyFlow()
 
-            val targetUrl =
-                release.assets
-                    ?.find {
-                        return@find it.name?.contains(preferredArch) ?: false
-                    }
-                    ?.browserDownloadUrl ?: return@withContext emptyFlow()
-            val request = Request.Builder().url(targetUrl).build()
+            val targetAsset =
+                release.assets?.find {
+                    return@find it.name?.contains(preferredArch) ?: false
+                } ?: return@withContext emptyFlow()
+            val targetUrl = targetAsset.browserDownloadUrl ?: return@withContext emptyFlow()
+            if (!isTrustedDownloadUrl(targetUrl)) return@withContext emptyFlow()
+            val expectedSha256 = expectedSha256(release = release, assetName = targetAsset.name)
             try {
-                val response = client.newCall(request).execute()
+                val response = executeFollowingTrustedRedirects(Request.Builder().url(targetUrl).build())
                 val responseBody = response.body
-                return@withContext responseBody.downloadFileWithProgress(context.getLatestApk())
+                return@withContext flow {
+                        responseBody.downloadFileWithProgress(context.getLatestApk()).collect {
+                            status ->
+                            if (status is DownloadStatus.Finished && expectedSha256 != null) {
+                                val actual = sha256Hex(status.file.readBytes())
+                                if (!actual.equals(expectedSha256, ignoreCase = true)) {
+                                    status.file.delete()
+                                    throw Exception("update package checksum mismatch")
+                                }
+                            }
+                            emit(status)
+                        }
+                    }
+                    .flowOn(Dispatchers.IO)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
             emptyFlow()
         }
 
+    private const val MAX_REDIRECTS = 5
+
+    private val redirectCodes = setOf(301, 302, 303, 307, 308)
+
+    /** Asset downloads must stay on GitHub hosts; redirects anywhere else are refused. */
+    internal fun isTrustedDownloadUrl(url: String): Boolean {
+        val parsed = runCatching { okhttp3.HttpUrl.get(url) }.getOrNull() ?: return false
+        return parsed.scheme == "https" && isTrustedDownloadHost(parsed.host)
+    }
+
+    private fun isTrustedDownloadHost(host: String): Boolean =
+        host == "github.com" ||
+            host.endsWith(".github.com") ||
+            host == "githubusercontent.com" ||
+            host.endsWith(".githubusercontent.com")
+
+    private fun executeFollowingTrustedRedirects(request: Request): okhttp3.Response {
+        val noRedirectClient =
+            client.newBuilder().followRedirects(false).followSslRedirects(false).build()
+        var currentRequest = request
+        repeat(MAX_REDIRECTS + 1) { attempt ->
+            val response = noRedirectClient.newCall(currentRequest).execute()
+            if (response.code !in redirectCodes) return response
+            val location = response.header("Location")
+            response.close()
+            val resolved =
+                location?.let { currentRequest.url.resolve(it) }
+                    ?: throw Exception("update download redirect without location")
+            if (attempt == MAX_REDIRECTS) throw Exception("too many update download redirects")
+            if (resolved.scheme != "https" || !isTrustedDownloadHost(resolved.host)) {
+                throw Exception("update download redirect to untrusted host: ${resolved.host}")
+            }
+            currentRequest = currentRequest.newBuilder().url(resolved).build()
+        }
+        throw Exception("too many update download redirects")
+    }
+
     /**
-     * Compares the downloaded APK's signing certificate hashes with the running app's.
-     * Returns null when either side cannot be read; Android still enforces signature
-     * continuity at install time in that case, so null means "let the platform decide".
+     * Reads the expected SHA-256 for [assetName] from a SHA256SUMS asset published with
+     * the release, when one exists. Returns null when the release publishes no sums;
+     * the signature-continuity check in [validateDownloadedApk] remains the integrity
+     * anchor in that case.
+     */
+    private fun expectedSha256(release: Release, assetName: String?): String? {
+        assetName ?: return null
+        val sumsAsset =
+            release.assets?.firstOrNull {
+                it.name == "SHA256SUMS" || it.name == "SHA256SUMS.txt"
+            } ?: return null
+        val sumsUrl = sumsAsset.browserDownloadUrl?.takeIf { isTrustedDownloadUrl(it) }
+            sumsUrl ?: return null
+        return runCatching {
+                executeFollowingTrustedRedirects(Request.Builder().url(sumsUrl).build()).body.use {
+                    body ->
+                    body.string().lineSequence().firstNotNullOfOrNull { line ->
+                        val parts = line.trim().split(Regex("\\s+"))
+                        if (parts.size == 2 && parts[1].trimStart('*') == assetName) parts[0]
+                        else null
+                    }
+                }
+            }
+            .getOrNull()
+    }
+
+    /** Outcome of the pre-install trust checks on the downloaded update package. */
+    sealed class ApkValidation {
+        object Valid : ApkValidation()
+
+        /** The platform could not parse the package; Android enforces at install time. */
+        object Indeterminate : ApkValidation()
+
+        data class Rejected(val reasonRes: Int) : ApkValidation()
+    }
+
+    /**
+     * Pre-install trust checks on the downloaded update package: it must parse as an
+     * APK, carry this installation's exact package name, be strictly newer by
+     * versionCode, support this device's API level, and be signed by the same
+     * certificate. Android enforces signature and version rules at install time too;
+     * these checks exist so the user gets an explicit reason instead of a silent
+     * failed install handoff.
      */
     @Suppress("DEPRECATION")
-    fun downloadedApkSignatureMatches(context: Context = App.context): Boolean? =
+    fun validateDownloadedApk(context: Context = App.context): ApkValidation =
         runCatching {
                 val apkFile = context.getLatestApk()
-                if (!apkFile.exists()) return null
+                if (!apkFile.exists()) return ApkValidation.Indeterminate
                 val packageManager = context.packageManager
                 val archiveInfo =
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -229,6 +323,13 @@ object UpdateUtil {
                             PackageManager.GET_SIGNATURES,
                         )
                     }
+                val archiveApplicationInfo = archiveInfo?.applicationInfo
+                if (archiveInfo == null || archiveApplicationInfo == null) {
+                    return ApkValidation.Rejected(R.string.app_update_invalid_apk)
+                }
+                if (archiveInfo.packageName != context.packageName) {
+                    return ApkValidation.Rejected(R.string.app_update_package_mismatch)
+                }
                 val currentInfo =
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         packageManager.getPackageInfo(
@@ -241,12 +342,35 @@ object UpdateUtil {
                             PackageManager.GET_SIGNATURES,
                         )
                     }
+                val archiveVersionCode =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) archiveInfo.longVersionCode
+                    else archiveInfo.versionCode.toLong()
+                val currentVersionCode =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) currentInfo.longVersionCode
+                    else currentInfo.versionCode.toLong()
+                if (!isUpgrade(archiveVersionCode, currentVersionCode)) {
+                    return ApkValidation.Rejected(R.string.app_update_not_newer)
+                }
+                if (!supportsDevice(archiveApplicationInfo.minSdkVersion, Build.VERSION.SDK_INT)) {
+                    return ApkValidation.Rejected(R.string.app_update_requires_newer_android)
+                }
                 val archiveHashes = signatureHashes(archiveInfo)
                 val currentHashes = signatureHashes(currentInfo)
-                if (archiveHashes.isEmpty() || currentHashes.isEmpty()) null
-                else archiveHashes.toSet() == currentHashes.toSet()
+                if (archiveHashes.isEmpty() || currentHashes.isEmpty()) {
+                    return ApkValidation.Indeterminate
+                }
+                if (archiveHashes.toSet() != currentHashes.toSet()) {
+                    return ApkValidation.Rejected(R.string.app_update_signature_mismatch)
+                }
+                ApkValidation.Valid
             }
-            .getOrNull()
+            .getOrElse { ApkValidation.Indeterminate }
+
+    internal fun isUpgrade(archiveVersionCode: Long, currentVersionCode: Long): Boolean =
+        archiveVersionCode > currentVersionCode
+
+    internal fun supportsDevice(minSdkVersion: Int, deviceSdk: Int): Boolean =
+        minSdkVersion <= deviceSdk
 
     private fun signatureHashes(info: PackageInfo?): List<String> {
         info ?: return emptyList()
