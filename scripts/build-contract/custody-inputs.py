@@ -68,12 +68,42 @@ def retain(lock, apk, receipt):
     check(lock)
     return results
 
+def retain_unverified(lock, apk, receipt):
+    # Investigation custody for a build whose final verification FAILED. Never
+    # marks bytes verified: the asset name carries UNVERIFIED and the receipt
+    # records the failing step. Same unpublished draft, same no-overwrite rule.
+    release,_=check(lock)
+    run=os.environ['GITHUB_RUN_ID'];sha=os.environ['GITHUB_SHA']
+    if not run.isdigit() or not re.fullmatch('[0-9a-f]{40}',sha):raise ValueError('invalid run/source binding')
+    data=apk.read_bytes();digest=hashlib.sha256(data).hexdigest()
+    evidence=json.loads(receipt.read_text())
+    if evidence.get('status')!='verification_failed' or evidence.get('apk_sha256')!=digest:raise ValueError('failure receipt binding mismatch')
+    items=[('Seali-alpha7-'+run+'-UNVERIFIED-arm64-v8a.apk',data)]
+    evidence.update(source_sha=sha,run_id=run,custody_release_id=release['id'],public_release_ready=False,verified=False)
+    items.append(('Seali-alpha7-'+run+'-failure-receipt.json',(json.dumps(evidence,indent=2)+'\n').encode()))
+    existing={a['name'] for a in release['assets']}
+    if any(name in existing for name,_ in items):raise ValueError('output asset already exists; do not overwrite')
+    results=[]
+    for name,data in items:
+        check(lock)
+        url='https://uploads.github.com/repos/'+REPO+'/releases/'+str(release['id'])+'/assets?name='+urllib.parse.quote(name,safe='')
+        request=urllib.request.Request(url,data=data,method='POST',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Content-Type':'application/octet-stream','X-GitHub-Api-Version':'2022-11-28'})
+        with urllib.request.build_opener(NoRedirect).open(request,timeout=120) as response:a=json.load(response)
+        digest=hashlib.sha256(data).hexdigest()
+        if a['name']!=name or a['size']!=len(data) or a.get('digest')!='sha256:'+digest:raise ValueError('retained asset identity mismatch')
+        results.append({'id':a['id'],'name':name,'sha256':digest,'bytes':len(data)})
+    check(lock)
+    return results
+
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('action',choices=['download','retain']);p.add_argument('--output',type=pathlib.Path);p.add_argument('--apk',type=pathlib.Path);p.add_argument('--receipt',type=pathlib.Path);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('action',choices=['download','retain','retain-unverified']);p.add_argument('--output',type=pathlib.Path);p.add_argument('--apk',type=pathlib.Path);p.add_argument('--receipt',type=pathlib.Path);a=p.parse_args()
     lock=json.loads(pathlib.Path(__file__).with_name('alpha7-input-lock.json').read_text())
     if a.action=='download':
         if a.output is None:p.error('--output required')
         download(lock,a.output);print(json.dumps({'asset_id':lock['custody']['asset_id'],'sha256':lock['archive']['sha256'],'unpublished':True}))
-    else:
+    elif a.action=='retain':
         if a.apk is None or a.receipt is None:p.error('--apk and --receipt required')
         print(json.dumps({'retained':retain(lock,a.apk,a.receipt),'unpublished':True}))
+    else:
+        if a.apk is None or a.receipt is None:p.error('--apk and --receipt required')
+        print(json.dumps({'retained':retain_unverified(lock,a.apk,a.receipt),'unpublished':True}))
