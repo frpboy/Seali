@@ -3,7 +3,7 @@
 import argparse, hashlib, json, pathlib, shutil, zipfile
 p=argparse.ArgumentParser();p.add_argument('--candidate',required=True);p.add_argument('--root',required=True);a=p.parse_args()
 c=pathlib.Path(a.candidate);root=pathlib.Path(a.root)
-pins={'libpython.zip.so':(20587205,'38f6e236ba307217895ffd180569b6cacb7c854cc43ad8c9eac461c3430638df'),'libpython.so':(52416,'9726de75497c51d033dd1b4bdb9931344815bb3260633d7aa46587e7ea8ab3ce')}
+pins={'libpython.zip.so':(20689270,'a7960d4b60140cd02bba19c1211e80ce8d5fdc071332dece69bc0d4512f7855b'),'libpython.so':(52416,'9726de75497c51d033dd1b4bdb9931344815bb3260633d7aa46587e7ea8ab3ce')}
 for name,(size,digest) in pins.items():
  f=c/name;assert f.is_file() and not f.is_symlink();assert f.stat().st_size==size and hashlib.sha256(f.read_bytes()).hexdigest()==digest,name
 with zipfile.ZipFile(c/'libpython.zip.so') as z:
@@ -24,6 +24,6 @@ d['files']=[{'path':str(f.relative_to(root)),'bytes':f.stat().st_size,'sha256':h
 for row in d['files']:
  name=pathlib.Path(row['path']).name
  if name in pins:row.update(bytes=pins[name][0],sha256=pins[name][1])
-d['source_owned_python']={'version':'3.11.18','cryptodome':'3.24.2','target_executed':False,'source_custody':['521b89e816949445036fd01de7241324aa4da443ba25f338d59669d188404d07','e982ac7d619733c511a8e88ca5dbc87190f9c76394b03284c3b952d12e2bc0ae'],'arm64_only':True}
+d['source_owned_python']={'version':'3.11.18','cryptodome':'3.24.2','target_executed':False,'source_custody':['521b89e816949445036fd01de7241324aa4da443ba25f338d59669d188404d07','e982ac7d619733c511a8e88ca5dbc87190f9c76394b03284c3b952d12e2bc0ae','b1a558b0f2722fd332bdf720ef504a2f6bc004bc9113acd19319b5459b8a001b'],'arm64_only':True}
 manifest.write_text(json.dumps(d,indent=2)+'\n')
 print('exact reviewed source Python staged, ARM64 only; no Android execution')

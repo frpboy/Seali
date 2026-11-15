@@ -20,7 +20,6 @@ libandroid-posix-semaphore/semaphore.c
 libandroid-support-29/LICENSE.txt
 libandroid-support/LICENSE.txt
 libandroid-support/build.sh
-libcrypt/LICENSE
 libcrypt/build.sh
 libcrypt/crypt3.c
 libcrypt/crypt3.c.copyright-and-source
@@ -51,11 +50,13 @@ sqlite3/sqlite3.h.copyright-and-source
 termux-framework/LICENSE.md
 wcwidth-4/LICENSE.txt
 wcwidth/LICENSE.txt
+xz-5.8.4/AUTHORS
 xz-5.8.4/COPYING
 xz-5.8.4/COPYING.0BSD
 xz-5.8.4/COPYING.GPLv2
 xz-5.8.4/COPYING.GPLv3
 xz-5.8.4/COPYING.LGPLv2.1
+xz-5.8.4/README
 yt-dlp-2026.10.26/LICENSE
 yt-dlp-ejs-0.8.0/BUNDLED-JS-NOTICES.txt
 yt-dlp-ejs-0.8.0/EJS-LICENSE

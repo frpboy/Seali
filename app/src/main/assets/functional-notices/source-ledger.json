@@ -754,7 +754,7 @@
       ],
       "binding": "Exact retained CA input equals selected Python payload usr/etc/tls/cert.pem. Mutable upstream URL alone is not a version pin; file hash fixes this snapshot. MPL2.0 notice retained. No TLS trust/runtime security claim.",
       "payload_binding": {
-        "zip_sha256": "38f6e236ba307217895ffd180569b6cacb7c854cc43ad8c9eac461c3430638df",
+        "zip_sha256": "a7960d4b60140cd02bba19c1211e80ce8d5fdc071332dece69bc0d4512f7855b",
         "path": "usr/etc/tls/cert.pem",
         "bytes": 200116,
         "sha256": "427c064216761a1e72a8b30f0d954d08cb6e4435a82091fb865afd20c8497285"
