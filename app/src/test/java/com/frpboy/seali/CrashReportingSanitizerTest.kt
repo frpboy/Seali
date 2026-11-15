@@ -4,6 +4,9 @@ import com.frpboy.seali.util.SentryEventSanitizer
 import com.frpboy.seali.util.applyPrivacyDefaults
 import io.sentry.Breadcrumb
 import io.sentry.JsonSerializer
+import io.sentry.SentryEnvelope
+import io.sentry.SentryEnvelopeHeader
+import io.sentry.SentryEnvelopeItem
 import io.sentry.SentryEvent
 import io.sentry.SentryOptions
 import io.sentry.protocol.Device
@@ -13,6 +16,7 @@ import io.sentry.protocol.SentryException
 import io.sentry.protocol.SentryStackFrame
 import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.User
+import java.io.ByteArrayOutputStream
 import java.io.StringWriter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -88,7 +92,14 @@ class CrashReportingSanitizerTest {
                                     lineno = 87
                                     isInApp = true
                                     absPath = "/data/user/0/com.frpboy.seali/files/Download/private video.mp4"
-                                }
+                                },
+                                SentryStackFrame().apply {
+                                    module = "org.external.Loader"
+                                    function = "load https://media.example/watch?v=private-item"
+                                    filename = "private video.mp4"
+                                    lineno = 1
+                                    isInApp = false
+                                },
                             )
                         )
                 }
@@ -113,10 +124,40 @@ class CrashReportingSanitizerTest {
         assertEquals("RuntimeException", exception.type)
         assertNull(exception.value)
         assertEquals("UncaughtExceptionHandler", exception.mechanism?.type)
-        val frame = exception.stacktrace!!.frames!!.single()
-        assertEquals("onCreate", frame.function)
-        assertEquals("App.kt", frame.filename)
-        assertNull(frame.absPath)
+        val frames = exception.stacktrace!!.frames!!
+        assertEquals("onCreate", frames[0].function)
+        assertEquals("App.kt", frames[0].filename)
+        assertNull(frames[0].absPath)
+        // Out-of-package frame: all detail dropped, only in-app flag survives.
+        assertNull(frames[1].module)
+        assertNull(frames[1].function)
+        assertNull(frames[1].filename)
+        assertNull(frames[1].lineno)
+        assertEquals(false, frames[1].isInApp)
+    }
+
+    @Test
+    fun structuralGuardsDropIdentifierFieldsWithTransportChars() {
+        val event = SentryEvent()
+        event.exceptions =
+            listOf(
+                SentryException().apply {
+                    type = "RuntimeException https://media.example/watch?v=private-item"
+                    mechanism = Mechanism().apply { type = "handler?token=eyJhbGciOiJIUzI1NiJ9" }
+                }
+            )
+        event.contexts.setDevice(
+            Device().apply {
+                model = "Pixel 8"
+                name = "rahus-personal-device"
+                brand = "Google/session=secret"
+            }
+        )
+        val sanitized = SentryEventSanitizer.apply(event)
+        assertNull(sanitized.exceptions!!.single().type)
+        assertNull(sanitized.exceptions!!.single().mechanism?.type)
+        assertNull(sanitized.contexts.device?.brand)
+        assertEquals("Pixel 8", sanitized.contexts.device?.model)
     }
 
     @Test
@@ -130,6 +171,23 @@ class CrashReportingSanitizerTest {
         assertTrue("sanitized payload must keep frame function", payload.contains("onCreate"))
         for (hostile in hostileStrings) {
             assertFalse("payload leaked: $hostile", payload.contains(hostile))
+        }
+    }
+
+    @Test
+    fun actualSdkEnvelopeCarriesSingleItemAndNoHostileString() {
+        val sanitized = SentryEventSanitizer.apply(hostileEvent())
+        val serializer = JsonSerializer(SentryOptions())
+        val item = SentryEnvelopeItem.fromEvent(serializer, sanitized)
+        val envelope = SentryEnvelope(SentryEnvelopeHeader(sanitized.eventId), listOf(item))
+        // Our pipeline creates no attachment items: the envelope must carry the event alone.
+        assertEquals(1, envelope.items.count())
+        val out = ByteArrayOutputStream()
+        serializer.serializeEnvelope(envelope, out)
+        val payload = out.toString(Charsets.UTF_8.name())
+        assertTrue(payload.contains("RuntimeException"))
+        for (hostile in hostileStrings) {
+            assertFalse("envelope leaked: $hostile", payload.contains(hostile))
         }
     }
 

@@ -78,6 +78,22 @@ internal fun SentryOptions.applyPrivacyDefaults() {
  * fields.
  */
 internal object SentryEventSanitizer {
+    private const val APP_PACKAGE_PREFIX = "com.frpboy.seali"
+
+    /**
+     * Structural guard for fields that should only ever hold code/device
+     * identifiers. Values containing transport/path/identity characters
+     * (slash, at-sign, query or encoding markers) or whitespace (unless
+     * allowed, e.g. device model names) cannot be a plain identifier, so
+     * the field is dropped. Charset constraint, not content matching.
+     */
+    private fun String?.structural(maxLength: Int = 128, allowSpace: Boolean = false): String? {
+        if (this == null || this.length > maxLength) return null
+        if (any { it == '/' || it == '\\' || it == '@' || it == '?' || it == '=' || it == '&' || it == '%' }) return null
+        if (!allowSpace && any { it.isWhitespace() }) return null
+        return this
+    }
+
     fun apply(event: SentryEvent): SentryEvent {
         event.user = null
         event.request = null
@@ -94,34 +110,34 @@ internal object SentryEventSanitizer {
         contexts.operatingSystem?.let { os ->
             contexts.setOperatingSystem(
                 OperatingSystem().apply {
-                    name = os.name
-                    version = os.version
+                    name = os.name.structural(64, allowSpace = true)
+                    version = os.version.structural(64)
                 }
             )
         }
         contexts.device?.let { device ->
             contexts.setDevice(
                 Device().apply {
-                    model = device.model
-                    brand = device.brand
-                    manufacturer = device.manufacturer
+                    model = device.model.structural(64, allowSpace = true)
+                    brand = device.brand.structural(64, allowSpace = true)
+                    manufacturer = device.manufacturer.structural(64, allowSpace = true)
                 }
             )
         }
         contexts.app?.let { app ->
             contexts.setApp(
                 App().apply {
-                    appIdentifier = app.appIdentifier
-                    appVersion = app.appVersion
-                    appBuild = app.appBuild
+                    appIdentifier = app.appIdentifier.structural(128)
+                    appVersion = app.appVersion.structural(64)
+                    appBuild = app.appBuild.structural(64)
                 }
             )
         }
         contexts.runtime?.let { runtime ->
             contexts.setRuntime(
                 SentryRuntime().apply {
-                    name = runtime.name
-                    version = runtime.version
+                    name = runtime.name.structural(64, allowSpace = true)
+                    version = runtime.version.structural(64)
                 }
             )
         }
@@ -130,31 +146,42 @@ internal object SentryEventSanitizer {
 
     private fun reconstructException(source: SentryException): SentryException {
         val out = SentryException()
-        out.type = source.type
-        out.module = source.module
+        out.type = source.type.structural()
+        out.module = source.module.structural()
         // value is free text and can embed URLs, file paths and tokens: dropped.
         out.mechanism =
             source.mechanism?.let { mech ->
                 Mechanism().apply {
-                    type = mech.type
+                    type = mech.type.structural()
                     isHandled = mech.isHandled
                 }
             }
         out.stacktrace =
             source.stacktrace?.let { trace ->
                 SentryStackTrace(
-                    trace.frames?.map { frame ->
-                        SentryStackFrame().apply {
-                            module = frame.module
-                            function = frame.function
-                            filename = frame.filename
-                            lineno = frame.lineno
-                            isInApp = frame.isInApp
-                            // absPath, vars, context lines and native addresses dropped.
-                        }
-                    }
+                    trace.frames?.map { frame -> reconstructFrame(frame) }
                 )
             }
+        return out
+    }
+
+    /**
+     * Frame detail (module, function, filename, line) is kept only for
+     * frames inside the app package - those are compile-time identifiers
+     * of our own source. Foreign frames keep only the in-app flag, so a
+     * hostile or library-generated value can never ride these fields.
+     * absPath, vars, context lines and native addresses are always dropped.
+     */
+    private fun reconstructFrame(frame: SentryStackFrame): SentryStackFrame {
+        val out = SentryStackFrame()
+        out.isInApp = frame.isInApp
+        val module = frame.module
+        if (module != null && module.startsWith(APP_PACKAGE_PREFIX)) {
+            out.module = module.structural()
+            out.function = frame.function.structural()
+            out.filename = frame.filename.structural()
+            out.lineno = frame.lineno
+        }
         return out
     }
 }
