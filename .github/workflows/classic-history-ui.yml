@@ -135,7 +135,7 @@ jobs:
         run: bash scripts/release-qualification/build-compatible-alpha7.sh
       - name: Verify compatible alpha7 static identity and payload only
         timeout-minutes: 2
-        run: python3 scripts/release-qualification/verify-compatible-alpha7.py
+        run: python3 scripts/release-qualification/verify-compatible-release.py
       - name: Collect private build evidence, not runtime claims
         timeout-minutes: 3
         if: always() && steps.prepare.outcome == 'success'
