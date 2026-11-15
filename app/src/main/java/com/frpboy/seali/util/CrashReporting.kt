@@ -2,7 +2,6 @@ package com.frpboy.seali.util
 
 import android.content.Context
 import com.frpboy.seali.BuildConfig
-import io.sentry.AsyncHttpTransportFactory
 import io.sentry.Hint
 import io.sentry.ITransportFactory
 import io.sentry.JsonSerializer
@@ -11,7 +10,6 @@ import io.sentry.SentryEnvelope
 import io.sentry.SentryEnvelopeHeader
 import io.sentry.SentryEnvelopeItem
 import io.sentry.SentryEvent
-import io.sentry.SentryId
 import io.sentry.SentryItemType
 import io.sentry.SentryLevel
 import io.sentry.SentryOptions
@@ -19,8 +17,13 @@ import io.sentry.android.core.SentryAndroid
 import io.sentry.protocol.Contexts
 import io.sentry.protocol.Message
 import io.sentry.protocol.SentryException
+import io.sentry.protocol.SentryId
 import io.sentry.transport.ITransport
+import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.URI
 import java.util.Date
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Minimal automatic crash/error reporting. Error and crash capture only:
@@ -28,13 +31,20 @@ import java.util.Date
  * view hierarchy or breadcrumbs.
  *
  * Boundary: nothing the SDK captured is forwarded. Every captured event,
- * hint and envelope item is discarded and replaced by ONE fixed generic
- * event built only from trusted build constants plus a fresh random id
- * and timestamp ([buildGenericEvent]). The transport wrapper
- * ([FixedEventTransport]) rebuilds the final envelope the same way at
- * the last boundary, so anything added after beforeSend - attachments,
- * extra items, integrations - is dropped as well. There is no content
- * scanning or charset filtering: the input is never read.
+ * hint and envelope item is discarded; when (and only when) the SDK
+ * submits an envelope that carries an error/crash event item, one fixed
+ * generic event built from trusted build constants plus a fresh id and
+ * timestamp ([buildGenericEvent]) is sent instead. Envelopes without an
+ * event item (session, client-report, transaction, log-only, empty) are
+ * dropped and never converted into an error. There is no content
+ * scanning: the input is never read.
+ *
+ * Transport: a bounded explicit direct transport ([FixedEventTransport]),
+ * not the SDK's async wrapper - no background queue, no client-report
+ * injection, no retry machinery. At most one send per minute and one in
+ * flight; the busy flag is held across the actual blocking HTTP POST,
+ * with connect/read deadlines, then released. Failures are dropped, not
+ * queued or retried.
  *
  * Java/Kotlin crashes only: native (C/C++) crashes are NOT captured
  * because the NDK artifact is deliberately not included, keeping the APK
@@ -61,9 +71,8 @@ object CrashReporting {
             options.isEnableAppComponentBreadcrumbs = false
             options.beforeSend =
                 SentryOptions.BeforeSendCallback { _, _ -> buildGenericEvent() }
-            val inner = AsyncHttpTransportFactory()
-            options.setTransportFactory(ITransportFactory { opts, details ->
-                FixedEventTransport(opts, inner.create(opts, details))
+            options.setTransportFactory(ITransportFactory { opts, _ ->
+                FixedEventTransport(opts)
             })
         }
         enabled = true
@@ -76,10 +85,10 @@ object CrashReporting {
     /**
      * The only payload ever sent: a fixed generic event built from
      * trusted build constants (version name/code from BuildConfig,
-     * constant level/logger/environment) with a fresh random id and
-     * current timestamp. No field, hint, attachment, frame, thread,
-     * context, tag, extra or any other value from the captured input is
-     * read or carried over.
+     * constant level/logger/environment, fixed generic error content)
+     * with a fresh random id and current timestamp. No field, hint,
+     * attachment, frame, thread, context, tag, extra or any other value
+     * from the captured input is read or carried over.
      */
     fun buildGenericEvent(): SentryEvent {
         val out = SentryEvent(SentryId(), Date())
@@ -107,48 +116,82 @@ internal fun SentryOptions.applyPrivacyDefaults() {
 }
 
 /**
- * Final boundary: whatever envelope the SDK built is discarded and
- * replaced by one envelope containing exactly one item - the fixed
- * generic event - under a fresh header. The incoming envelope, hint and
- * item headers are never forwarded.
+ * Bounded explicit direct transport: whatever envelope the SDK built is
+ * discarded; when it carried an event item, exactly one envelope - one
+ * fixed generic event item under a fresh header - is POSTed to the DSN
+ * endpoint with a blocking, deadline-bounded connection. The busy flag
+ * spans the actual I/O. No SDK async wrapper, queue, client-report
+ * attachment or retry is involved. [poster] is injectable so tests can
+ * capture the exact final wire bytes without network.
  */
 internal class FixedEventTransport(
     private val options: SentryOptions,
-    private val inner: ITransport,
+    private val poster: (ByteArray) -> Unit = { bytes -> defaultPost(options.dsn, bytes) },
 ) : ITransport {
     override fun send(envelope: SentryEnvelope, hint: Hint) {
         // Gate: only an envelope carrying an error/crash event item is
-        // worth reporting. Session, client-report, transaction, log-only
-        // or empty envelopes are dropped, never converted into an error.
+        // worth reporting.
         if (envelope.items.none { it.header.type == SentryItemType.Event }) return
-        // Local rate cap: at most one send per minute, shared across
-        // instances. A burst is dropped, not queued.
-        val now = System.currentTimeMillis()
-        if (now - lastSendAt < MIN_INTERVAL_MS) return
-        // One send in flight at a time: a busy sender drops instead of
-        // queueing. The busy flag holds until the send actually
-        // completes (or throws), never released early.
+        // One send in flight: busy drops instead of queueing. The flag is
+        // taken BEFORE the rate check and spans the actual POST below.
         if (!inFlight.compareAndSet(false, true)) return
         try {
+            // Local rate cap: at most one send per minute, shared across
+            // instances; a burst is dropped, not queued.
+            val now = System.currentTimeMillis()
+            if (now - lastSendAt < MIN_INTERVAL_MS) return
             lastSendAt = now
             val event = CrashReporting.buildGenericEvent()
             val serializer = options.serializer ?: JsonSerializer(options)
-            val item = SentryEnvelopeItem.fromEvent(serializer, event)
-            inner.send(SentryEnvelope(SentryEnvelopeHeader(event.eventId), listOf(item)), Hint())
+            val out =
+                SentryEnvelope(
+                    SentryEnvelopeHeader(event.eventId),
+                    listOf(SentryEnvelopeItem.fromEvent(serializer, event)),
+                )
+            val bytes = ByteArrayOutputStream()
+            serializer.serialize(out, bytes)
+            poster(bytes.toByteArray())
         } finally {
             inFlight.set(false)
         }
     }
 
-    override fun isHealthy(): Boolean = inner.isHealthy
+    override fun isHealthy(): Boolean = true
 
-    override fun flush(timeoutMillis: Long) = inner.flush(timeoutMillis)
+    override fun flush(timeoutMillis: Long) {}
 
-    override fun close() = inner.close()
+    override fun close() {}
 
     companion object {
         private const val MIN_INTERVAL_MS = 60_000L
+        private const val TIMEOUT_MS = 10_000
         @Volatile private var lastSendAt = 0L
-        private val inFlight = java.util.concurrent.atomic.AtomicBoolean(false)
+        private val inFlight = AtomicBoolean(false)
+
+        /** Blocking POST of the final envelope bytes to the DSN endpoint. */
+        internal fun defaultPost(dsn: String, bytes: ByteArray) {
+            try {
+                val uri = URI(dsn)
+                val endpoint = "${uri.scheme}://${uri.host}/api${uri.path}/envelope/"
+                val conn = URI(endpoint).toURL().openConnection() as HttpURLConnection
+                try {
+                    conn.connectTimeout = TIMEOUT_MS
+                    conn.readTimeout = TIMEOUT_MS
+                    conn.requestMethod = "POST"
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/x-sentry-envelope")
+                    conn.setRequestProperty(
+                        "X-Sentry-Auth",
+                        "Sentry sentry_version=7, sentry_client=seali-boundary/1, sentry_key=${uri.userInfo}",
+                    )
+                    conn.outputStream.use { it.write(bytes) }
+                    conn.responseCode // force completion of the request
+                } finally {
+                    conn.disconnect()
+                }
+            } catch (_: Exception) {
+                // Reporting must never crash the app or retry: drop.
+            }
+        }
     }
 }

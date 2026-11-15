@@ -12,7 +12,7 @@ import io.sentry.SentryEnvelope
 import io.sentry.SentryEnvelopeHeader
 import io.sentry.SentryEnvelopeItem
 import io.sentry.SentryEvent
-import io.sentry.SentryId
+import io.sentry.protocol.SentryId
 import io.sentry.SentryItemType
 import io.sentry.SentryLevel
 import io.sentry.SentryOptions
@@ -124,18 +124,9 @@ class CrashReportingSanitizerTest {
     @Test
     fun `transport discards a hostile envelope and forwards one fixed event item`() {
         val options = SentryOptions()
-        val captured = mutableListOf<SentryEnvelope>()
-        val inner =
-            object : ITransport {
-                override fun send(envelope: SentryEnvelope, hint: Hint) {
-                    captured.add(envelope)
-                }
-                override fun isHealthy() = true
-                override fun flush(timeoutMillis: Long) {}
-                override fun close() {}
-            }
+        val captured = mutableListOf<ByteArray>()
         options.serializer = JsonSerializer(options)
-        val transport = FixedEventTransport(options, inner)
+        val transport = FixedEventTransport(options) { bytes -> captured.add(bytes) }
         // Hostile envelope: hostile event item, an attachment item, hostile
         // hint, original envelope id.
         val hostileItem =
@@ -153,33 +144,24 @@ class CrashReportingSanitizerTest {
             hint,
         )
         assertEquals(1, captured.size)
-        val out = captured.single()
-        assertEquals(1, out.items.size)
-        assertEquals(SentryItemType.Event, out.items.single().header.type)
-        val bytes = ByteArrayOutputStream()
-        options.serializer.serialize(out, bytes)
-        val payload = bytes.toString()
+        // Parse the exact final wire bytes back: one envelope, one item.
+        val wire = captured.single()
+        val parsed = options.serializer.deserializeEnvelope(ByteArrayInputStream(wire))!!
+        assertEquals(1, parsed.items.size)
+        assertEquals(SentryItemType.Event, parsed.items.single().header.type)
+        val payload = String(wire)
         for (hostile in hostileStrings) {
             assertFalse("envelope leaked: $hostile", payload.contains(hostile))
         }
-        // Fresh ids: header id differs from the submitted envelope's id.
+        assertTrue(payload.contains("AppError"))
     }
 
     @Test
     fun `transport drops envelopes without an event item`() {
         val options = SentryOptions()
         options.serializer = JsonSerializer(options)
-        val captured = mutableListOf<SentryEnvelope>()
-        val inner =
-            object : ITransport {
-                override fun send(envelope: SentryEnvelope, hint: Hint) {
-                    captured.add(envelope)
-                }
-                override fun isHealthy() = true
-                override fun flush(timeoutMillis: Long) {}
-                override fun close() {}
-            }
-        val transport = FixedEventTransport(options, inner)
+        val captured = mutableListOf<ByteArray>()
+        val transport = FixedEventTransport(options) { bytes -> captured.add(bytes) }
         // Empty envelope: dropped.
         transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), emptyList()), Hint())
         // Attachment-only envelope: dropped, never converted into an error.
