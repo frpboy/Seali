@@ -26,7 +26,7 @@ class UpdatePackageTrustTest {
         val dir = java.nio.file.Files.createTempDirectory("dl").toFile()
         val first = UpdateUtil.newApkDownloadFile(dir)
         val second = UpdateUtil.newApkDownloadFile(dir)
-        assertNotEquals(first.absolutePath, second.absolutePath)
+        assertTrue(first.absolutePath != second.absolutePath)
         assertEquals(dir, first.parentFile)
         assertEquals(dir, second.parentFile)
     }
