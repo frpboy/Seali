@@ -115,6 +115,14 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     private val _missingHistoryFileIds = MutableStateFlow<Set<String>>(emptySet())
     override val missingHistoryFileIds: StateFlow<Set<String>> = _missingHistoryFileIds
 
+    /**
+     * Paths the user dismissed from the queue this session. Kept in memory only:
+     * deleting a queue entry never deletes the durable download history or its
+     * files, and dismissed entries are eligible to reappear after a restart,
+     * where Finished is a view of saved downloads.
+     */
+    private val hiddenHistoryPaths = mutableSetOf<String>()
+
     init {
         scope.launch(Dispatchers.Default) {
             snapshotFlow
@@ -134,7 +142,9 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                     }
                     .collect { (session, history) ->
                         val plan =
-                            planHistoryMerge(session, history) { path -> File(path).exists() }
+                            planHistoryMerge(session, history, hiddenHistoryPaths) { path ->
+                                File(path).exists()
+                            }
                         if (plan.toRemoveIds.isNotEmpty()) {
                             val byId = taskStateMap.keys.associateBy { it.id }
                             plan.toRemoveIds.forEach { id -> byId[id]?.let(taskStateMap::remove) }
@@ -206,6 +216,13 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
      */
     override fun remove(task: Task): Boolean {
         if (taskStateMap.contains(task)) {
+            // Without remembering the dismissed path, the history merge would
+            // immediately re-synthesize the entry from its Room row, making the
+            // delete visibly ineffective. The Room row and its file are left
+            // untouched; permanent removal lives in the Downloads screen.
+            (taskStateMap[task]?.downloadState as? Completed)?.filePath?.let {
+                hiddenHistoryPaths += it
+            }
             taskStateMap.remove(task)
             return true
         }

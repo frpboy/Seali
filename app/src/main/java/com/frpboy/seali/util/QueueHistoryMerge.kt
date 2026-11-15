@@ -50,7 +50,10 @@ internal fun synthesizeHistoryEntry(info: DownloadedVideoInfo): Pair<Task, Task.
  * Computes the minimal mutation aligning synthetic history entries in [session]
  * with durable [history]. Idempotent: applying the plan and re-planning the
  * result yields an empty plan, which terminates the collector's apply loop.
- * Newest history rows come first in [HistoryMergePlan.toAdd].
+ * Newest history rows come first in [HistoryMergePlan.toAdd]. Duplicate history
+ * paths (possible after a backup restore, since the DAO dedupes only at insert
+ * time) collapse to the newest row. [hiddenPaths] holds session-scoped queue
+ * dismissals so a deleted entry does not reappear from its Room row.
  *
  * [fileExists] is invoked by the caller off the UI thread; it must never run
  * during composition or layout.
@@ -58,6 +61,7 @@ internal fun synthesizeHistoryEntry(info: DownloadedVideoInfo): Pair<Task, Task.
 internal fun planHistoryMerge(
     session: Map<Task, Task.State>,
     history: List<DownloadedVideoInfo>,
+    hiddenPaths: Set<String> = emptySet(),
     fileExists: (String) -> Boolean,
 ): HistoryMergePlan {
     val realCompletedPaths =
@@ -70,8 +74,20 @@ internal fun planHistoryMerge(
     val existingHistoryIds =
         session.keys.filter { it.isHistoryEntry() }.map { it.id }.toSet()
 
+    // [hiddenPaths] are paths the user dismissed from the queue this session;
+    // without the exclusion a deleted live Completed task would instantly
+    // reappear as a synthesized entry for the same Room row.
+    // The DAO dedupes by path only at insert time, so a restored database can
+    // hold duplicate paths; keep the newest row per path.
     val wanted =
-        history.filter { it.videoPath.isNotBlank() && it.videoPath !in realCompletedPaths }
+        history
+            .filter {
+                it.videoPath.isNotBlank() &&
+                    it.videoPath !in realCompletedPaths &&
+                    it.videoPath !in hiddenPaths
+            }
+            .groupBy { it.videoPath }
+            .map { (_, rows) -> rows.maxBy { it.id } }
     val wantedIds = wanted.map { historyTaskId(it.id) }.toSet()
 
     val toRemoveIds = existingHistoryIds - wantedIds
