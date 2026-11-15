@@ -16,8 +16,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import com.frpboy.seali.App
+import com.frpboy.seali.BuildConfig
 import com.frpboy.seali.R
+import com.frpboy.seali.util.CandidateFeaturePolicy
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.ToastUtil
 import com.frpboy.seali.util.UpdateUtil
@@ -28,9 +29,11 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun AppUpdater() {
-    // Google Play builds update through the Play Store and F-Droid builds through the
-    // F-Droid client; only direct-distribution builds self-update by sideloading APKs.
-    if (App.isPlayBuild() || App.isFDroidBuild()) return
+    // Only the generic direct-distribution release build self-updates by sideloading
+    // APKs: Play and F-Droid builds update through their stores, and preview or debug
+    // builds cannot install release artifacts.
+    if (!CandidateFeaturePolicy.appUpdatesAvailableForChannel(BuildConfig.FLAVOR, BuildConfig.DEBUG))
+        return
 
     val context = LocalContext.current
 
@@ -39,7 +42,7 @@ fun AppUpdater() {
         mutableStateOf(UpdateUtil.DownloadStatus.NotYet as UpdateUtil.DownloadStatus)
     }
     val scope = rememberCoroutineScope()
-    var updateJob: Job? = null
+    var updateJob by remember { mutableStateOf<Job?>(null) }
     var release by remember { mutableStateOf(UpdateUtil.Release()) }
     val settings =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -94,9 +97,11 @@ fun AppUpdater() {
                                     ->
                                     currentDownloadStatus = downloadStatus
                                     if (downloadStatus is UpdateUtil.DownloadStatus.Finished) {
-                                        launcher.launch(
-                                            Manifest.permission.REQUEST_INSTALL_PACKAGES
-                                        )
+                                        withContext(Dispatchers.Main) {
+                                            launcher.launch(
+                                                Manifest.permission.REQUEST_INSTALL_PACKAGES
+                                            )
+                                        }
                                     }
                                 }
                             }

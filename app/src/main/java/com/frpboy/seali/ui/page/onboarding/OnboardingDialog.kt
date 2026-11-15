@@ -61,6 +61,7 @@ import com.frpboy.seali.util.PreferenceUtil.getInt
 import com.frpboy.seali.util.UI_STYLE
 import com.frpboy.seali.util.UI_STYLE_CLASSIC
 import com.frpboy.seali.util.UI_STYLE_V2
+import com.frpboy.seali.App
 import com.frpboy.seali.ui.page.settings.general.RuntimeNightlyWarningDialog
 import com.frpboy.seali.util.YT_DLP_NIGHTLY
 import com.frpboy.seali.util.YT_DLP_STABLE
@@ -98,9 +99,15 @@ fun OnboardingGate() {
                                 }
                             info.firstInstallTime == info.lastUpdateTime
                         }
-                        .getOrDefault(false)
-                if (!freshInstall && !done) PreferenceUtil.encodeBoolean(ONBOARDING_DONE, true)
-                OnboardingPolicy.shouldShow(isFreshInstall = freshInstall, onboardingDone = done)
+                        .getOrNull()
+                if (freshInstall == false && !done) PreferenceUtil.encodeBoolean(ONBOARDING_DONE, true)
+                // Freshness unknown: stay quiet this launch and never persist the
+                // completion flag, so a transient lookup failure does not
+                // permanently skip onboarding.
+                OnboardingPolicy.shouldShow(
+                    isFreshInstall = freshInstall == true,
+                    onboardingDone = done,
+                )
             }
     }
     if (showOnboarding) {
@@ -180,6 +187,7 @@ fun OnboardingFlow(onFinish: () -> Unit) {
                         4 ->
                             OnboardingEngineStep(
                                 channel = engineChannel,
+                                storeManaged = App.isPlayBuild(),
                                 onChannelSelected = { selected ->
                                     if (selected == YT_DLP_NIGHTLY) {
                                         // Nightly takes effect only through the required
@@ -214,6 +222,7 @@ fun OnboardingFlow(onFinish: () -> Unit) {
                             showNightlyWarning = false
                         },
                         onDeny = { showNightlyWarning = false },
+                        hint = stringResource(R.string.runtime_nightly_save_hint_onboarding),
                     )
                 }
                 HorizontalPagerIndicator(
@@ -385,12 +394,20 @@ fun OnboardingAppearanceStep(
 }
 
 @Composable
-fun OnboardingEngineStep(channel: Int, onChannelSelected: (Int) -> Unit) {
+fun OnboardingEngineStep(channel: Int, storeManaged: Boolean, onChannelSelected: (Int) -> Unit) {
     OnboardingStepLayout(
         icon = Icons.Outlined.SystemUpdate,
         title = stringResource(R.string.onboarding_engine_title),
         description = stringResource(R.string.onboarding_engine_desc),
     ) {
+        if (storeManaged) {
+            Text(
+                text = stringResource(R.string.onboarding_engine_store_managed),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@OnboardingStepLayout
+        }
         OnboardingChoiceGroup(
             label = stringResource(R.string.update_channel),
             options =
@@ -470,7 +487,7 @@ private fun PreviewAppearanceStep() {
 @Preview
 @Composable
 private fun PreviewEngineStep() {
-    OnboardingEngineStep(channel = YT_DLP_STABLE, onChannelSelected = {})
+    OnboardingEngineStep(channel = YT_DLP_STABLE, storeManaged = false, onChannelSelected = {})
 }
 
 @Preview

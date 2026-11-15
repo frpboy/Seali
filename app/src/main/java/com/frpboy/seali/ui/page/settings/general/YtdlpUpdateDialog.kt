@@ -118,6 +118,7 @@ fun RuntimeNightlyWarningDialog(
     onDontWarnPendingChange: (Boolean) -> Unit,
     onAllow: () -> Unit,
     onDeny: () -> Unit,
+    hint: String = stringResource(R.string.runtime_nightly_save_hint),
 ) {
     AlertDialog(
         onDismissRequest = onDeny,
@@ -136,7 +137,7 @@ fun RuntimeNightlyWarningDialog(
                     Checkbox(checked = dontWarnPending, onCheckedChange = null)
                     Text(stringResource(R.string.runtime_nightly_dont_show_again))
                 }
-                Text(stringResource(R.string.runtime_nightly_save_hint))
+                Text(hint)
             }
         },
         confirmButton = {

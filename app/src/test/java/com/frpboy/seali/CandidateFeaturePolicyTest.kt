@@ -15,28 +15,48 @@ class CandidateFeaturePolicyTest {
         }
     }
 
-    @Test fun `app updates available only on direct distribution channels`() {
-        // generic / githubPreview: direct distribution, self-update qualified
-        assertTrue(CandidateFeaturePolicy.appUpdatesAvailableForChannel(isPlay = false, isFDroid = false))
-        // Play builds must update through Google Play
-        assertFalse(CandidateFeaturePolicy.appUpdatesAvailableForChannel(isPlay = true, isFDroid = false))
-        // F-Droid builds update through the F-Droid client
-        assertFalse(CandidateFeaturePolicy.appUpdatesAvailableForChannel(isPlay = false, isFDroid = true))
-        assertFalse(CandidateFeaturePolicy.appUpdatesAvailableForChannel(isPlay = true, isFDroid = true))
+    @Test fun `app updates available only on the generic release build`() {
+        // generic release: the only qualified self-update channel
+        assertTrue(
+            CandidateFeaturePolicy.appUpdatesAvailableForChannel(flavor = "generic", isDebug = false)
+        )
+        // debug builds are signed differently and cannot install release artifacts
+        assertFalse(
+            CandidateFeaturePolicy.appUpdatesAvailableForChannel(flavor = "generic", isDebug = true)
+        )
+        // Play builds must update through Google Play; F-Droid builds through the F-Droid
+        // client; preview builds carry a different application id than release artifacts
+        for (flavor in listOf("play", "fdroid", "githubPreview", "fdroidPreview")) {
+            assertFalse(
+                "flavor $flavor must not self-update",
+                CandidateFeaturePolicy.appUpdatesAvailableForChannel(flavor = flavor, isDebug = false),
+            )
+            assertFalse(
+                CandidateFeaturePolicy.appUpdatesAvailableForChannel(flavor = flavor, isDebug = true)
+            )
+        }
     }
 
-    @Test fun `update attempt fails explicitly on store-owned channels`() {
-        for ((isPlay, isFDroid) in listOf(true to false, false to true, true to true)) {
+    @Test fun `update attempt fails explicitly on non-qualified channels`() {
+        for ((flavor, isDebug) in
+            listOf(
+                "play" to false,
+                "fdroid" to false,
+                "githubPreview" to false,
+                "fdroidPreview" to false,
+                "generic" to true,
+            )
+        ) {
             try {
-                CandidateFeaturePolicy.requireAppUpdatesAvailable(isPlay = isPlay, isFDroid = isFDroid)
-                fail("Store-owned channels must not offer in-app self-update")
+                CandidateFeaturePolicy.requireAppUpdatesAvailable(flavor = flavor, isDebug = isDebug)
+                fail("Channel $flavor (debug=$isDebug) must not offer in-app self-update")
             } catch (e: IllegalStateException) {
                 assertEquals(CandidateFeaturePolicy.UPDATE_UNAVAILABLE, e.message)
             }
         }
     }
 
-    @Test fun `update gate passes on direct channel`() {
-        CandidateFeaturePolicy.requireAppUpdatesAvailable(isPlay = false, isFDroid = false)
+    @Test fun `update gate passes on the generic release channel`() {
+        CandidateFeaturePolicy.requireAppUpdatesAvailable(flavor = "generic", isDebug = false)
     }
 }

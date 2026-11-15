@@ -8,6 +8,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.frpboy.seali.App
+import com.frpboy.seali.BuildConfig
 import com.frpboy.seali.App.Companion.context
 import com.frpboy.seali.R
 import com.frpboy.seali.util.FileUtil.getFileProvider
@@ -105,7 +106,7 @@ object UpdateUtil {
             .maxByOrNull { it.name.toVersion() }
 
     fun checkForUpdate(context: Context = App.context): Release? {
-        CandidateFeaturePolicy.requireAppUpdatesAvailable(App.isPlayBuild(), App.isFDroidBuild())
+        CandidateFeaturePolicy.requireAppUpdatesAvailable(BuildConfig.FLAVOR, BuildConfig.DEBUG)
         val currentVersion = context.getCurrentVersion()
         val latestRelease = getLatestRelease()
         val latestVersion = latestRelease.name.toVersion()
@@ -129,8 +130,8 @@ object UpdateUtil {
             kotlin
                 .runCatching {
                     CandidateFeaturePolicy.requireAppUpdatesAvailable(
-                        App.isPlayBuild(),
-                        App.isFDroidBuild(),
+                        BuildConfig.FLAVOR,
+                        BuildConfig.DEBUG,
                     )
                     when (val validation = validateDownloadedApk()) {
                         is ApkValidation.Rejected -> {
@@ -205,25 +206,48 @@ object UpdateUtil {
                         throw Exception("update package URL is missing or untrusted")
                     }
             val expectedSha256 = expectedSha256(release = release, assetName = targetAsset.name)
+            val latestApk = context.getLatestApk()
+            // Downloads write a unique temp file and atomically rename into place, so a
+            // process death or an overlapping download can never leave a partial or
+            // interleaved package at the install location.
+            latestApk.parentFile
+                ?.listFiles { file ->
+                    file.name.startsWith("latest.apk.") && file.name.endsWith(".tmp")
+                }
+                ?.forEach { it.delete() }
+            val tempApk = File(latestApk.parentFile, "latest.apk.${System.nanoTime()}.tmp")
             try {
-                val response = executeFollowingTrustedRedirects(Request.Builder().url(targetUrl).build())
+                val response =
+                    executeFollowingTrustedRedirects(Request.Builder().url(targetUrl).build())
+                if (!response.isSuccessful) {
+                    response.close()
+                    throw Exception("update download failed: HTTP ${response.code}")
+                }
                 val responseBody = response.body
                 return@withContext flow {
-                        responseBody.downloadFileWithProgress(context.getLatestApk()).collect {
-                            status ->
-                            if (status is DownloadStatus.Finished && expectedSha256 != null) {
-                                val actual = sha256FileHex(status.file)
-                                if (!actual.equals(expectedSha256, ignoreCase = true)) {
-                                    status.file.delete()
-                                    throw Exception("update package checksum mismatch")
+                        responseBody.downloadFileWithProgress(tempApk).collect { status ->
+                            if (status is DownloadStatus.Finished) {
+                                if (expectedSha256 != null) {
+                                    val actual = sha256FileHex(status.file)
+                                    if (!actual.equals(expectedSha256, ignoreCase = true)) {
+                                        status.file.delete()
+                                        throw Exception("update package checksum mismatch")
+                                    }
                                 }
+                                if (!status.file.renameTo(latestApk)) {
+                                    status.file.delete()
+                                    throw Exception("could not finalize update package")
+                                }
+                                emit(DownloadStatus.Finished(latestApk))
+                            } else {
+                                emit(status)
                             }
-                            emit(status)
                         }
                     }
                     .flowOn(Dispatchers.IO)
             } catch (e: Exception) {
                 e.printStackTrace()
+                tempApk.delete()
             }
             emptyFlow()
         }
@@ -364,12 +388,22 @@ object UpdateUtil {
                 if (archiveHashes.isEmpty() || currentHashes.isEmpty()) {
                     return ApkValidation.Indeterminate
                 }
-                if (archiveHashes.toSet() != currentHashes.toSet()) {
+                if (!isSignerLineageContinuous(currentHashes.toSet(), archiveHashes.toSet())) {
                     return ApkValidation.Rejected(R.string.app_update_signature_mismatch)
                 }
                 ApkValidation.Valid
             }
             .getOrElse { ApkValidation.Rejected(R.string.app_update_validation_failed) }
+
+    /**
+     * The update's signing certificate history must continue the installed app's
+     * lineage: identical certificates, or a valid rotation where the installed
+     * certificates remain in the update's history. A different signer fails closed.
+     */
+    internal fun isSignerLineageContinuous(
+        currentHashes: Set<String>,
+        updateHashes: Set<String>,
+    ): Boolean = currentHashes.isNotEmpty() && updateHashes.containsAll(currentHashes)
 
     internal fun isUpgrade(archiveVersionCode: Long, currentVersionCode: Long): Boolean =
         archiveVersionCode > currentVersionCode
@@ -427,6 +461,9 @@ object UpdateUtil {
                     byteStream().use { inputStream ->
                         saveFile.outputStream().use { outputStream ->
                             val totalBytes = contentLength()
+                            if (totalBytes <= 0L) {
+                                throw Exception("update package size unknown")
+                            }
                             val data = ByteArray(8_192)
                             var progressBytes = 0L
 

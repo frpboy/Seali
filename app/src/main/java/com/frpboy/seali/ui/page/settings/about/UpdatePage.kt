@@ -34,7 +34,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.frpboy.seali.App
+import com.frpboy.seali.BuildConfig
 import com.frpboy.seali.R
 import com.frpboy.seali.ui.component.BackButton
 import com.frpboy.seali.ui.component.PreferenceInfo
@@ -62,7 +62,7 @@ import kotlinx.coroutines.withContext
 fun UpdatePage(onNavigateBack: () -> Unit) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     val updatesAvailable =
-        CandidateFeaturePolicy.appUpdatesAvailableForChannel(App.isPlayBuild(), App.isFDroidBuild())
+        CandidateFeaturePolicy.appUpdatesAvailableForChannel(BuildConfig.FLAVOR, BuildConfig.DEBUG)
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {

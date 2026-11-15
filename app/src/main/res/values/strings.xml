@@ -499,6 +499,7 @@
     <string name="runtime_nightly_warning_body">Nightly builds are experimental. They may break downloads or require switching back to Stable. A new engine is installed only if its integrity and required offline capabilities pass checks. This is not a guarantee that every website will work.</string>
     <string name="runtime_nightly_dont_show_again">Don\'t show again</string>
     <string name="runtime_nightly_save_hint">Allow selects Nightly for now. Confirm in Update settings to save your choice and this checkbox. Cancel here keeps Stable selected.</string>
+    <string name="runtime_nightly_save_hint_onboarding">Allow selects Nightly for this device. You can change this anytime in Settings.</string>
     <string name="runtime_nightly_allow">Allow</string>
     <string name="app_update_signature_mismatch">Update package signature does not match this installation. Install canceled.</string>
     <string name="app_update_invalid_apk">Downloaded update is not a valid Seali package.</string>
@@ -531,6 +532,7 @@
     <string name="onboarding_engine_desc">Seali uses the yt-dlp engine to read media sites. Stable is recommended for most people. Nightly gets site fixes sooner but can break downloads.</string>
     <string name="onboarding_finish_title">You\'re all set</string>
     <string name="onboarding_finish_desc">Paste a link on the home page to start your first download. Update and engine settings live in Settings.</string>
+    <string name="onboarding_engine_store_managed">On this build, engine updates arrive together with app updates from the store.</string>
     <string name="onboarding_next">Next</string>
     <string name="onboarding_back">Back</string>
     <string name="onboarding_skip">Skip</string>

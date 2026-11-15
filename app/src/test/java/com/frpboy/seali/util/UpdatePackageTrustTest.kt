@@ -22,6 +22,26 @@ class UpdatePackageTrustTest {
     }
 
     @Test
+    fun `signer lineage requires the installed certificates to continue in the update`() {
+        val certA = "a".repeat(64)
+        val certB = "b".repeat(64)
+        val certC = "c".repeat(64)
+        // identical signer
+        assertTrue(UpdateUtil.isSignerLineageContinuous(setOf(certA), setOf(certA)))
+        // rotation: installed certificates remain in the update's history
+        assertTrue(UpdateUtil.isSignerLineageContinuous(setOf(certA), setOf(certA, certB)))
+        // different signer fails closed
+        assertFalse(UpdateUtil.isSignerLineageContinuous(setOf(certA), setOf(certB)))
+        // partial overlap is not continuity
+        assertFalse(
+            UpdateUtil.isSignerLineageContinuous(setOf(certA, certC), setOf(certA, certB))
+        )
+        // empty histories never qualify
+        assertFalse(UpdateUtil.isSignerLineageContinuous(emptySet(), setOf(certA)))
+        assertFalse(UpdateUtil.isSignerLineageContinuous(setOf(certA), emptySet()))
+    }
+
+    @Test
     fun `download urls stay on github hosts over https`() {
         assertTrue(
             UpdateUtil.isTrustedDownloadUrl(
