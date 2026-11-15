@@ -22,8 +22,8 @@
       "bytes": 52416
     },
     "app/src/main/jniLibs/arm64-v8a/libpython.zip.so": {
-      "sha256": "38f6e236ba307217895ffd180569b6cacb7c854cc43ad8c9eac461c3430638df",
-      "bytes": 20587205
+      "sha256": "83ce8864368b24a5ceb86005c6ae869c5c592469206eed9d9f66f012447f9d62",
+      "bytes": 20285721
     },
     "app/src/main/jniLibs/arm64-v8a/libqjs.so": {
       "sha256": "4d8e0ee76b73156888f657f097b53a1e96727f2d3fd6f7c0c4eb6c7e92bb7e19",
