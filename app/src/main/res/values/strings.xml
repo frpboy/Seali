@@ -458,6 +458,7 @@
     <string name="seali_empty_finished_hint">Completed downloads will appear here.</string>
     <string name="seali_empty_action_hint">Add a link, or share a video link to Seali from your browser.</string>
     <string name="queue_history_file_removed">File no longer on device</string>
+    <string name="queue_remove_from_queue">Remove from queue</string>
     <string name="queue_filter_count">%1$s: %2$s</string>
     <string name="queue_show_list">Show download list</string>
     <string name="queue_show_grid">Show download cards</string>

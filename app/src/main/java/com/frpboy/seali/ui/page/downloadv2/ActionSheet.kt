@@ -129,14 +129,18 @@ private fun ErrorReportButton(modifier: Modifier = Modifier, onClick: () -> Unit
 }
 
 @Composable
-private fun DeleteButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun DeleteButton(
+    modifier: Modifier = Modifier,
+    text: String = stringResource(R.string.delete),
+    onClick: () -> Unit,
+) {
     ActionSheetPrimaryButton(
         modifier = modifier,
         containerColor = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
         imageVector = Icons.Outlined.Delete,
         outlineColor = MaterialTheme.colorScheme.outlineVariant,
-        text = stringResource(R.string.delete),
+        text = text,
         onClick = onClick,
     )
 }
@@ -386,7 +390,15 @@ fun LazyListScope.ActionButtons(
     }
     if (downloadState is DownloadState.Restartable || downloadState is Completed) {
         item(key = "DeleteButton") {
-            DeleteButton(modifier = Modifier.animateItem()) {
+            // Completed entries are backed by durable download history: the
+            // action only removes the queue entry and never deletes the saved
+            // file, so say so instead of implying deletion.
+            DeleteButton(
+                modifier = Modifier.animateItem(),
+                text =
+                    if (downloadState is Completed) stringResource(R.string.queue_remove_from_queue)
+                    else stringResource(R.string.delete),
+            ) {
                 onActionPost(task, UiAction.Delete)
                 onDismissRequest()
             }

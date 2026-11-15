@@ -16,9 +16,13 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * Visual qualification for Room-backed finished-history entries in the queue.
- * Runs on an emulator without network or native engine payloads; captures real
- * composed UI screenshots into filesDir for the lane to pull as artifacts.
+ * Fixture-level Compose UI checks for Room-backed finished-history entries in
+ * the queue: the task map is seeded directly with synthesized entries (the
+ * state a restart would produce), so these verify presentation, counts and
+ * action boundaries only. They do NOT exercise Room, the DAO, the history
+ * collector, an actual process restart, or remove() wiring. Execution needs
+ * an emulator route; PR CI compiles but does not run them. Screenshots are
+ * captured into filesDir for a runtime lane to pull as artifacts.
  */
 class QueueFinishedHistoryUiTest {
     @get:Rule val compose = createComposeRule()
@@ -41,8 +45,9 @@ class QueueFinishedHistoryUiTest {
     }
 
     @Test
-    fun historyEntriesFillFinishedLaneAndCountsAfterRestart() {
-        // The post-restart state: no session tasks, only Room-backed entries.
+    fun historyEntriesFillFinishedLaneAndCounts() {
+        // Fixture stands in for the post-restart state: no session tasks, only
+        // Room-backed entries in the map.
         val states = mutableStateMapOf<Task, Task.State>()
         states += synthesizeHistoryEntry(row(1, "First saved download"))
         states += synthesizeHistoryEntry(row(2, "Second saved download"))
@@ -81,6 +86,38 @@ class QueueFinishedHistoryUiTest {
         compose.onNodeWithText(context.getString(R.string.delete)).assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.resume)).assertDoesNotExist()
         capture("queue-history-missing-file.png")
+    }
+
+    @Test
+    fun liveCompletedEntryOffersQueueRemovalNotFileDeletion() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val task =
+            Task(
+                url = "https://example.com/live",
+                preferences = com.frpboy.seali.util.DownloadUtil.DownloadPreferences.EMPTY,
+                id = "live-completed-1",
+            )
+        val state =
+            Task.State(
+                downloadState = Task.DownloadState.Completed("/downloads/live.mp4"),
+                videoInfo = null,
+                viewState = Task.ViewState(title = "Live completed download"),
+            )
+        compose.setContent {
+            MaterialTheme {
+                SheetContent(
+                    task = task,
+                    viewState = state.viewState,
+                    downloadState = state.downloadState,
+                    onDismissRequest = {},
+                    onActionPost = { _, _ -> },
+                )
+            }
+        }
+        compose
+            .onNodeWithText(context.getString(R.string.queue_remove_from_queue))
+            .assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.delete)).assertDoesNotExist()
     }
 
     @Test

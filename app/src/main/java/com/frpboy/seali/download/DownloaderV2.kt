@@ -121,7 +121,9 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
      * files, and dismissed entries are eligible to reappear after a restart,
      * where Finished is a view of saved downloads.
      */
-    private val hiddenHistoryPaths = mutableSetOf<String>()
+    // Mutated by remove() on the caller's (UI) thread and read by the history
+    // collector on Dispatchers.IO; a concurrent set keeps that race safe.
+    private val hiddenHistoryPaths = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     init {
         scope.launch(Dispatchers.Default) {

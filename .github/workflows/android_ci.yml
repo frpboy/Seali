@@ -129,6 +129,12 @@ jobs:
       - name: Run buildSrc unit tests
         run: ./gradlew -p buildSrc test --console=plain
 
+      # Compile-check the instrumentation sources on every push/PR (no
+      # emulator, no signing): broken androidTest code fails here even though
+      # the lanes that execute it are manual qualification only.
+      - name: Compile app and instrumentation test APKs
+        run: ./gradlew -PfunctionalAlphaCandidate assembleGenericDebug assembleGenericDebugAndroidTest
+
       # Verification is secret-free for every push/PR and default manual run.
       # Owner signing/release packaging require an explicit manual opt-in.
       # Public artifact upload remains separately gated and is distribution.
