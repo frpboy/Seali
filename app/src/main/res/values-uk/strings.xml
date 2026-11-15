@@ -129,7 +129,6 @@
     <string name="service_title">Seali завантажує…</string>
     <string name="unknown_error">Невідома помилка</string>
     <string name="translate">Перекласти</string>
-    <string name="translate_desc">Допоможіть перекласти Seal на Weblate</string>
     <string name="prefix">Шаблон шляху</string>
     <string name="embed_subtitles">Вбудовані субтитри</string>
     <string name="embed_subtitles_desc">Вставляти м\'які субтитри у відео, якщо вони доступні</string>

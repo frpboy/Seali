@@ -125,7 +125,6 @@
     <string name="service_title">Seali yükləyir…</string>
     <string name="unknown_error">Naməlum xəta</string>
     <string name="translate">Tərcümə et</string>
-    <string name="translate_desc">Hosted Weblate-də bu tətbiqi tərcümə etməyə kömək et</string>
     <string name="permission_issue_desc">Download/ və Documents/ xaricindəki kataloqlar dəstəklənmir</string>
     <string name="prefix">Ön şəkilçi</string>
     <string name="downloading_indicator_text">Yükləmə davam edir …</string>

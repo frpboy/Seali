@@ -137,7 +137,6 @@
     <string name="service_title">Seali គឺកំពុងតែដោនឡូដ…</string>
     <string name="unknown_error">កំហុសមិនស្គាល់</string>
     <string name="translate">បកប្រែ</string>
-    <string name="translate_desc">ជួយបកប្រែកម្មវិធីនេះលើ Hosted Weblate</string>
     <string name="prefix">បុព្វបទ</string>
     <string name="embed_subtitles">បង្កប់ចំណងជើងរង</string>
     <string name="status_downloading">កំពុងដោនឡូដ</string>

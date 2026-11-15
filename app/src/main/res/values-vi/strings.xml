@@ -141,7 +141,6 @@
     <string name="service_title">Seali đang tải xuống…</string>
     <string name="unknown_error">Lỗi không xác định</string>
     <string name="translate">Dịch</string>
-    <string name="translate_desc">Giúp dịch ứng dụng này trên Hosted Weblate</string>
     <string name="prefix">Mẫu đường dẫn</string>
     <string name="embed_subtitles">Nhúng phụ đề</string>
     <string name="embed_subtitles_desc">Nhúng phụ đề rời vào video nếu có</string>

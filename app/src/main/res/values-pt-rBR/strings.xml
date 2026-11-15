@@ -112,7 +112,6 @@
     <string name="translate">Traduzir</string>
     <string name="battery_configuration_desc">Ignorar \"Otimização da Bateria\" para este aplicativo fazer download em segundo plano</string>
     <string name="unknown_error">Erro desconhecido</string>
-    <string name="translate_desc">Ajude a traduzir este aplicativo em seu idioma usando Weblate</string>
     <string name="back">Voltar</string>
     <string name="checked">Verificado</string>
     <string name="custom_command_desc">Executar o comando yt-dlp com um modelo personalizado</string>

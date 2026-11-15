@@ -81,7 +81,6 @@
     <string name="service_title">Seali hentar…</string>
     <string name="unknown_error">Ukjent mistak</string>
     <string name="translate">Omsett</string>
-    <string name="translate_desc">Hjelp til med å omsetja denne appen hos Hosted Weblate</string>
     <string name="prefix">Stigmal</string>
     <string name="embed_subtitles">Bygg inn teksting</string>
     <string name="embed_subtitles_desc">Om tilgjengelege, bygg gjevne undertekster inn i videoar</string>

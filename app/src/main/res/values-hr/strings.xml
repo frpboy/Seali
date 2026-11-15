@@ -90,7 +90,6 @@
     <string name="battery_configuration_desc">Ignorirajte optimizaciju baterije kako bi aplikacija mogla preuzimati u pozadini</string>
     <string name="service_title">Seali preuzima…</string>
     <string name="unknown_error">Nepoznata greška</string>
-    <string name="translate_desc">Pomognite prevesti ovu aplikaciju pomoću Hosted Weblate</string>
     <string name="prefix">Predložak puta</string>
     <string name="embed_subtitles_desc">Ugradi titlove u videa, ako su dostupni</string>
     <string name="new_template">Novi predložak</string>

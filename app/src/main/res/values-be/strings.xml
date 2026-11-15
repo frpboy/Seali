@@ -136,7 +136,6 @@
     <string name="service_title">Seali спампоўвае…</string>
     <string name="unknown_error">Невядомая памылка</string>
     <string name="translate">Пераклад</string>
-    <string name="translate_desc">Дапамажыце з перакладам на Hosted Weblate</string>
     <string name="prefix">Шаблон шляху</string>
     <string name="embed_subtitles">Убудаваць субтытры</string>
     <string name="template_label">Загаловак</string>

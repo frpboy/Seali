@@ -130,7 +130,6 @@
     <string name="service_title">Seali 正在进行下载…</string>
     <string name="unknown_error">出现不可预知的错误</string>
     <string name="translate">翻译</string>
-    <string name="translate_desc">在 Weblate 上帮助我们翻译此应用</string>
     <string name="prefix">输出路径模板</string>
     <string name="embed_subtitles">封装字幕</string>
     <string name="embed_subtitles_desc">如可用将软字幕嵌入到视频中</string>

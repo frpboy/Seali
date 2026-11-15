@@ -97,7 +97,6 @@
     <string name="embed_subtitles_desc">Încorporează subtitrări furnizate în videoclipuri, dacă sunt disponibile</string>
     <string name="format_settings_desc">Format de fișier, calitate video, subtitrări</string>
     <string name="selected_item_count">%1$d selectat</string>
-    <string name="translate_desc">Ajută la traducerea acestei aplicații pe Hosted Weblate</string>
     <string name="import_from_clipboard">Import din clipboard</string>
     <string name="network">Rețea</string>
     <string name="rate_limit_desc">Limitați rata maximă pentru viteza de descărcare</string>

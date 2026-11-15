@@ -115,7 +115,6 @@
     <string name="start_download">بارگیری</string>
     <string name="user_guide">راهنمای کاربر</string>
     <string name="share_fail_msg">مطابقت پیوند از محتوای مشترک ممکن نیست</string>
-    <string name="translate_desc">به ترجمه این برنامه در Weblate میزبانی شده کمک کنید</string>
     <string name="paste_desc">برای دریافت پیوند ویدیو از کلیپ‌بورد، روی \"جای‌گذاری\" کلیک کنید.</string>
     <string name="check_download_settings_desc">به تنظیمات دانلود نگاهی بیندازید و قبل از استفاده مطمئن شوید که آخرین نسخه yt-dlp را دارید.</string>
     <string name="channel_description">اطلاع از فایل های دانلود شده و پیشرفت دانلود</string>

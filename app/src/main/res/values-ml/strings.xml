@@ -163,7 +163,6 @@
     <string name="new_template">പുതിയ ടെംപ്ലേറ്റ്</string>
     <string name="remove_template">നീക്കം ചെയ്യണോ\?</string>
     <string name="status_fetching_video_info">വിവരങ്ങൾ ശേഖരിക്കുന്നു</string>
-    <string name="translate_desc">ഹോസ്റ്റുചെയ്ത വെബ്ലേറ്റിൽ ഈ ആപ്പ് പരിഭാഷപ്പെടുത്താൻ സഹായിക്കുക</string>
     <string name="github_issue_desc">ബഗ് റിപ്പോർട്ടിനോ ഫീച്ചർ അഭ്യർത്ഥനയ്‌ക്കോ ഒരു പ്രശ്നം സമർപ്പിക്കുക</string>
     <string name="playlist_indicator_text">പ്ലേലിസ്റ്റ് ഡൗൺലോഡ് ചെയ്യുന്നു (%1$d/%2$d)…</string>
     <string name="download_directory">ഡയറക്ടറി ഡൗൺലോഡ് ചെയ്യുക</string>

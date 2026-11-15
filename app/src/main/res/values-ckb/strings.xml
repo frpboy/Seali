@@ -129,7 +129,6 @@
     <string name="service_title">Seali خەریکی دابەزاندنە…</string>
     <string name="unknown_error">هەلەیەکی نەناسراوە</string>
     <string name="translate">وەرگێڕان</string>
-    <string name="translate_desc">یارمەتی وەرگێڕانی ئەم ئەپە بدە لە Hosted Weblate</string>
     <string name="prefix">پێشگر</string>
     <string name="embed_subtitles_desc">ژێرنووس بخەرە ناو ڤیدیۆکانەوە، ئەگەر بەردەست بوو</string>
     <string name="new_template">قاڵبی نوێ</string>

@@ -579,6 +579,7 @@ fun PreferencesHintCard(
     icon: ImageVector? = Icons.Outlined.Translate,
     containerColor: Color = FixedAccentColors.secondaryFixed,
     contentColor: Color = FixedAccentColors.onSecondaryFixed,
+    descriptionMaxLines: Int = 2,
     onClick: () -> Unit = {},
 ) {
     Row(
@@ -614,7 +615,7 @@ fun PreferencesHintCard(
                     Text(
                         text = description,
                         color = contentColor,
-                        maxLines = 2,
+                        maxLines = descriptionMaxLines,
                         overflow = TextOverflow.Ellipsis,
                         style = typography.bodyMedium,
                     )

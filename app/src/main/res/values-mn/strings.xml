@@ -139,7 +139,6 @@
     <string name="service_title">Seali татаж авч байна…</string>
     <string name="unknown_error">Үл мэдэгдэх алдаа</string>
     <string name="translate">Орчуулах</string>
-    <string name="translate_desc">Энэ програмыг Hosted Weblate дээр орчуулахад тусална уу</string>
     <string name="prefix">Угтвар</string>
     <string name="embed_subtitles">Хадмал орчуулга оруулах</string>
     <string name="embed_subtitles_desc">Боломжтой бол видеонуудад зөөлөн дэд файлуудыг оруулаарай</string>

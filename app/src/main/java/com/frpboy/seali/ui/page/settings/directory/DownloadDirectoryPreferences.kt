@@ -328,6 +328,7 @@ fun DownloadDirectoryPreferences(onNavigateBack: () -> Unit) {
                         description =
                             stringResource(R.string.legacy_command_directory_hint_desc),
                         icon = Icons.Outlined.Folder,
+                        descriptionMaxLines = 4,
                     ) {
                         val newDirectory = FileUtil.getExternalDownloadDirectory().absolutePath
                         COMMAND_DIRECTORY.updateString(newDirectory)

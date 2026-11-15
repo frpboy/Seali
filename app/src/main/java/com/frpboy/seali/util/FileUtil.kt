@@ -225,7 +225,7 @@ object FileUtil {
     internal fun selectPrivateDownloadDirectory(base: File): File {
         val current = File(base, PRIVATE_DIRECTORY_SUFFIX)
         val legacy = File(base, LEGACY_PRIVATE_DIRECTORY_SUFFIX)
-        return if (!current.exists() && legacy.exists()) legacy else current
+        return if (!current.isDirectory && legacy.isDirectory) legacy else current
     }
 
     internal fun getExternalPrivateDownloadDirectory() =

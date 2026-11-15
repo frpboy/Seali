@@ -107,7 +107,6 @@
     <string name="service_title">Seali 正在下載…</string>
     <string name="unknown_error">未知錯誤</string>
     <string name="translate">翻譯</string>
-    <string name="translate_desc">在 Hosted Weblate 上協助翻譯此應用程式</string>
     <string name="prefix">路徑範本</string>
     <string name="new_template">新增範本</string>
     <string name="embed_subtitles_desc">如有提供可用的軟字幕，則將其內嵌至影片中</string>

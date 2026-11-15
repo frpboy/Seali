@@ -164,7 +164,6 @@
     <string name="battery_configuration_desc">Ignora l\'optimització de la bateria perquè aquesta aplicació pugui baixar vídeos en segon pla</string>
     <string name="service_title">Seali està descarregant…</string>
     <string name="translate">Tradueix</string>
-    <string name="translate_desc">Ajudeu a traduir aquesta aplicació a Hosted Weblate</string>
     <string name="unknown_error">Error desconegut</string>
     <string name="prefix">Prefix</string>
     <string name="embed_subtitles">Incrusta els subtítols</string>

@@ -85,6 +85,42 @@ class FileUtilDirectoryTest {
     }
 
     @Test
+    fun privateDir_regularFileNamedLegacy_notTreatedAsDirectory() {
+        val base = newTempDir("regfile")
+        File(base, ".Seal").createNewFile() // a stray file, not a directory
+        assertEquals(File(base, ".Seali"), FileUtil.selectPrivateDownloadDirectory(base))
+    }
+
+    @Test
+    fun privateDir_repeatedSelectionIsStable_andCreatesNothing() {
+        val base = newTempDir("repeat")
+        File(base, ".Seal").mkdirs()
+        val first = FileUtil.selectPrivateDownloadDirectory(base)
+        val second = FileUtil.selectPrivateDownloadDirectory(base)
+        assertEquals(first, second)
+        // Selection is read-only: no new directories appear as a side effect.
+        assertEquals(listOf(".Seal"), base.list()?.toList()?.sorted())
+    }
+
+    @Test
+    fun privateDir_neitherExist_repeatedSelectionStable_andCreatesNothing() {
+        val base = newTempDir("repeatnone")
+        val first = FileUtil.selectPrivateDownloadDirectory(base)
+        assertEquals(first, FileUtil.selectPrivateDownloadDirectory(base))
+        assertTrue(base.list()?.isEmpty() != false)
+    }
+
+    @Test
+    fun legacyCommandDir_exactMatchIsStable_acrossRepeatedChecks() {
+        val stored = "/storage/emulated/0/Download/Seal"
+        val legacy = "/storage/emulated/0/Download/Seal"
+        // The opt-in hint visibility decision must be deterministic.
+        repeat(3) {
+            assertTrue(FileUtil.isLegacySealCommandDirectory(stored, legacy))
+        }
+    }
+
+    @Test
     fun legacyCommandDir_empty_notDetected() {
         assertFalse(
             FileUtil.isLegacySealCommandDirectory("", "/storage/emulated/0/Download/Seal")

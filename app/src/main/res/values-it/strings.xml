@@ -123,7 +123,6 @@
     <string name="service_title">Seali sta scaricando…</string>
     <string name="subdirectory_desc">Salva i file in cartelle chiamate come i rispettivi siti web</string>
     <string name="permission_issue">Problema relativo all\'autorizzazione di archiviazione</string>
-    <string name="translate_desc">Contribuisci a tradurre questa applicazione su Hosted Weblate</string>
     <string name="unknown_error">Errore sconosciuto</string>
     <string name="battery_configuration_desc">Ignora l\'ottimizzazione della batteria per lo scaricamento dell\'app in sfondo</string>
     <string name="translate">Traduci</string>

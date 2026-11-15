@@ -129,7 +129,6 @@
     <string name="permission_issue_desc">Direktori di luar Unduhan/ dan Dokumen/ tidak didukung</string>
     <string name="service_title">Seali sedang mengunduh…</string>
     <string name="unknown_error">Kesalahan tidak diketahui</string>
-    <string name="translate_desc">Bantu terjemahkan aplikasi ini pada Hosted Weblate</string>
     <string name="prefix">Awalan</string>
     <string name="embed_subtitles">Sematkan terjemahan</string>
     <string name="embed_subtitles_desc">Sematkan soft-sub ke dalam video jika tersedia</string>
