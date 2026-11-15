@@ -65,4 +65,4 @@ This policy may be updated when Seali's behavior or distribution channels change
 
 ## Contact
 
-For privacy questions or requests, open an issue in the [Seali GitHub repository](https://github.com/frpboy/Seali/issues). Do not post passwords, cookies, access tokens, or other private information in a public issue.
+For privacy questions or requests, email frpboy12@gmail.com. Do not include passwords, cookies, access tokens, or other private information in your message unless specifically asked for them.
