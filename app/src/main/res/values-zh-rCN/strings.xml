@@ -280,7 +280,6 @@
     <string name="temporary_directory_desc">将临时文件储存在内部目录中</string>
     <string name="sponsor">赞助</string>
     <string name="sponsor_desc">在 GitHub 上赞助以支持本应用</string>
-    <string name="sponsor_msg">Seal 将永远保持免费与开源，如果你想要支持它的持续开发与改进，请考虑在 GitHub 上赞助我！</string>
     <string name="feedback">反馈</string>
     <string name="sponsors">赞助</string>
     <string name="no_downloaded_media">下载记录空空如也</string>

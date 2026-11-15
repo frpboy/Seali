@@ -179,7 +179,6 @@
     <string name="filesize_gb">%.2f G</string>
     <string name="apply">Aplică</string>
     <string name="unlimited">Nelimitat</string>
-    <string name="sponsor_msg">Seal va fi întotdeauna gratuit și open source pentru toată lumea. Dacă îți place, te rog să mă sponsorizezi pe GitHub!</string>
     <string name="convert_audio_format_desc">Recodificarea fișierelor audio va duce la pierderea calității audio și la creșterea dimensiunii fișierului.</string>
     <string name="clip_video">Clipează video</string>
     <string name="convert_audio_format">Convertiți formatul audio</string>

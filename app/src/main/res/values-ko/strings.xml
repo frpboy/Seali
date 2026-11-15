@@ -235,7 +235,6 @@
     <string name="update_channel">채널 업데이트</string>
     <string name="auto_update">자동 업데이트</string>
     <string name="enable_auto_update">자동 업데이트 사용</string>
-    <string name="sponsor_msg">Seal은 항상 무료이며 모든 사람을 위한 오픈 소스입니다. 마음에 드신다면 GitHub에서 저를 후원해 주세요!</string>
     <string name="msg_from_developer">개발자 메시지</string>
     <string name="sponsor_msg2">매우 감사합니다!</string>
     <string name="switch_to_github_builds">GitHub 빌드로 전환</string>

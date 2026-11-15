@@ -292,7 +292,6 @@
     <string name="no_custom_command_tasks">بدون وظایف دستوری سفارشی</string>
     <string name="sponsor">حامی مالی</string>
     <string name="sponsor_desc">با حمایت مالی در GitHub از این برنامه حمایت کنید</string>
-    <string name="sponsor_msg">Seal همیشه رایگان و منبع باز برای همه خواهد بود. اگر دوست دارید، لطفاً در GitHub از من حمایت کنید!</string>
     <string name="feedback">بازخورد</string>
     <string name="sponsors">حامیان</string>
     <string name="temporary_directory_desc">دخیره فایل های موقت را در دایرکتوری داخلی</string>

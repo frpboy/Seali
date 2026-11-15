@@ -271,7 +271,6 @@
     <string name="crop_artwork">ক্রপ আর্টওয়ার্ক</string>
     <string name="crop_artwork_desc">এমবেডড ছবি ক্রপ করুন</string>
     <string name="download_selection_desc">প্লেলিস্ট \"%1$s\" থেকে ডাউনলোড করতে ভিডিও সিলেক্ট করুন</string>
-    <string name="sponsor_msg">সীল সর্বদা ফ্রি এবং ওবদ-সোর্স থাকবে। আপনার যদি প্রোজেক্টটি পছন্দ হয়, অনুগ্রহ করে আমাকে GitHub-এ স্পনসর করার কথা বিবেচনা করবেন</string>
     <string name="download_video_desc">URL থেকে ভিডিও ডাউনলোড করুন</string>
     <string name="copy_link">লিংক কপি করুন</string>
     <string name="copy_error_report">ইরর রিপোর্ট</string>

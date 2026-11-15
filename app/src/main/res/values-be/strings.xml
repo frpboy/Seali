@@ -289,7 +289,6 @@
     <string name="clear_all_cookies_desc">Назаўсёды выдаліць усе файлы cookie, якія захоўваюцца ў праграме\?</string>
     <string name="sponsor">Спонсар</string>
     <string name="sponsor_desc">Падтрымайце гэтую праграму, спансіруючы яго на GitHub</string>
-    <string name="sponsor_msg">Seal заўсёды будзе бясплатным і адкрытым для ўсіх. Калі вам гэта падабаецца, калі ласка, падумайце аб тым, каб стаць спонсарам мяне на GitHub!</string>
     <string name="feedback">Зваротная сувязь</string>
     <string name="sponsors">Спонсары</string>
     <string name="temporary_directory_desc">Захоўвайце часовыя файлы ва ўнутраным каталогу</string>

@@ -284,7 +284,6 @@
     <string name="clear_all_cookies_desc">Supprimer définitivement tous les cookies stockés dans l\'application ?</string>
     <string name="sponsor">Sponsor</string>
     <string name="sponsor_desc">Soutenez cette application en la parrainant sur GitHub</string>
-    <string name="sponsor_msg">Seal sera toujours libre et gratuit pour tout le monde. Si vous l\'aimez, pensez à me parrainer sur GitHub !</string>
     <string name="feedback">Remarques</string>
     <string name="sponsors">Sponsors</string>
     <string name="temporary_directory_desc">Stocker les fichiers temporaires dans le répertoire interne</string>

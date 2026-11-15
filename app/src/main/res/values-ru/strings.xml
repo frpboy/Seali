@@ -281,7 +281,6 @@
     <string name="sponsor_desc">Поддержать приложение путём спонсирования на GitHub</string>
     <string name="feedback">Обратная связь</string>
     <string name="sponsors">Спонсоры</string>
-    <string name="sponsor_msg">Seal всегда будет бесплатным и с открытым исходным кодом для всех. Если вам нравится это приложение, пожалуйста, подумайте о спонсорстве на GitHub!</string>
     <string name="audio_format">Формат аудио</string>
     <string name="beta_features">Бета</string>
     <string name="enable_experimental_feature">Включить экспериментальную функцию\?</string>

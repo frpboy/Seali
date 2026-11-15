@@ -280,7 +280,6 @@
     <string name="subtitle">ซับไตเติ้ล</string>
     <string name="video_title_sample_text">ตัวอย่างข้อความของไตเติ้ล</string>
     <string name="running_tasks">กำลังรันงาน</string>
-    <string name="sponsor_msg">Seal จะยังคงเป็นซอร์ตฟรีและเปิดกว้างสำหรับทุกคน ถ้าคุณชอบมัน กรุณาพิจารณาสนับสนุนฉันใน GitHub!</string>
     <string name="format_sorting_desc">จัดเรียงรูปแบบด้วยตัวเลือก -S ของ yt-dlp</string>
     <string name="update_channel_desc">ติดตั้งรุ่นก่อนวางจำหน่ายเพื่อดูลักษณะใหม่และการเปลี่ยนแปลง
 \n

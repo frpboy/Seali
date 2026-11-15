@@ -278,7 +278,6 @@
     <string name="temporary_directory_desc">تخزين الملفات المؤقتة في الدليل الداخلي</string>
     <string name="sponsor">الراعي</string>
     <string name="sponsor_desc">ادعم هذا التطبيق من خلال الرعاية على GitHub</string>
-    <string name="sponsor_msg">Seal سيبقى دائمًا مجانيًا ومفتوح المصدر للجميع. إذا أعجبك، يُرجى التفكير في دعمي كراعياً على GitHub!</string>
     <string name="feedback">التعليقات</string>
     <string name="sponsors">الرعاة</string>
     <string name="audio_format">صيغة الصوت</string>

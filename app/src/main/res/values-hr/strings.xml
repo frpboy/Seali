@@ -289,7 +289,6 @@
     <string name="unlimited">Neograničeno</string>
     <string name="audio_format_preference">Preferirani format zvuka</string>
     <string name="sponsor_desc">Podržite razvoj ove aplikacije njenim sponzoriranjem na GitHub-u</string>
-    <string name="sponsor_msg">Seal će uvijek biti besplatan i otvorenog koda za sve. Ako vam se sviđa, razmislite o tome da me sponzorirate na GitHub-u!</string>
     <string name="audio_format">Audio format</string>
     <string name="enable_experimental_feature">Omogućiti eksperimentalne značajke\?</string>
     <string name="auto_update_disabled_msg">Automatsko ažuriranje nije dostupno za %1$s inačice. Ako nemate %1$s instaliran na svom uređaju ili želite pregledati nadolazeće nove značajke u Seali-u, razmislite o %2$s.</string>

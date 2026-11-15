@@ -279,7 +279,6 @@
     <string name="temporary_directory_desc">Чувајте привремене фајлове у унутрашњем фолдеру</string>
     <string name="feedback">Повратне информације</string>
     <string name="sponsors">Спонзори</string>
-    <string name="sponsor_msg">Seal ће увек бити бесплатан и отвореног кода за све. Ако вам се свиђа, размислите о томе да ме спонзоришете на GitHub-у!</string>
     <string name="sponsor">Спонзориши</string>
     <string name="sponsor_desc">Подржите ову апликацију спонзорисањем на GitHub-у</string>
     <string name="audio_format">Формат аудио снимка</string>

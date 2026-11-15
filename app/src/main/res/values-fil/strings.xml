@@ -282,7 +282,6 @@
     <string name="sponsors">Mga sponsor</string>
     <string name="clip_video_desc">Gumawa ng mga video clip sa pahina ng pagpili ng format</string>
     <string name="add">Idagdag</string>
-    <string name="sponsor_msg">Ang Seal ay palaging libre at open source para sa lahat. Kung gusto mo ito, mangyaring isaalang-alang ang pag-sponsor sa akin sa GitHub!</string>
     <string name="subtitle_desc">Mga wika, mag-embed ng mga subtitle, at auto captions</string>
     <string name="stable_channel">Matibay</string>
     <string name="update_channel">I-update ang channel</string>

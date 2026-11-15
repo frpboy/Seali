@@ -281,7 +281,6 @@
     <string name="sponsor_desc">透過在 GitHub 上贊助以支持此應用程式</string>
     <string name="feedback">意見反應</string>
     <string name="sponsors">贊助</string>
-    <string name="sponsor_msg">Seal 永遠提供眾人免費使用並開放原始碼。若您悅納，請考慮在 GitHub 上贊助我！</string>
     <string name="no_downloaded_media">沒有已下載的媒體</string>
     <string name="beta_features">Beta</string>
     <string name="enable_experimental_feature">確定要啟用實驗性功能？</string>

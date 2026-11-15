@@ -278,7 +278,6 @@
     <string name="second">sekunda</string>
     <string name="set_directory_desc">Klikněte pro nastavení adresáře</string>
     <string name="update_channel">Kanál aktualizací</string>
-    <string name="sponsor_msg">Seal bude vždy zdarma a open source pro každého. Pokud se vám aplikace líbí, prosím zvažte sponzorování na GitHubu!</string>
     <string name="crop_artwork">Oříznout obrázek</string>
     <string name="subtitle_sponsorblock">Titulky mohou mít špatné časování při odstranění SponsorBlock segmentů.</string>
     <string name="start">Začít</string>

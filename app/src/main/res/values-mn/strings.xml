@@ -292,7 +292,6 @@
     <string name="temporary_directory_desc">Түр зуурын файлуудыг дотоод директорт хадгалах</string>
     <string name="sponsor">Ивээн тэтгэгч</string>
     <string name="sponsor_desc">GitHub дээр ивээн тэтгэж энэ програмыг дэмжээрэй</string>
-    <string name="sponsor_msg">Seal нь үргэлж үнэ төлбөргүй, хүн бүрт нээлттэй эх сурвалж байх болно. Хэрэв танд таалагдаж байвал GitHub дээр намайг ивээн тэтгэх талаар бодож үзээрэй!</string>
     <string name="feedback">Санал хүсэлт</string>
     <string name="sponsors">Ивээн тэтгэгчид</string>
     <string name="audio_format">Аудио формат</string>

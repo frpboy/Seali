@@ -279,7 +279,6 @@
     <string name="temporary_directory_desc">Simpan berkas sementara di direktori internal</string>
     <string name="sponsor">Sponsor</string>
     <string name="sponsor_desc">Dukung aplikasi ini dengan mensponsori di GitHub</string>
-    <string name="sponsor_msg">Seal akan selalu gratis dan sumbernya terbuka untuk semua orang. Jika Anda menyukainya, silakan sponsori saya di GitHub!</string>
     <string name="feedback">Masukan</string>
     <string name="sponsors">Sponsor</string>
     <string name="no_downloaded_media">Tidak ada media yang terunduh</string>

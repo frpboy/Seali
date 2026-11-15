@@ -279,7 +279,6 @@
     <string name="temporary_directory_desc">Temporäre Dateien im internen Ordner speichern</string>
     <string name="sponsor">Sponsor</string>
     <string name="sponsor_desc">Unterstütze diese App durch Sponsoring auf GitHub</string>
-    <string name="sponsor_msg">Seal wird immer frei und kostenlos für alle sein. Wenn du es magst, bitte denke bitte darüber nach, mich auf GitHub zu sponsern!</string>
     <string name="feedback">Rückmeldung</string>
     <string name="sponsors">Sponsoren</string>
     <string name="no_downloaded_media">Keine heruntergeladenen Medien</string>
