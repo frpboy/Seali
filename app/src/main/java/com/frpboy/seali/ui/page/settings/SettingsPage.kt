@@ -1,10 +1,8 @@
 package com.frpboy.seali.ui.page.settings
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
@@ -58,7 +56,6 @@ import com.frpboy.seali.util.PreferenceUtil.getBoolean
 import com.frpboy.seali.util.PreferenceUtil.updateInt
 import com.frpboy.seali.util.SHOW_SPONSOR_MSG
 
-@SuppressLint("BatteryLife")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
@@ -75,9 +72,9 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
     }
     val intent =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${context.packageName}")
-            }
+            // Play policy: open the general battery-optimization settings list instead of
+            // requesting a direct exemption (REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
         } else {
             Intent()
         }
