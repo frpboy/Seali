@@ -592,6 +592,13 @@ jobs:
             ! grep -E 'FAILURES|INSTRUMENTATION_FAILED|shortMsg=' instrumentation-result.txt
             adb exec-out run-as com.frpboy.seali.debug cat files/classic-history.png > classic-history.png
             test -s classic-history.png
+            adb shell am instrument -w -r -e class com.frpboy.seali.OnboardingUiTest com.frpboy.seali.debug.test/androidx.test.runner.AndroidJUnitRunner | tee onboarding-instrumentation-result.txt
+            grep -F 'OK (2 tests)' onboarding-instrumentation-result.txt
+            ! grep -E 'FAILURES|INSTRUMENTATION_FAILED|shortMsg=' onboarding-instrumentation-result.txt
+            for shot in onboarding-1-welcome onboarding-2-notifications onboarding-3-storage onboarding-4-appearance onboarding-5-engine-stable onboarding-6-nightly-warning onboarding-7-engine-nightly onboarding-8-finish update-dialog-progress update-dialog-finished; do
+              adb exec-out run-as com.frpboy.seali.debug cat files/$shot.png > $shot.png
+              test -s $shot.png
+            done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -599,6 +606,9 @@ jobs:
           path: |
             classic-history.png
             instrumentation-result.txt
+            onboarding-instrumentation-result.txt
+            onboarding-*.png
+            update-dialog-*.png
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/connected/
 
