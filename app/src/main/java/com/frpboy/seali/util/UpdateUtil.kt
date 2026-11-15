@@ -28,6 +28,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.ResponseBody
@@ -233,7 +234,7 @@ object UpdateUtil {
 
     /** Asset downloads must stay on GitHub hosts; redirects anywhere else are refused. */
     internal fun isTrustedDownloadUrl(url: String): Boolean {
-        val parsed = runCatching { okhttp3.HttpUrl.get(url) }.getOrNull() ?: return false
+        val parsed = runCatching { url.toHttpUrl() }.getOrNull() ?: return false
         return parsed.scheme == "https" && isTrustedDownloadHost(parsed.host)
     }
 
