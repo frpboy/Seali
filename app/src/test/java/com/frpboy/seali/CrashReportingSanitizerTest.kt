@@ -328,68 +328,105 @@ class CrashReportingSanitizerTest {
     )
 
     private class LoopbackServer(
-        val server: com.sun.net.httpserver.HttpServer,
+        val listener: java.net.ServerSocket,
+        val thread: Thread,
         val requests: java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>,
         val handlerErrors: java.util.concurrent.CopyOnWriteArrayList<Throwable>,
         val handlerDone: java.util.concurrent.CountDownLatch,
-        val executor: java.util.concurrent.ExecutorService,
     )
 
     private fun stopLoopback(loop: LoopbackServer) {
-        loop.server.stop(0)
-        // server.stop does not shut down an externally supplied executor.
-        loop.executor.shutdownNow()
+        runCatching { loop.listener.close() }
+        loop.thread.join(5_000)
     }
 
+    // Minimal raw-socket HTTP/1.1 loopback (no jdk.httpserver dependency):
+    // accepts connections until the listener is closed, so a replayed
+    // POST would arrive as a second observed request.
     private fun startLoopbackServer(respond: Boolean): LoopbackServer {
         val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
         val handlerErrors = java.util.concurrent.CopyOnWriteArrayList<Throwable>()
         val handlerDone = java.util.concurrent.CountDownLatch(1)
-        val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
-        val executor = java.util.concurrent.Executors.newCachedThreadPool()
-        server.executor = executor
-        server.createContext("/api/") { exchange ->
-            try {
-                // A valid POST must declare a positive Content-Length
-                // (set by fixed-length streaming) and deliver exactly
-                // that many bytes; a short read (early EOF) is a failure,
-                // never silently accepted as the full body.
-                val declared =
-                    exchange.requestHeaders.getFirst("Content-Length")?.toIntOrNull()
-                        ?: error("missing Content-Length")
-                check(declared > 0) { "non-positive Content-Length $declared" }
-                val body = exchange.requestBody.readNBytes(declared)
-                check(body.size == declared) { "short body ${body.size} < $declared" }
-                requests.add(
-                    RecordedRequest(
-                        exchange.requestMethod,
-                        exchange.requestURI.path,
-                        exchange.requestHeaders.getFirst("Content-Length"),
-                        exchange.requestHeaders.getFirst("X-Sentry-Auth"),
-                        body,
-                    ),
-                )
-                if (respond) {
-                    exchange.sendResponseHeaders(200, -1)
+        val listener = java.net.ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"))
+        val thread =
+            Thread {
+                while (!listener.isClosed) {
+                    val socket =
+                        try {
+                            listener.accept()
+                        } catch (e: java.net.SocketException) {
+                            break
+                        }
+                    try {
+                        socket.soTimeout = 10_000
+                        val input = socket.getInputStream()
+                        fun readHeaderLine(): String {
+                            val sb = StringBuilder()
+                            while (true) {
+                                val c = input.read()
+                                if (c == -1) error("EOF in headers")
+                                if (c == '\n'.code) break
+                                if (c != '\r'.code) sb.append(c.toChar())
+                            }
+                            return sb.toString()
+                        }
+                        val requestLine = readHeaderLine()
+                        val parts = requestLine.split(' ')
+                        check(parts.size >= 2) { "bad request line: $requestLine" }
+                        val headers = mutableMapOf<String, String>()
+                        while (true) {
+                            val line = readHeaderLine()
+                            if (line.isEmpty()) break
+                            val idx = line.indexOf(':')
+                            if (idx > 0) headers[line.substring(0, idx).trim().lowercase()] =
+                                line.substring(idx + 1).trim()
+                        }
+                        // A valid POST must declare a positive
+                        // Content-Length (set by fixed-length streaming)
+                        // and deliver exactly that many bytes; early EOF
+                        // is a failure, never a silently short body.
+                        val declared = headers["content-length"]?.toIntOrNull()
+                            ?: error("missing Content-Length")
+                        check(declared > 0) { "non-positive Content-Length $declared" }
+                        val body = input.readNBytes(declared)
+                        check(body.size == declared) { "short body ${body.size} < $declared" }
+                        requests.add(
+                            RecordedRequest(
+                                parts[0],
+                                parts[1],
+                                headers["content-length"],
+                                headers["x-sentry-auth"],
+                                body,
+                            ),
+                        )
+                        if (respond) {
+                            val out = socket.getOutputStream()
+                            out.write(
+                                "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                                    .toByteArray(),
+                            )
+                            out.flush()
+                        }
+                        // For the drop test: headers and the entire
+                        // declared body were consumed above, then the
+                        // connection closes with no response while the
+                        // listener keeps accepting.
+                        socket.close()
+                        handlerDone.countDown()
+                    } catch (t: Throwable) {
+                        handlerErrors.add(t)
+                        runCatching { socket.close() }
+                        handlerDone.countDown()
+                    }
                 }
-                // For the drop test: headers and the entire declared
-                // body were consumed above, then the connection closes
-                // with no response while the listener stays available,
-                // so any internal retry would arrive as a second request.
-                exchange.close()
-            } catch (t: Throwable) {
-                handlerErrors.add(t)
-                runCatching { exchange.close() }
-            } finally {
-                handlerDone.countDown()
             }
-        }
-        server.start()
-        return LoopbackServer(server, requests, handlerErrors, handlerDone, executor)
+        thread.isDaemon = true
+        thread.start()
+        return LoopbackServer(listener, thread, requests, handlerErrors, handlerDone)
     }
 
-    private fun wireLoopback(server: com.sun.net.httpserver.HttpServer) {
-        val base = "http://127.0.0.1:${server.address.port}"
+    private fun wireLoopback(loop: LoopbackServer) {
+        val base = "http://127.0.0.1:${loop.listener.localPort}"
         FixedEventTransport.connectionFactory = { url ->
             URI(url.replace("https://dsn.example", base)).toURL().openConnection()
                 as java.net.HttpURLConnection
@@ -401,7 +438,7 @@ class CrashReportingSanitizerTest {
         val payload = "envelope-bytes-123".toByteArray()
         val loop = startLoopbackServer(respond = true)
         try {
-            wireLoopback(loop.server)
+            wireLoopback(loop)
             assertTrue(FixedEventTransport.defaultPost("https://key1@dsn.example/42", payload))
             assertTrue(loop.handlerDone.await(5, TimeUnit.SECONDS))
             assertEquals(emptyList<Throwable>(), loop.handlerErrors)
@@ -422,7 +459,7 @@ class CrashReportingSanitizerTest {
         val payload = ByteArray(2048) { 7 }
         val loop = startLoopbackServer(respond = false)
         try {
-            wireLoopback(loop.server)
+            wireLoopback(loop)
             assertFalse(FixedEventTransport.defaultPost("https://key2@dsn.example/7", payload))
             // The handler ran to completion (exact body consumed, then
             // close with no response) without a listener-side error.
