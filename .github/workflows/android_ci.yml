@@ -132,8 +132,11 @@ jobs:
       # Compile-check the instrumentation sources on every push/PR (no
       # emulator, no signing): broken androidTest code fails here even though
       # the lanes that execute it are manual qualification only.
-      - name: Compile app and instrumentation test APKs
-        run: ./gradlew -PfunctionalAlphaCandidate assembleGenericDebug assembleGenericDebugAndroidTest
+      # Compile tasks only: packaging tasks (asset/native merges) are
+      # guarded by custody-staged input verification that routine lanes
+      # intentionally cannot satisfy.
+      - name: Compile app and instrumentation test sources
+        run: ./gradlew -PfunctionalAlphaCandidate compileGenericDebugKotlin compileGenericDebugAndroidTestKotlin
 
       # Verification is secret-free for every push/PR and default manual run.
       # Owner signing/release packaging require an explicit manual opt-in.
