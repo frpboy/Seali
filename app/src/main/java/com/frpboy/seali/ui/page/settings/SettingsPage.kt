@@ -119,6 +119,8 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
                             title = stringResource(R.string.battery_configuration),
                             icon = Icons.Rounded.EnergySavingsLeaf,
                             description = stringResource(R.string.battery_configuration_desc),
+                            // The description carries a qualification, so never ellipsize it.
+                            descriptionMaxLines = Int.MAX_VALUE,
                         ) {
                             // Attempt the settings launch directly; a queryIntentActivities
                             // precheck is unreliable on API 30+ without a manifest <queries>
