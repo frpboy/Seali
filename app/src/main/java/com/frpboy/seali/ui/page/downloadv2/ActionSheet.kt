@@ -248,8 +248,8 @@ fun SheetContent(
     viewState: ViewState,
     downloadState: DownloadState,
     onDismissRequest: () -> Unit,
-    onActionPost: (Task, UiAction) -> Unit,
     isMissingFile: Boolean = false,
+    onActionPost: (Task, UiAction) -> Unit,
 ) {
 
     LazyColumn {
