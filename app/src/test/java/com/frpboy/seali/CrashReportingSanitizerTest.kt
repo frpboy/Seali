@@ -333,10 +333,15 @@ class CrashReportingSanitizerTest {
         val requests: java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>,
         val handlerErrors: java.util.concurrent.CopyOnWriteArrayList<Throwable>,
         val handlerDone: java.util.concurrent.CountDownLatch,
+        val acceptedConnections: java.util.concurrent.atomic.AtomicInteger,
+        val openSockets: java.util.concurrent.CopyOnWriteArrayList<java.net.Socket>,
     )
 
     private fun stopLoopback(loop: LoopbackServer) {
         runCatching { loop.listener.close() }
+        // Close any still-open connection so a partial replay blocked in
+        // headers/body cannot outlive cleanup or escape the error record.
+        loop.openSockets.forEach { runCatching { it.close() } }
         loop.thread.join(5_000)
     }
 
@@ -347,6 +352,8 @@ class CrashReportingSanitizerTest {
         val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
         val handlerErrors = java.util.concurrent.CopyOnWriteArrayList<Throwable>()
         val handlerDone = java.util.concurrent.CountDownLatch(1)
+        val acceptedConnections = java.util.concurrent.atomic.AtomicInteger(0)
+        val openSockets = java.util.concurrent.CopyOnWriteArrayList<java.net.Socket>()
         val listener = java.net.ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"))
         val thread =
             Thread {
@@ -355,8 +362,15 @@ class CrashReportingSanitizerTest {
                         try {
                             listener.accept()
                         } catch (e: java.net.SocketException) {
+                            // Intentional shutdown is quiet; anything else
+                            // is evidence, not a silent exit.
+                            if (!listener.isClosed) handlerErrors.add(e)
                             break
                         }
+                    // Count at accept time: a replay is observed even if
+                    // it stalls before completing its body.
+                    acceptedConnections.incrementAndGet()
+                    openSockets.add(socket)
                     try {
                         socket.soTimeout = 10_000
                         val input = socket.getInputStream()
@@ -412,6 +426,7 @@ class CrashReportingSanitizerTest {
                         // connection closes with no response while the
                         // listener keeps accepting.
                         socket.close()
+                        openSockets.remove(socket)
                         handlerDone.countDown()
                     } catch (t: Throwable) {
                         handlerErrors.add(t)
@@ -422,7 +437,7 @@ class CrashReportingSanitizerTest {
             }
         thread.isDaemon = true
         thread.start()
-        return LoopbackServer(listener, thread, requests, handlerErrors, handlerDone)
+        return LoopbackServer(listener, thread, requests, handlerErrors, handlerDone, acceptedConnections, openSockets)
     }
 
     private fun wireLoopback(loop: LoopbackServer) {
@@ -465,16 +480,20 @@ class CrashReportingSanitizerTest {
             // close with no response) without a listener-side error.
             assertTrue(loop.handlerDone.await(5, TimeUnit.SECONDS))
             // Bounded observation window for a hypothetical internal
-            // replay: the listener stayed up, so a retried POST would
-            // arrive as a second request (or a listener-side error).
+            // replay: the listener stayed up, so a retried connection
+            // would be counted at accept time (or fail in the record).
             val deadline = System.currentTimeMillis() + 2_000
-            while (System.currentTimeMillis() < deadline && loop.requests.size < 2 && loop.handlerErrors.isEmpty()) {
+            while (System.currentTimeMillis() < deadline && loop.acceptedConnections.get() < 2 && loop.handlerErrors.isEmpty()) {
                 Thread.sleep(50)
             }
-            // Error check AFTER the window: a malformed/partial replay
-            // must not disappear from the evidence. This is a bounded
+            // Close listener and any stalled partial connection, join
+            // the accept loop, THEN take final evidence: no error may
+            // surface after these assertions. This is a bounded
             // observed-loopback claim, not a general no-retry guarantee.
+            stopLoopback(loop)
+            assertFalse(loop.thread.isAlive)
             assertEquals(emptyList<Throwable>(), loop.handlerErrors)
+            assertEquals(1, loop.acceptedConnections.get())
             assertEquals(1, loop.requests.size)
             assertTrue(loop.requests[0].body.contentEquals(payload))
         } finally {
