@@ -53,6 +53,7 @@ const val FORMAT_SORTING = "format_sorting"
 const val SORTING_FIELDS = "sorting_fields"
 
 const val WELCOME_DIALOG = "welcome_dialog"
+const val ONBOARDING_DONE = "onboarding_done"
 const val UI_STYLE = "ui_style"
 const val UI_STYLE_V2 = 0
 const val UI_STYLE_CLASSIC = 1
@@ -224,6 +225,7 @@ private val BooleanPreferenceDefaults =
         NOTIFICATION to true,
         EMBED_METADATA to true,
         USE_CUSTOM_AUDIO_PRESET to false,
+        ONBOARDING_DONE to false,
     )
 
 private val IntPreferenceDefaults =
@@ -280,6 +282,8 @@ object PreferenceUtil {
     fun updateUiStyle(style: Int) = UI_STYLE.updateInt(style)
 
     fun encodeInt(key: String, int: Int) = key.updateInt(int)
+
+    fun encodeBoolean(key: String, boolean: Boolean) = key.updateBoolean(boolean)
 
     fun encodeString(key: String, string: String) = key.updateString(string)
 

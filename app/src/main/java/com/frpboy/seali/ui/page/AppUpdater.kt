@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.frpboy.seali.BuildConfig
 import com.frpboy.seali.R
+import com.frpboy.seali.util.CandidateFeaturePolicy
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.ToastUtil
 import com.frpboy.seali.util.UpdateUtil
@@ -28,8 +29,11 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun AppUpdater() {
-    // Google Play distribution must be updated through Play Store, never by sideloading APKs.
-    if (BuildConfig.APPLICATION_ID == "com.frpboy.seali") return
+    // Only the generic direct-distribution release build self-updates by sideloading
+    // APKs: Play and F-Droid builds update through their stores, and preview or debug
+    // builds cannot install release artifacts.
+    if (!CandidateFeaturePolicy.appUpdatesAvailableForChannel(BuildConfig.FLAVOR, BuildConfig.DEBUG))
+        return
 
     val context = LocalContext.current
 
@@ -38,16 +42,19 @@ fun AppUpdater() {
         mutableStateOf(UpdateUtil.DownloadStatus.NotYet as UpdateUtil.DownloadStatus)
     }
     val scope = rememberCoroutineScope()
-    var updateJob: Job? = null
+    var updateJob by remember { mutableStateOf<Job?>(null) }
     var release by remember { mutableStateOf(UpdateUtil.Release()) }
+    // The exact file this download produced; validation and install use this path
+    // so nothing can substitute another package between download and install.
+    var pendingInstallFile by remember { mutableStateOf<java.io.File?>(null) }
     val settings =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            UpdateUtil.installLatestApk()
+            pendingInstallFile?.let { UpdateUtil.installLatestApk(apkFile = it) }
         }
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { result ->
             if (result) {
-                UpdateUtil.installLatestApk()
+                pendingInstallFile?.let { UpdateUtil.installLatestApk(apkFile = it) }
             } else {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     if (!context.packageManager.canRequestPackageInstalls())
@@ -57,7 +64,7 @@ fun AppUpdater() {
                                 Uri.parse("package:${context.packageName}"),
                             )
                         )
-                    else UpdateUtil.installLatestApk()
+                    else pendingInstallFile?.let { UpdateUtil.installLatestApk(apkFile = it) }
                 }
             }
         }
@@ -93,9 +100,12 @@ fun AppUpdater() {
                                     ->
                                     currentDownloadStatus = downloadStatus
                                     if (downloadStatus is UpdateUtil.DownloadStatus.Finished) {
-                                        launcher.launch(
-                                            Manifest.permission.REQUEST_INSTALL_PACKAGES
-                                        )
+                                        pendingInstallFile = downloadStatus.file
+                                        withContext(Dispatchers.Main) {
+                                            launcher.launch(
+                                                Manifest.permission.REQUEST_INSTALL_PACKAGES
+                                            )
+                                        }
                                     }
                                 }
                             }

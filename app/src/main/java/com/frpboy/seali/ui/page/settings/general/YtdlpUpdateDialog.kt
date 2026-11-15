@@ -108,6 +108,47 @@ private fun DialogSingleChoiceItem(
     }
 }
 
+/**
+ * The required Nightly consent dialog: Nightly takes effect only through Allow here,
+ * Cancel/dismiss keeps Stable, and "don't show again" is persisted only with Allow.
+ */
+@Composable
+fun RuntimeNightlyWarningDialog(
+    dontWarnPending: Boolean,
+    onDontWarnPendingChange: (Boolean) -> Unit,
+    onAllow: () -> Unit,
+    onDeny: () -> Unit,
+    hint: String = stringResource(R.string.runtime_nightly_save_hint),
+) {
+    AlertDialog(
+        onDismissRequest = onDeny,
+        title = { Text(stringResource(R.string.runtime_nightly_warning_title)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.runtime_nightly_warning_body))
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
+                        value = dontWarnPending,
+                        role = Role.Checkbox,
+                        onValueChange = { onDontWarnPendingChange(it) },
+                    ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = dontWarnPending, onCheckedChange = null)
+                    Text(stringResource(R.string.runtime_nightly_dont_show_again))
+                }
+                Text(hint)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onAllow) { Text(stringResource(R.string.runtime_nightly_allow)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDeny) { Text(stringResource(R.string.cancel)) }
+        },
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun YtdlpUpdateChannelDialog(modifier: Modifier = Modifier, onDismissRequest: () -> Unit) {
@@ -120,35 +161,14 @@ fun YtdlpUpdateChannelDialog(modifier: Modifier = Modifier, onDismissRequest: ()
         showNightlyWarning = false
     }
     if (showNightlyWarning) {
-        AlertDialog(
-            onDismissRequest = { denyNightly() },
-            title = { Text(stringResource(R.string.runtime_nightly_warning_title)) },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text(stringResource(R.string.runtime_nightly_warning_body))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
-                            value = dontWarnPending,
-                            role = Role.Checkbox,
-                            onValueChange = { dontWarnPending = it },
-                        ),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = dontWarnPending, onCheckedChange = null)
-                        Text(stringResource(R.string.runtime_nightly_dont_show_again))
-                    }
-                    Text(stringResource(R.string.runtime_nightly_save_hint))
-                }
+        RuntimeNightlyWarningDialog(
+            dontWarnPending = dontWarnPending,
+            onDontWarnPendingChange = { dontWarnPending = it },
+            onAllow = {
+                selection = NightlyChannelSelection(YT_DLP_NIGHTLY, true, dontWarnPending)
+                showNightlyWarning = false
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    selection = NightlyChannelSelection(YT_DLP_NIGHTLY, true, dontWarnPending)
-                    showNightlyWarning = false
-                }) { Text(stringResource(R.string.runtime_nightly_allow)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { denyNightly() }) { Text(stringResource(R.string.cancel)) }
-            },
+            onDeny = { denyNightly() },
         )
     }
     val scope = rememberCoroutineScope()

@@ -2,11 +2,13 @@ package com.frpboy.seali.util
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.frpboy.seali.App
+import com.frpboy.seali.BuildConfig
 import com.frpboy.seali.App.Companion.context
 import com.frpboy.seali.R
 import com.frpboy.seali.util.FileUtil.getFileProvider
@@ -15,6 +17,7 @@ import com.frpboy.seali.util.PreferenceUtil.getInt
 import com.frpboy.seali.util.PreferenceUtil.updateLong
 import com.yausername.youtubedl_android.YoutubeDL
 import java.io.File
+import java.security.MessageDigest
 import java.util.regex.Pattern
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +29,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.ResponseBody
@@ -87,16 +91,22 @@ object UpdateUtil {
     private fun getLatestRelease(): Release =
         client.newCall(requestForReleases).execute().body.use {
             val releaseList = jsonFormat.decodeFromString<List<Release>>(it.string())
-            val stable = UPDATE_CHANNEL.getInt() == STABLE
-            val latestRelease =
-                releaseList
-                    .filter { if (stable) it.name.toVersion() is Version.Stable else true }
-                    .maxByOrNull { it.name.toVersion() } ?: throw Exception("null response")
-            latestRelease
+            selectLatestRelease(releaseList, stableOnly = UPDATE_CHANNEL.getInt() == STABLE)
+                ?: throw Exception("null response")
         }
 
+    /**
+     * Picks the newest published release for the configured channel. Drafts are never
+     * eligible: private candidate drafts must not surface through the updater.
+     */
+    internal fun selectLatestRelease(releases: List<Release>, stableOnly: Boolean): Release? =
+        releases
+            .filter { it.draft != true }
+            .filter { if (stableOnly) it.name.toVersion() is Version.Stable else true }
+            .maxByOrNull { it.name.toVersion() }
+
     fun checkForUpdate(context: Context = App.context): Release? {
-        CandidateFeaturePolicy.requireAppUpdatesAvailable()
+        CandidateFeaturePolicy.requireAppUpdatesAvailable(BuildConfig.FLAVOR, BuildConfig.DEBUG)
         val currentVersion = context.getCurrentVersion()
         val latestRelease = getLatestRelease()
         val latestVersion = latestRelease.name.toVersion()
@@ -115,13 +125,43 @@ object UpdateUtil {
 
     private fun Context.getLatestApk() = File(getExternalFilesDir("apk"), "latest.apk")
 
-    fun installLatestApk(context: Context = App.context) =
+    private fun Context.getApkDownloadDir() = File(cacheDir, "apk")
+
+    /** Every download writes its own file, so concurrent operations can never
+     * interleave bytes or replace each other's verified package. */
+    internal fun newApkDownloadFile(dir: File): File = File(dir, "update-${System.nanoTime()}.apk")
+
+    internal const val STALE_DOWNLOAD_MAX_AGE_MS: Long = 24 * 60 * 60 * 1000L
+
+    /**
+     * A per-operation download is stale only strictly past the retention window;
+     * a file at the boundary or younger is retained, since a pending system
+     * installer session handed off before a process death may still read it.
+     */
+    internal fun isStaleDownload(lastModifiedMs: Long, nowMs: Long): Boolean =
+        nowMs - lastModifiedMs > STALE_DOWNLOAD_MAX_AGE_MS
+
+    fun installLatestApk(context: Context = App.context, apkFile: File = context.getLatestApk()) =
         context.run {
             kotlin
                 .runCatching {
-                    CandidateFeaturePolicy.requireAppUpdatesAvailable()
+                    CandidateFeaturePolicy.requireAppUpdatesAvailable(
+                        BuildConfig.FLAVOR,
+                        BuildConfig.DEBUG,
+                    )
+                    // Validation and the installer handoff use the exact file this
+                    // operation downloaded, never a shared path another operation
+                    // could replace in between.
+                    when (val validation = validateDownloadedApk(context = this, apkFile = apkFile)) {
+                        is ApkValidation.Rejected -> {
+                            ToastUtil.makeToast(validation.reasonRes)
+                            return@runCatching
+                        }
+                        ApkValidation.Indeterminate,
+                        ApkValidation.Valid -> Unit
+                    }
                     val contentUri =
-                        FileProvider.getUriForFile(this, getFileProvider(), getLatestApk())
+                        FileProvider.getUriForFile(this, getFileProvider(), apkFile)
                     val intent =
                         Intent(Intent.ACTION_VIEW).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -138,6 +178,15 @@ object UpdateUtil {
 
     suspend fun deleteOutdatedApk(context: Context = App.context) =
         context.runCatching {
+            // Per-operation downloads live in the private cache. Only stale files
+            // are reclaimed at startup, so a normal restart never deletes the
+            // file of a current or recently handed-off pending install; the age
+            // bound still keeps downloads from accumulating without limit.
+            val nowMs = System.currentTimeMillis()
+            context.getApkDownloadDir()
+                .listFiles()
+                ?.filter { isStaleDownload(lastModifiedMs = it.lastModified(), nowMs = nowMs) }
+                ?.forEach { it.delete() }
             val apkFile = getLatestApk()
             if (apkFile.exists()) {
                 val apkVersion =
@@ -156,40 +205,261 @@ object UpdateUtil {
         release: Release,
     ): Flow<DownloadStatus> =
         withContext(Dispatchers.IO) {
-            CandidateFeaturePolicy.requireAppUpdatesAvailable()
-            val apkVersion =
-                context.packageManager
-                    .getPackageArchiveInfo(context.getLatestApk().absolutePath, 0)
-                    ?.versionName
-                    .toVersion()
-
-            Log.d(TAG, apkVersion.toString())
-
-            if (apkVersion >= release.name.toVersion()) {
-                return@withContext flow<DownloadStatus> {
-                    emit(DownloadStatus.Finished(context.getLatestApk()))
-                }
-            }
-
+            CandidateFeaturePolicy.requireAppUpdatesAvailable(
+                BuildConfig.FLAVOR,
+                BuildConfig.DEBUG,
+            )
             val abiList = Build.SUPPORTED_ABIS
             val preferredArch = abiList.firstOrNull() ?: return@withContext emptyFlow()
 
-            val targetUrl =
-                release.assets
-                    ?.find {
-                        return@find it.name?.contains(preferredArch) ?: false
+            val targetAsset =
+                release.assets?.find { assetMatchesAbi(it.name, preferredArch) }
+                    ?: return@withContext flow {
+                        throw Exception("no update package matches this device ABI")
                     }
-                    ?.browserDownloadUrl ?: return@withContext emptyFlow()
-            val request = Request.Builder().url(targetUrl).build()
+            val targetUrl =
+                targetAsset.browserDownloadUrl?.takeIf { isTrustedDownloadUrl(it) }
+                    ?: return@withContext flow {
+                        throw Exception("update package URL is missing or untrusted")
+                    }
+            val expectedSha256 = expectedSha256(release = release, assetName = targetAsset.name)
+            // The download goes to a private, per-operation file; it is verified and
+            // handed to the installer as this exact file, so a later or overlapping
+            // download can never substitute another package for the one the user
+            // confirmed.
+            val tempApk = newApkDownloadFile(context.getApkDownloadDir().apply { mkdirs() })
             try {
-                val response = client.newCall(request).execute()
+                val response =
+                    executeFollowingTrustedRedirects(Request.Builder().url(targetUrl).build())
+                if (!response.isSuccessful) {
+                    response.close()
+                    throw Exception("update download failed: HTTP ${response.code}")
+                }
                 val responseBody = response.body
-                return@withContext responseBody.downloadFileWithProgress(context.getLatestApk())
+                return@withContext flow {
+                        responseBody.downloadFileWithProgress(tempApk).collect { status ->
+                            if (status is DownloadStatus.Finished) {
+                                if (expectedSha256 != null) {
+                                    val actual = sha256FileHex(status.file)
+                                    if (!actual.equals(expectedSha256, ignoreCase = true)) {
+                                        status.file.delete()
+                                        throw Exception("update package checksum mismatch")
+                                    }
+                                }
+                                emit(DownloadStatus.Finished(status.file))
+                            } else {
+                                emit(status)
+                            }
+                        }
+                    }
+                    .flowOn(Dispatchers.IO)
             } catch (e: Exception) {
                 e.printStackTrace()
+                tempApk.delete()
             }
             emptyFlow()
         }
+
+    private const val MAX_REDIRECTS = 5
+
+    private val redirectCodes = setOf(301, 302, 303, 307, 308)
+
+    /** Asset downloads must stay on GitHub hosts; redirects anywhere else are refused. */
+    internal fun isTrustedDownloadUrl(url: String): Boolean {
+        val parsed = runCatching { url.toHttpUrl() }.getOrNull() ?: return false
+        return parsed.scheme == "https" && isTrustedDownloadHost(parsed.host)
+    }
+
+    private fun isTrustedDownloadHost(host: String): Boolean =
+        host == "github.com" ||
+            host.endsWith(".github.com") ||
+            host == "githubusercontent.com" ||
+            host.endsWith(".githubusercontent.com")
+
+    private fun executeFollowingTrustedRedirects(request: Request): okhttp3.Response {
+        val noRedirectClient =
+            client.newBuilder().followRedirects(false).followSslRedirects(false).build()
+        var currentRequest = request
+        repeat(MAX_REDIRECTS + 1) { attempt ->
+            val response = noRedirectClient.newCall(currentRequest).execute()
+            if (response.code !in redirectCodes) return response
+            val location = response.header("Location")
+            response.close()
+            val resolved =
+                location?.let { currentRequest.url.resolve(it) }
+                    ?: throw Exception("update download redirect without location")
+            if (attempt == MAX_REDIRECTS) throw Exception("too many update download redirects")
+            if (resolved.scheme != "https" || !isTrustedDownloadHost(resolved.host)) {
+                throw Exception("update download redirect to untrusted host: ${resolved.host}")
+            }
+            currentRequest = currentRequest.newBuilder().url(resolved).build()
+        }
+        throw Exception("too many update download redirects")
+    }
+
+    /**
+     * Reads the expected SHA-256 for [assetName] from a SHA256SUMS asset published with
+     * the release, when one exists. Returns null when the release publishes no sums;
+     * the signature-continuity check in [validateDownloadedApk] remains the integrity
+     * anchor in that case.
+     */
+    private fun expectedSha256(release: Release, assetName: String?): String? {
+        assetName ?: return null
+        val sumsAsset =
+            release.assets?.firstOrNull {
+                it.name == "SHA256SUMS" || it.name == "SHA256SUMS.txt"
+            } ?: return null
+        val sumsUrl = sumsAsset.browserDownloadUrl?.takeIf { isTrustedDownloadUrl(it) }
+            sumsUrl ?: return null
+        return runCatching {
+                executeFollowingTrustedRedirects(Request.Builder().url(sumsUrl).build()).body.use {
+                    body ->
+                    body.string().lineSequence().firstNotNullOfOrNull { line ->
+                        val parts = line.trim().split(Regex("\\s+"))
+                        if (parts.size == 2 && parts[1].trimStart('*') == assetName) parts[0]
+                        else null
+                    }
+                }
+            }
+            .getOrNull()
+    }
+
+    /** Outcome of the pre-install trust checks on the downloaded update package. */
+    sealed class ApkValidation {
+        object Valid : ApkValidation()
+
+        /** The platform could not parse the package; Android enforces at install time. */
+        object Indeterminate : ApkValidation()
+
+        data class Rejected(val reasonRes: Int) : ApkValidation()
+    }
+
+    /**
+     * Pre-install trust checks on the downloaded update package: it must parse as an
+     * APK, carry this installation's exact package name, be strictly newer by
+     * versionCode, support this device's API level, and be signed by the same
+     * certificate. Android enforces signature and version rules at install time too;
+     * these checks exist so the user gets an explicit reason instead of a silent
+     * failed install handoff.
+     */
+    @Suppress("DEPRECATION")
+    fun validateDownloadedApk(
+        context: Context = App.context,
+        apkFile: File = context.getLatestApk(),
+    ): ApkValidation =
+        runCatching {
+                if (!apkFile.exists()) return ApkValidation.Indeterminate
+                val packageManager = context.packageManager
+                val archiveInfo =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        packageManager.getPackageArchiveInfo(
+                            apkFile.absolutePath,
+                            PackageManager.GET_SIGNING_CERTIFICATES,
+                        )
+                    } else {
+                        packageManager.getPackageArchiveInfo(
+                            apkFile.absolutePath,
+                            PackageManager.GET_SIGNATURES,
+                        )
+                    }
+                val archiveApplicationInfo = archiveInfo?.applicationInfo
+                if (archiveInfo == null || archiveApplicationInfo == null) {
+                    return ApkValidation.Rejected(R.string.app_update_invalid_apk)
+                }
+                if (archiveInfo.packageName != context.packageName) {
+                    return ApkValidation.Rejected(R.string.app_update_package_mismatch)
+                }
+                val currentInfo =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        packageManager.getPackageInfo(
+                            context.packageName,
+                            PackageManager.GET_SIGNING_CERTIFICATES,
+                        )
+                    } else {
+                        packageManager.getPackageInfo(
+                            context.packageName,
+                            PackageManager.GET_SIGNATURES,
+                        )
+                    }
+                val archiveVersionCode =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) archiveInfo.longVersionCode
+                    else archiveInfo.versionCode.toLong()
+                val currentVersionCode =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) currentInfo.longVersionCode
+                    else currentInfo.versionCode.toLong()
+                if (!isUpgrade(archiveVersionCode, currentVersionCode)) {
+                    return ApkValidation.Rejected(R.string.app_update_not_newer)
+                }
+                if (!supportsDevice(archiveApplicationInfo.minSdkVersion, Build.VERSION.SDK_INT)) {
+                    return ApkValidation.Rejected(R.string.app_update_requires_newer_android)
+                }
+                val archiveHashes = signatureHashes(archiveInfo)
+                val currentHashes = signatureHashes(currentInfo)
+                if (archiveHashes.isEmpty() || currentHashes.isEmpty()) {
+                    return ApkValidation.Indeterminate
+                }
+                if (!isSignerLineageContinuous(currentHashes.toSet(), archiveHashes.toSet())) {
+                    return ApkValidation.Rejected(R.string.app_update_signature_mismatch)
+                }
+                ApkValidation.Valid
+            }
+            .getOrElse { ApkValidation.Rejected(R.string.app_update_validation_failed) }
+
+    /**
+     * The update's signing certificate history must continue the installed app's
+     * lineage: identical certificates, or a valid rotation where the installed
+     * certificates remain in the update's history. A different signer fails closed.
+     */
+    internal fun isSignerLineageContinuous(
+        currentHashes: Set<String>,
+        updateHashes: Set<String>,
+    ): Boolean = currentHashes.isNotEmpty() && updateHashes.containsAll(currentHashes)
+
+    internal fun isUpgrade(archiveVersionCode: Long, currentVersionCode: Long): Boolean =
+        archiveVersionCode > currentVersionCode
+
+    internal fun supportsDevice(minSdkVersion: Int, deviceSdk: Int): Boolean =
+        minSdkVersion <= deviceSdk
+
+    private fun signatureHashes(info: PackageInfo?): List<String> {
+        info ?: return emptyList()
+        val signatures: Array<android.content.pm.Signature>? =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.signingInfo?.let { signingInfo ->
+                    if (signingInfo.hasMultipleSigners()) signingInfo.apkContentsSigners
+                    else signingInfo.signingCertificateHistory
+                }
+            } else {
+                @Suppress("DEPRECATION") info.signatures
+            }
+        return signatures?.map { sha256Hex(it.toByteArray()) } ?: emptyList()
+    }
+
+    private fun sha256Hex(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
+    private fun sha256FileHex(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read == -1) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * ABI token match with non-identifier boundaries, so the x86 selector cannot match
+     * an x86_64 asset (or vice versa) the way a plain substring check would.
+     */
+    internal fun assetMatchesAbi(assetName: String?, abi: String): Boolean {
+        assetName ?: return false
+        return Regex("(^|[^A-Za-z0-9_])" + Regex.escape(abi) + "([^A-Za-z0-9_]|\$)")
+            .containsMatchIn(assetName)
+    }
 
     private fun ResponseBody.downloadFileWithProgress(saveFile: File): Flow<DownloadStatus> =
         flow {
@@ -201,6 +471,9 @@ object UpdateUtil {
                     byteStream().use { inputStream ->
                         saveFile.outputStream().use { outputStream ->
                             val totalBytes = contentLength()
+                            if (totalBytes <= 0L) {
+                                throw Exception("update package size unknown")
+                            }
                             val data = ByteArray(8_192)
                             var progressBytes = 0L
 

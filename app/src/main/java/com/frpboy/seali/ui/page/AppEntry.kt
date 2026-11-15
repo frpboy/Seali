@@ -48,6 +48,7 @@ import com.frpboy.seali.ui.page.command.TaskLogPage
 import com.frpboy.seali.ui.page.downloadv2.configure.DownloadDialogViewModel
 import com.frpboy.seali.ui.page.downloadv2.DownloadPageV2
 import com.frpboy.seali.ui.page.downloadv2.classic.ClassicHomePage
+import com.frpboy.seali.ui.page.onboarding.OnboardingGate
 import com.frpboy.seali.ui.page.settings.SettingsPage
 import com.frpboy.seali.ui.page.settings.about.AboutPage
 import com.frpboy.seali.ui.page.settings.about.CreditsPage
@@ -206,6 +207,7 @@ fun AppEntry(dialogViewModel: DownloadDialogViewModel) {
 
             AppUpdater()
             YtdlpUpdater()
+            OnboardingGate()
         }
     }
 }
