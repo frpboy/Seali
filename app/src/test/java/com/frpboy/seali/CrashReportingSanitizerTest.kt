@@ -2,16 +2,19 @@ package com.frpboy.seali
 
 import com.frpboy.seali.util.SentryEventSanitizer
 import com.frpboy.seali.util.applyPrivacyDefaults
+import io.sentry.Attachment
 import io.sentry.Breadcrumb
 import io.sentry.Hint
 import io.sentry.ITransportFactory
 import io.sentry.JsonSerializer
+import io.sentry.NoOpLogger
 import io.sentry.Sentry
 import io.sentry.SentryLevel
 import io.sentry.SentryEnvelope
 import io.sentry.SentryEnvelopeHeader
 import io.sentry.SentryEnvelopeItem
 import io.sentry.SentryEvent
+import io.sentry.SentryItemType
 import io.sentry.SentryOptions
 import io.sentry.protocol.Device
 import io.sentry.protocol.Mechanism
@@ -27,6 +30,7 @@ import java.io.ByteArrayOutputStream
 import java.io.StringWriter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -280,6 +284,54 @@ class CrashReportingSanitizerTest {
         } finally {
             Sentry.close()
         }
+    }
+
+    @Test
+    fun freshEventKeepsOnlyQualifiedFieldsAndGetsNewIdentity() {
+        val source = hostileEvent()
+        source.throwable = RuntimeException("boom")
+        val sanitized = SentryEventSanitizer.apply(source)
+        assertNotSame(source, sanitized)
+        assertTrue(sanitized.eventId != source.eventId)
+        assertNull(sanitized.throwable)
+        assertEquals("Pixel 8", sanitized.contexts.device?.model)
+        assertNull(sanitized.contexts.device?.name)
+    }
+
+    @Test
+    fun transportDropsNonEventEnvelopeItems() {
+        val forwarded = CopyOnWriteArrayList<SentryEnvelope>()
+        val inner =
+            object : ITransport {
+                override fun send(envelope: SentryEnvelope, hint: Hint) {
+                    forwarded.add(envelope)
+                }
+
+                override fun isHealthy(): Boolean = true
+
+                override fun flush(timeoutMillis: Long) {}
+
+                override fun close() {}
+            }
+        val transport = com.frpboy.seali.util.EventOnlyTransport(inner)
+        val serializer = JsonSerializer(SentryOptions())
+        val eventItem =
+            SentryEnvelopeItem.fromEvent(serializer, SentryEventSanitizer.apply(hostileEvent()))
+        val attachmentItem =
+            SentryEnvelopeItem.fromAttachment(
+                serializer,
+                NoOpLogger.getInstance(),
+                Attachment("screenshot-bytes".toByteArray(), "screen.png"),
+                5L * 1024 * 1024,
+            )
+        val sourceId = io.sentry.SentryId()
+        val envelope = SentryEnvelope(SentryEnvelopeHeader(sourceId), listOf(eventItem, attachmentItem))
+        transport.send(envelope, Hint())
+        assertEquals(1, forwarded.size)
+        val out = forwarded.single()
+        assertEquals(1, out.items.count())
+        assertEquals(SentryItemType.Event, out.items.single().header.type)
+        assertEquals(sourceId, out.header.eventId)
     }
 
     @Test
