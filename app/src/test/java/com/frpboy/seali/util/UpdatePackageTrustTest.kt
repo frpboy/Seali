@@ -22,6 +22,16 @@ class UpdatePackageTrustTest {
     }
 
     @Test
+    fun `each download gets its own file so overlapping operations cannot substitute packages`() {
+        val dir = java.nio.file.Files.createTempDirectory("dl").toFile()
+        val first = UpdateUtil.newApkDownloadFile(dir)
+        val second = UpdateUtil.newApkDownloadFile(dir)
+        assertNotEquals(first.absolutePath, second.absolutePath)
+        assertEquals(dir, first.parentFile)
+        assertEquals(dir, second.parentFile)
+    }
+
+    @Test
     fun `signer lineage requires the installed certificates to continue in the update`() {
         val certA = "a".repeat(64)
         val certB = "b".repeat(64)

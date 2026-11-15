@@ -65,7 +65,7 @@ fun UpdateDialog(onDismissRequest: () -> Unit, release: UpdateUtil.Release) {
                                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     )
                                 } else {
-                                    UpdateUtil.installLatestApk()
+                                    UpdateUtil.installLatestApk(apkFile = downloadStatus.file)
                                 }
                             }
                         }

@@ -44,14 +44,17 @@ fun AppUpdater() {
     val scope = rememberCoroutineScope()
     var updateJob by remember { mutableStateOf<Job?>(null) }
     var release by remember { mutableStateOf(UpdateUtil.Release()) }
+    // The exact file this download produced; validation and install use this path
+    // so nothing can substitute another package between download and install.
+    var pendingInstallFile by remember { mutableStateOf<java.io.File?>(null) }
     val settings =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            UpdateUtil.installLatestApk()
+            pendingInstallFile?.let { UpdateUtil.installLatestApk(apkFile = it) }
         }
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { result ->
             if (result) {
-                UpdateUtil.installLatestApk()
+                pendingInstallFile?.let { UpdateUtil.installLatestApk(apkFile = it) }
             } else {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     if (!context.packageManager.canRequestPackageInstalls())
@@ -61,7 +64,7 @@ fun AppUpdater() {
                                 Uri.parse("package:${context.packageName}"),
                             )
                         )
-                    else UpdateUtil.installLatestApk()
+                    else pendingInstallFile?.let { UpdateUtil.installLatestApk(apkFile = it) }
                 }
             }
         }
@@ -97,6 +100,7 @@ fun AppUpdater() {
                                     ->
                                     currentDownloadStatus = downloadStatus
                                     if (downloadStatus is UpdateUtil.DownloadStatus.Finished) {
+                                        pendingInstallFile = downloadStatus.file
                                         withContext(Dispatchers.Main) {
                                             launcher.launch(
                                                 Manifest.permission.REQUEST_INSTALL_PACKAGES

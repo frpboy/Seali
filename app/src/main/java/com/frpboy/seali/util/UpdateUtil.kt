@@ -125,7 +125,13 @@ object UpdateUtil {
 
     private fun Context.getLatestApk() = File(getExternalFilesDir("apk"), "latest.apk")
 
-    fun installLatestApk(context: Context = App.context) =
+    private fun Context.getApkDownloadDir() = File(cacheDir, "apk")
+
+    /** Every download writes its own file, so concurrent operations can never
+     * interleave bytes or replace each other's verified package. */
+    internal fun newApkDownloadFile(dir: File): File = File(dir, "update-${System.nanoTime()}.apk")
+
+    fun installLatestApk(context: Context = App.context, apkFile: File = context.getLatestApk()) =
         context.run {
             kotlin
                 .runCatching {
@@ -133,7 +139,10 @@ object UpdateUtil {
                         BuildConfig.FLAVOR,
                         BuildConfig.DEBUG,
                     )
-                    when (val validation = validateDownloadedApk()) {
+                    // Validation and the installer handoff use the exact file this
+                    // operation downloaded, never a shared path another operation
+                    // could replace in between.
+                    when (val validation = validateDownloadedApk(context = this, apkFile = apkFile)) {
                         is ApkValidation.Rejected -> {
                             ToastUtil.makeToast(validation.reasonRes)
                             return@runCatching
@@ -142,7 +151,7 @@ object UpdateUtil {
                         ApkValidation.Valid -> Unit
                     }
                     val contentUri =
-                        FileProvider.getUriForFile(this, getFileProvider(), getLatestApk())
+                        FileProvider.getUriForFile(this, getFileProvider(), apkFile)
                     val intent =
                         Intent(Intent.ACTION_VIEW).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -159,6 +168,10 @@ object UpdateUtil {
 
     suspend fun deleteOutdatedApk(context: Context = App.context) =
         context.runCatching {
+            // Per-operation downloads live in the private cache; stale ones are
+            // cleared at startup, when no download or install of this process can
+            // still be reading them.
+            context.getApkDownloadDir().listFiles()?.forEach { it.delete() }
             val apkFile = getLatestApk()
             if (apkFile.exists()) {
                 val apkVersion =
@@ -177,21 +190,10 @@ object UpdateUtil {
         release: Release,
     ): Flow<DownloadStatus> =
         withContext(Dispatchers.IO) {
-            CandidateFeaturePolicy.requireAppUpdatesAvailable(App.isPlayBuild(), App.isFDroidBuild())
-            val apkVersion =
-                context.packageManager
-                    .getPackageArchiveInfo(context.getLatestApk().absolutePath, 0)
-                    ?.versionName
-                    .toVersion()
-
-            Log.d(TAG, apkVersion.toString())
-
-            if (apkVersion >= release.name.toVersion()) {
-                return@withContext flow<DownloadStatus> {
-                    emit(DownloadStatus.Finished(context.getLatestApk()))
-                }
-            }
-
+            CandidateFeaturePolicy.requireAppUpdatesAvailable(
+                BuildConfig.FLAVOR,
+                BuildConfig.DEBUG,
+            )
             val abiList = Build.SUPPORTED_ABIS
             val preferredArch = abiList.firstOrNull() ?: return@withContext emptyFlow()
 
@@ -206,16 +208,11 @@ object UpdateUtil {
                         throw Exception("update package URL is missing or untrusted")
                     }
             val expectedSha256 = expectedSha256(release = release, assetName = targetAsset.name)
-            val latestApk = context.getLatestApk()
-            // Downloads write a unique temp file and atomically rename into place, so a
-            // process death or an overlapping download can never leave a partial or
-            // interleaved package at the install location.
-            latestApk.parentFile
-                ?.listFiles { file ->
-                    file.name.startsWith("latest.apk.") && file.name.endsWith(".tmp")
-                }
-                ?.forEach { it.delete() }
-            val tempApk = File(latestApk.parentFile, "latest.apk.${System.nanoTime()}.tmp")
+            // The download goes to a private, per-operation file; it is verified and
+            // handed to the installer as this exact file, so a later or overlapping
+            // download can never substitute another package for the one the user
+            // confirmed.
+            val tempApk = newApkDownloadFile(context.getApkDownloadDir().apply { mkdirs() })
             try {
                 val response =
                     executeFollowingTrustedRedirects(Request.Builder().url(targetUrl).build())
@@ -234,11 +231,7 @@ object UpdateUtil {
                                         throw Exception("update package checksum mismatch")
                                     }
                                 }
-                                if (!status.file.renameTo(latestApk)) {
-                                    status.file.delete()
-                                    throw Exception("could not finalize update package")
-                                }
-                                emit(DownloadStatus.Finished(latestApk))
+                                emit(DownloadStatus.Finished(status.file))
                             } else {
                                 emit(status)
                             }
@@ -335,9 +328,11 @@ object UpdateUtil {
      * failed install handoff.
      */
     @Suppress("DEPRECATION")
-    fun validateDownloadedApk(context: Context = App.context): ApkValidation =
+    fun validateDownloadedApk(
+        context: Context = App.context,
+        apkFile: File = context.getLatestApk(),
+    ): ApkValidation =
         runCatching {
-                val apkFile = context.getLatestApk()
                 if (!apkFile.exists()) return ApkValidation.Indeterminate
                 val packageManager = context.packageManager
                 val archiveInfo =
