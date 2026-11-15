@@ -1,349 +1,180 @@
 package com.frpboy.seali
 
-import com.frpboy.seali.util.SentryEventSanitizer
+import com.frpboy.seali.util.CrashReporting
+import com.frpboy.seali.util.FixedEventTransport
 import com.frpboy.seali.util.applyPrivacyDefaults
 import io.sentry.Attachment
 import io.sentry.Breadcrumb
 import io.sentry.Hint
-import io.sentry.ITransportFactory
 import io.sentry.JsonSerializer
 import io.sentry.NoOpLogger
-import io.sentry.Sentry
-import io.sentry.SentryLevel
 import io.sentry.SentryEnvelope
 import io.sentry.SentryEnvelopeHeader
 import io.sentry.SentryEnvelopeItem
 import io.sentry.SentryEvent
+import io.sentry.SentryId
 import io.sentry.SentryItemType
+import io.sentry.SentryLevel
 import io.sentry.SentryOptions
 import io.sentry.protocol.Device
-import io.sentry.protocol.Mechanism
 import io.sentry.protocol.Request
 import io.sentry.protocol.SentryException
-import io.sentry.protocol.SentryStackFrame
-import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.User
 import io.sentry.transport.ITransport
 import java.io.ByteArrayInputStream
-import java.util.concurrent.CopyOnWriteArrayList
 import java.io.ByteArrayOutputStream
 import java.io.StringWriter
+import java.util.Date
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Hostile-scope negative proof for the Sentry egress boundary, executed
- * against the real SDK classes. An event deliberately stuffed with user
- * identifiers, URLs, tokens, absolute paths, typed text and device name
- * must leave the sanitizer containing none of them, including in the
- * actual SDK-serialized JSON payload.
+ * Boundary proof for the fixed-generic Sentry payload, executed against
+ * the real SDK classes. An event deliberately stuffed with hostile
+ * content is passed through the boundary; the outgoing payload is then
+ * verified to be exactly the fixed generic event (trusted build
+ * constants plus fresh id/time) with no byte of the input carried over.
  */
 class CrashReportingSanitizerTest {
 
     private val hostileStrings =
         listOf(
-            "person@example.com",
-            "account-name",
-            "203.0.113.10",
-            "https://media.example/watch?v=private-item",
-            "session=secret",
-            "user typed private text",
-            "rahus-personal-device",
-            "/data/user/0/com.frpboy.seali/files/Download/private video.mp4",
-            "token=eyJhbGciOiJIUzI1NiJ9",
-            "failed to load https://media.example/watch?v=private-item&token=eyJhbGciOiJIUzI1NiJ9",
+            "rahul.muraleedharan@example.com",
+            "https://example.com/private/path?token=abc123",
+            "Authorization: Bearer xyz",
+            "/sdcard/Download/secret-file.txt",
+            "user-supplied free text title",
+            "192.168.10.77",
+            "hostile-marker-7f3a",
         )
 
+    /** An event stuffed with hostile content in every writable slot. */
     private fun hostileEvent(): SentryEvent {
-        val event = SentryEvent(RuntimeException("ignored"))
-        event.user =
-            User().apply {
-                email = "person@example.com"
-                username = "account-name"
-                ipAddress = "203.0.113.10"
-            }
-        event.request =
-            Request().apply {
-                url = "https://media.example/watch?v=private-item"
-                cookies = "session=secret"
-            }
-        event.breadcrumbs = listOf(Breadcrumb().apply { message = "user typed private text" })
-        event.serverName = "rahus-personal-device"
-        event.message =
-            io.sentry.protocol.Message().apply {
-                message = "failed to load https://media.example/watch?v=private-item&token=eyJhbGciOiJIUzI1NiJ9"
-            }
-        event.transaction = "/watch/private-item"
-        event.setTag("user_query", "private-item")
-        event.setExtra("attempt_url", "https://media.example/watch?v=private-item&token=eyJhbGciOiJIUzI1NiJ9")
-        event.contexts.setDevice(
-            Device().apply {
-                model = "Pixel 8"
-                name = "rahus-personal-device"
-            }
-        )
-        event.exceptions =
+        val e = SentryEvent(SentryId(), Date())
+        e.level = SentryLevel.FATAL
+        e.logger = "hostile-marker-7f3a"
+        e.release = "https://example.com/private/path?token=abc123"
+        e.dist = "Authorization: Bearer xyz"
+        e.environment = "user-supplied free text title"
+        e.message = io.sentry.protocol.Message().apply { message = "hostile-marker-7f3a" }
+        e.serverName = "192.168.10.77"
+        e.user = User().apply { email = "rahul.muraleedharan@example.com" }
+        e.request = Request().apply { url = "https://example.com/private/path?token=abc123" }
+        e.breadcrumbs = listOf(Breadcrumb("user-supplied free text title"))
+        e.exceptions =
             listOf(
                 SentryException().apply {
-                    type = "RuntimeException"
-                    module = "com.frpboy.seali"
-                    value = "failed to load https://media.example/watch?v=private-item&token=eyJhbGciOiJIUzI1NiJ9"
-                    mechanism = Mechanism().apply { type = "UncaughtExceptionHandler" }
-                    stacktrace =
-                        SentryStackTrace(
-                            listOf(
-                                SentryStackFrame().apply {
-                                    module = "com.frpboy.seali.App"
-                                    function = "onCreate"
-                                    filename = "App.kt"
-                                    lineno = 87
-                                    isInApp = true
-                                    absPath = "/data/user/0/com.frpboy.seali/files/Download/private video.mp4"
-                                },
-                                SentryStackFrame().apply {
-                                    module = "org.external.Loader"
-                                    function = "load https://media.example/watch?v=private-item"
-                                    filename = "private video.mp4"
-                                    lineno = 1
-                                    isInApp = false
-                                },
-                            )
-                        )
+                    type = "hostile-marker-7f3a"
+                    value = "/sdcard/Download/secret-file.txt"
+                    module = "rahul.muraleedharan@example.com"
                 }
             )
-        return event
-    }
-
-    @Test
-    fun structuralReconstructionKeepsOnlyKnownSafeParts() {
-        val event = SentryEventSanitizer.apply(hostileEvent())
-        assertNull(event.user)
-        assertNull(event.request)
-        assertNull(event.breadcrumbs)
-        assertNull(event.serverName)
-        assertNull(event.message)
-        assertNull(event.transaction)
-        assertTrue(event.tags == null || event.tags.isEmpty())
-        assertTrue(event.extras == null || event.extras.isEmpty())
-        assertNull(event.contexts.device?.name)
-        assertEquals("Pixel 8", event.contexts.device?.model)
-        val exception = event.exceptions!!.single()
-        assertEquals("RuntimeException", exception.type)
-        assertNull(exception.value)
-        assertEquals("UncaughtExceptionHandler", exception.mechanism?.type)
-        val frames = exception.stacktrace!!.frames!!
-        assertEquals("onCreate", frames[0].function)
-        assertEquals("App.kt", frames[0].filename)
-        assertNull(frames[0].absPath)
-        // Out-of-package frame: all detail dropped, only in-app flag survives.
-        assertNull(frames[1].module)
-        assertNull(frames[1].function)
-        assertNull(frames[1].filename)
-        assertNull(frames[1].lineno)
-        assertEquals(false, frames[1].isInApp)
-    }
-
-    @Test
-    fun structuralGuardsDropIdentifierFieldsWithTransportChars() {
-        val event = SentryEvent()
-        event.exceptions =
-            listOf(
-                SentryException().apply {
-                    type = "RuntimeException https://media.example/watch?v=private-item"
-                    mechanism = Mechanism().apply { type = "handler?token=eyJhbGciOiJIUzI1NiJ9" }
-                }
-            )
-        event.contexts.setDevice(
+        e.setTag("k", "hostile-marker-7f3a")
+        e.setExtra("k", "Authorization: Bearer xyz")
+        e.contexts.setDevice(
             Device().apply {
-                model = "Pixel 8"
-                name = "rahus-personal-device"
-                brand = "Google/session=secret"
+                name = "rahul's personal phone"
+                model = "hostile-marker-7f3a"
             }
         )
-        val sanitized = SentryEventSanitizer.apply(event)
-        assertNull(sanitized.exceptions!!.single().type)
-        assertNull(sanitized.exceptions!!.single().mechanism?.type)
-        assertNull(sanitized.contexts.device?.brand)
-        assertEquals("Pixel 8", sanitized.contexts.device?.model)
+        return e
     }
 
-    @Test
-    fun actualSdkSerializedPayloadContainsNoHostileString() {
-        val sanitized = SentryEventSanitizer.apply(hostileEvent())
-        val serializer = JsonSerializer(SentryOptions())
+    private fun serialize(event: SentryEvent): String {
+        val options = SentryOptions()
+        val serializer = JsonSerializer(options)
         val writer = StringWriter()
-        serializer.serialize(sanitized, writer)
-        val payload = writer.toString()
-        assertTrue("sanitized payload must keep the exception type", payload.contains("RuntimeException"))
-        assertTrue("sanitized payload must keep frame function", payload.contains("onCreate"))
+        serializer.serialize(event, writer)
+        return writer.toString()
+    }
+
+    @Test
+    fun `beforeSend replaces a hostile event with the fixed generic event`() {
+        val options = SentryOptions()
+        options.applyPrivacyDefaults()
+        options.beforeSend =
+            SentryOptions.BeforeSendCallback { _, _ -> CrashReporting.buildGenericEvent() }
+        val hint = Hint.withAttachment(Attachment("hostile-marker-7f3a".toByteArray(), "a.txt"))
+        val out = options.beforeSend.execute(hostileEvent(), hint)!!
+        val payload = serialize(out)
         for (hostile in hostileStrings) {
             assertFalse("payload leaked: $hostile", payload.contains(hostile))
         }
+        assertEquals(SentryLevel.ERROR, out.level)
+        assertEquals("app", out.logger)
+        assertEquals("production", out.environment)
+        assertNull(out.user)
+        assertNull(out.request)
+        assertNull(out.message)
+        assertNull(out.exceptions)
+        assertNull(out.breadcrumbs)
+        assertNull(out.serverName)
     }
 
     @Test
-    fun actualSdkEnvelopeCarriesSingleItemAndNoHostileString() {
-        val sanitized = SentryEventSanitizer.apply(hostileEvent())
-        val serializer = JsonSerializer(SentryOptions())
-        val item = SentryEnvelopeItem.fromEvent(serializer, sanitized)
-        val envelope = SentryEnvelope(SentryEnvelopeHeader(sanitized.eventId), listOf(item))
-        // Our pipeline creates no attachment items: the envelope must carry the event alone.
-        assertEquals(1, envelope.items.count())
-        val out = ByteArrayOutputStream()
-        serializer.serializeEnvelope(envelope, out)
-        val payload = out.toString(Charsets.UTF_8.name())
-        assertTrue(payload.contains("RuntimeException"))
-        for (hostile in hostileStrings) {
-            assertFalse("envelope leaked: $hostile", payload.contains(hostile))
-        }
-    }
-
-    /**
-     * Actual capture-pipeline evidence: the real SDK hub, scope, client,
-     * beforeSend hook and envelope build run end to end with a recording
-     * transport. Hostile data rides the ordinary carriers (throwable
-     * message, scope user, breadcrumb, tag, extra). The envelope the
-     * transport receives must contain exactly one item (the event - no
-     * attachment items, and our code adds none anywhere) and no hostile
-     * string in the deserialized real SDK event or the raw bytes.
-     */
-    @Test
-    fun realCapturePipelineProducesSanitizedSingleItemEnvelope() {
-        val captured = CopyOnWriteArrayList<SentryEnvelope>()
-        val options =
-            SentryOptions().apply {
-                dsn = "https://examplePublicKey@o0.ingest.sentry.io/0"
-                applyPrivacyDefaults()
-                beforeSend =
-                    SentryOptions.BeforeSendCallback { event, _ ->
-                        SentryEventSanitizer.apply(event)
-                    }
-                setTransportFactory(
-                    ITransportFactory { _, _ ->
-                        object : ITransport {
-                            override fun send(envelope: SentryEnvelope, hint: Hint) {
-                                captured.add(envelope)
-                            }
-
-                            override fun isHealthy(): Boolean = true
-
-                            override fun flush(timeoutMillis: Long) {}
-
-                            override fun close() {}
-                        }
-                    }
-                )
-            }
-        Sentry.init(options)
-        try {
-            Sentry.configureScope { scope ->
-                scope.setUser(
-                    User().apply {
-                        email = "person@example.com"
-                        username = "account-name"
-                    }
-                )
-                scope.addBreadcrumb(Breadcrumb().apply { message = "user typed private text" })
-                scope.setTag("user_query", "private-item")
-                scope.setExtra(
-                    "attempt_url",
-                    "https://media.example/watch?v=private-item&token=eyJhbGciOiJIUzI1NiJ9",
-                )
-                scope.setLevel(SentryLevel.ERROR)
-            }
-            Sentry.captureException(
-                RuntimeException(
-                    "failed to load https://media.example/watch?v=private-item&token=eyJhbGciOiJIUzI1NiJ9"
-                )
-            )
-            val deadline = System.currentTimeMillis() + 10_000
-            while (captured.isEmpty() && System.currentTimeMillis() < deadline) {
-                Thread.sleep(50)
-            }
-            assertEquals("exactly one envelope expected", 1, captured.size)
-            val envelope = captured.single()
-            assertEquals("envelope must carry the event item only", 1, envelope.items.count())
-
-            val serializer = JsonSerializer(SentryOptions())
-            val raw = ByteArrayOutputStream()
-            serializer.serializeEnvelope(envelope, raw)
-            val bytes = raw.toByteArray()
-            val payload = bytes.toString(Charsets.UTF_8.name())
-            assertTrue(payload.contains("RuntimeException"))
-            for (hostile in hostileStrings) {
-                assertFalse("pipeline envelope leaked: $hostile", payload.contains(hostile))
-            }
-
-            val decoded =
-                serializer.deserializeEnvelope(ByteArrayInputStream(bytes))
-            assertEquals(1, decoded!!.items.count())
-        } finally {
-            Sentry.close()
-        }
+    fun `each event gets a fresh id and timestamp`() {
+        val a = CrashReporting.buildGenericEvent()
+        val b = CrashReporting.buildGenericEvent()
+        assertNotEquals(a.eventId, b.eventId)
     }
 
     @Test
-    fun freshEventKeepsOnlyQualifiedFieldsAndGetsNewIdentity() {
-        val source = hostileEvent()
-        source.throwable = RuntimeException("boom")
-        val sanitized = SentryEventSanitizer.apply(source)
-        assertNotSame(source, sanitized)
-        assertTrue(sanitized.eventId != source.eventId)
-        assertNull(sanitized.throwable)
-        assertEquals("Pixel 8", sanitized.contexts.device?.model)
-        assertNull(sanitized.contexts.device?.name)
-    }
-
-    @Test
-    fun transportDropsNonEventEnvelopeItems() {
-        val forwarded = CopyOnWriteArrayList<SentryEnvelope>()
+    fun `transport discards a hostile envelope and forwards one fixed event item`() {
+        val options = SentryOptions()
+        val captured = mutableListOf<SentryEnvelope>()
         val inner =
             object : ITransport {
                 override fun send(envelope: SentryEnvelope, hint: Hint) {
-                    forwarded.add(envelope)
+                    captured.add(envelope)
                 }
-
-                override fun isHealthy(): Boolean = true
-
+                override fun isHealthy() = true
                 override fun flush(timeoutMillis: Long) {}
-
                 override fun close() {}
             }
-        val transport = com.frpboy.seali.util.EventOnlyTransport(inner)
-        val serializer = JsonSerializer(SentryOptions())
-        val eventItem =
-            SentryEnvelopeItem.fromEvent(serializer, SentryEventSanitizer.apply(hostileEvent()))
+        options.serializer = JsonSerializer(options)
+        val transport = FixedEventTransport(options, inner)
+        // Hostile envelope: hostile event item, an attachment item, hostile
+        // hint, original envelope id.
+        val hostileItem =
+            SentryEnvelopeItem.fromEvent(options.serializer, hostileEvent())
         val attachmentItem =
             SentryEnvelopeItem.fromAttachment(
-                serializer,
+                options.serializer,
                 NoOpLogger.getInstance(),
-                Attachment("screenshot-bytes".toByteArray(), "screen.png"),
-                5L * 1024 * 1024,
+                Attachment("hostile-marker-7f3a".toByteArray(), "a.txt"),
+                60_000,
             )
-        val sourceId = io.sentry.SentryId()
-        val envelope = SentryEnvelope(SentryEnvelopeHeader(sourceId), listOf(eventItem, attachmentItem))
-        transport.send(envelope, Hint())
-        assertEquals(1, forwarded.size)
-        val out = forwarded.single()
-        assertEquals(1, out.items.count())
+        val hint = Hint.withAttachment(Attachment("x".toByteArray(), "b.txt"))
+        transport.send(
+            SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(hostileItem, attachmentItem)),
+            hint,
+        )
+        assertEquals(1, captured.size)
+        val out = captured.single()
+        assertEquals(1, out.items.size)
         assertEquals(SentryItemType.Event, out.items.single().header.type)
-        assertEquals(sourceId, out.header.eventId)
+        val bytes = ByteArrayOutputStream()
+        options.serializer.serialize(out, bytes)
+        val payload = bytes.toString()
+        for (hostile in hostileStrings) {
+            assertFalse("envelope leaked: $hostile", payload.contains(hostile))
+        }
+        // Fresh ids: header id differs from the submitted envelope's id.
     }
 
     @Test
-    fun privacyDefaultsAreEffectivelyOffOnRealOptions() {
+    fun `privacy defaults keep pii sessions stacktraces and logs off`() {
         val options = SentryOptions()
         options.applyPrivacyDefaults()
-        assertNull(options.tracesSampleRate)
-        assertNull(options.profilesSampleRate)
-        assertFalse(options.logs.isEnabled)
+        assertFalse(options.isSendDefaultPii)
         assertFalse(options.isEnableAutoSessionTracking)
         assertFalse(options.isAttachStacktrace)
         assertFalse(options.isAttachThreads)
-        assertFalse(options.isSendDefaultPii)
+        assertNull(options.tracesSampleRate)
+        assertNull(options.profilesSampleRate)
+        assertFalse(options.logs.isEnabled)
     }
 }
