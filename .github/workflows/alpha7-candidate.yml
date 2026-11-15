@@ -82,6 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/release-qualification/test-compatible-alpha7-verifier.py
+          python3 scripts/build-contract/test-retain-unverified.py
           python3 scripts/release-qualification/verify-compatible-alpha7.py
       - name: Retain verified APK and receipt in unpublished custody only
         if: inputs.stage_only == false
