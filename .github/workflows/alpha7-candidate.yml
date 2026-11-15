@@ -81,9 +81,10 @@ jobs:
         if: inputs.stage_only == false
         run: |
           set -euo pipefail
-          python3 scripts/release-qualification/test-compatible-alpha7-verifier.py
+          python3 scripts/release-qualification/test-compatible-release-verifier.py
+          python3 scripts/release-qualification/test-version-expectation.py
           python3 scripts/build-contract/test-retain-unverified.py
-          python3 scripts/release-qualification/verify-compatible-alpha7.py
+          python3 scripts/release-qualification/verify-compatible-release.py
       - name: Retain verified APK and receipt in unpublished custody only
         if: inputs.stage_only == false
         env:
@@ -92,7 +93,7 @@ jobs:
           set -euo pipefail
           mapfile -t apks < <(find app/build/outputs/apk/generic/release -maxdepth 1 -type f -name '*.apk')
           test "${#apks[@]}" = 1
-          python3 scripts/build-contract/custody-inputs.py retain --apk "${apks[0]}" --receipt "$CUSTODY_ROOT/evidence/alpha7-static-check.json"
+          python3 scripts/build-contract/custody-inputs.py retain --apk "${apks[0]}" --receipt "$CUSTODY_ROOT/evidence/release-static-check.json"
           # Draft remains unpublished. No public artifact, release or tag operation.
       - name: Retain failed-verification APK for investigation only
         if: failure() && inputs.stage_only == false

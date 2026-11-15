@@ -23,14 +23,14 @@ Seali is a fork of [Seal](https://github.com/JunkFood02/Seal) with its own ident
 - **Independent identity**: Seali branding and the `com.frpboy.seali` package, so it installs alongside upstream Seal without replacing it.
 - **Current Android platform**: targets API 36 (Android 16) with a minimum of Android 8.0 (API 26). Native libraries are built with 16 KB page-size alignment for current devices; on-device runtime qualification of that support is still pending.
 - **Owned, verified engine packaging**: the yt-dlp Android runtime is built from the [frpboy/youtubedl-android](https://github.com/frpboy/youtubedl-android) fork and consumed as pinned, hash-locked Maven Central artifacts instead of inherited opaque binaries.
-- **Choice of interface**: switch between the Classic and v2 interfaces in Settings > Appearance.
+- **Choice of interface**: switch between the Classic and v2 interfaces in Settings > Interface & interaction.
 - **Play policy work**: no battery-exemption request and a published [privacy policy](https://seali.frpboy.in/privacy).
 
 Upstream Seal by [JunkFood02](https://github.com/JunkFood02) remains the base of this project; its GPL license, credits and history are preserved. Report Seali-specific issues here, not upstream.
 
 ## Current maintenance and next release
 
-The current source version is **2.0.0-alpha.7**, and no alpha.6 or alpha.7 build has been published yet. The latest public APKs remain alpha.5. Documentation/contact corrections and merged Classic/About maintenance on main do not update an installed alpha.5 APK. See [current status](SEALI_STATUS.md) and the [Seali changelog](CHANGELOG.md#seali-maintenance-unreleased) for completed source changes and release limits.
+The current source version is **2.0.0** (stable release in preparation, not yet published). No alpha.6, alpha.7 or 2.0.0 build has been published yet. The latest public APKs remain alpha.5. Documentation/contact corrections and merged Classic/About maintenance on main do not update an installed alpha.5 APK. See [current status](SEALI_STATUS.md) and the [Seali changelog](CHANGELOG.md#seali-maintenance-unreleased) for completed source changes and release limits.
 
 The About/contact/translation changes in PR30 remain unmerged pending visual checks. Recent merged maintenance (documentation, CI and build-contract fixes) is source maintenance, not a new app release. Native source-build preparation has not replaced the inherited dependencies. A new release needs exact-source signed APKs and the applicable runtime, native/security, source and notice checks; green documentation CI alone is not release qualification.
 

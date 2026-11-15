@@ -56,7 +56,7 @@ class VerificationBoundaryTest(unittest.TestCase):
         self.assertIn("./gradlew -PfunctionalAlphaCandidate testGenericDebugUnitTest", self.source)
         self.assertIn("python3 scripts/test_owned_namespace_boundaries.py", self.source)
         self.assertIn("python3 scripts/owned-source-prep/test-seali-prepare-owned-producer-inputs.py", self.source)
-        self.assertIn("python3 scripts/release-qualification/test-compatible-alpha7-verifier.py", self.source)
+        self.assertIn("python3 scripts/release-qualification/test-compatible-release-verifier.py", self.source)
 
     def test_maven_consumer_replaces_local_task_without_claiming_producer_coverage(self):
         root=WORKFLOW.parents[2]

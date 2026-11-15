@@ -44,16 +44,18 @@ def download(lock,output):
     if hashlib.sha256(output.read_bytes()).hexdigest()!=lock['archive']['sha256']:raise ValueError('download digest mismatch')
     check(lock)
 
+EXPECT=json.loads(pathlib.Path(__file__).with_name('..').joinpath('release-qualification','version-expectation.json').resolve().read_text())
+
 def retain(lock, apk, receipt):
     release,_=check(lock)
     run=os.environ['GITHUB_RUN_ID'];sha=os.environ['GITHUB_SHA']
     if not run.isdigit() or not re.fullmatch('[0-9a-f]{40}',sha):raise ValueError('invalid run/source binding')
     evidence=json.loads(receipt.read_text())
     data=apk.read_bytes();digest=hashlib.sha256(data).hexdigest()
-    if evidence['apk_sha256']!=digest or evidence['signer_sha256']!='88774e5211b61f7827db0ba6991a668000ceab9a9e9490648054b8a19b6e070f' or evidence['code']!=200000172:raise ValueError('final verifier binding mismatch')
-    items=[('Seali-alpha7-'+run+'-arm64-v8a.apk',data)]
+    if evidence['apk_sha256']!=digest or evidence['signer_sha256']!='88774e5211b61f7827db0ba6991a668000ceab9a9e9490648054b8a19b6e070f' or evidence['code']!=EXPECT['code'] or evidence['name']!=EXPECT['name']:raise ValueError('final verifier binding mismatch')
+    items=[(EXPECT['asset_prefix']+'-'+run+'-arm64-v8a.apk',data)]
     evidence.update(source_sha=sha,run_id=run,custody_release_id=release['id'],public_release_ready=False)
-    items.append(('Seali-alpha7-'+run+'-receipt.json',(json.dumps(evidence,indent=2)+'\n').encode()))
+    items.append((EXPECT['asset_prefix']+'-'+run+'-receipt.json',(json.dumps(evidence,indent=2)+'\n').encode()))
     existing={a['name'] for a in release['assets']}
     if any(name in existing for name,_ in items):raise ValueError('output asset already exists; do not overwrite')
     results=[]
@@ -78,9 +80,9 @@ def retain_unverified(lock, apk, receipt):
     data=apk.read_bytes();digest=hashlib.sha256(data).hexdigest()
     evidence=json.loads(receipt.read_text())
     if evidence.get('status')!='verification_failed' or evidence.get('apk_sha256')!=digest:raise ValueError('failure receipt binding mismatch')
-    items=[('Seali-alpha7-'+run+'-UNVERIFIED-arm64-v8a.apk',data)]
+    items=[(EXPECT['asset_prefix']+'-'+run+'-UNVERIFIED-arm64-v8a.apk',data)]
     evidence.update(source_sha=sha,run_id=run,custody_release_id=release['id'],public_release_ready=False,verified=False)
-    items.append(('Seali-alpha7-'+run+'-failure-receipt.json',(json.dumps(evidence,indent=2)+'\n').encode()))
+    items.append((EXPECT['asset_prefix']+'-'+run+'-failure-receipt.json',(json.dumps(evidence,indent=2)+'\n').encode()))
     existing={a['name'] for a in release['assets']}
     if any(name in existing for name,_ in items):raise ValueError('output asset already exists; do not overwrite')
     results=[]

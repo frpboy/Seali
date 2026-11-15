@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""Source-only alpha7 verifier. No install, network, signing or mutation of APK bytes."""
+"""Source-only release verifier. No install, network, signing or mutation of APK bytes.
+Version identity comes from version-expectation.json (guarded against Version.kt by
+test-version-expectation.py), never from literals edited per release."""
 import hashlib, json, os, pathlib, re, subprocess, zipfile
+EXPECT = json.loads(pathlib.Path('scripts/release-qualification/version-expectation.json').read_text())
 root = pathlib.Path(os.environ['CUSTODY_ROOT'])
 out = root / 'evidence'
 out.mkdir(exist_ok=True)
@@ -9,9 +12,9 @@ assert len(apks) == 1, 'expected exactly one ARM64 generic release APK'
 apk = apks[0]
 bt = pathlib.Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0'
 badging = subprocess.check_output([str(bt/'aapt'), 'dump', 'badging', str(apk)], text=True)
-assert "package: name='com.frpboy.seali' versionCode='200000172' versionName='2.0.0-alpha.7'" in badging
+assert "package: name='"+EXPECT['package']+"' versionCode='"+str(EXPECT['code'])+"' versionName='"+EXPECT['name']+"'" in badging
 assert re.findall(r"^native-code: (.+)$", badging, re.M) == ["'arm64-v8a'"]
-assert "sdkVersion:'26'" in badging and "targetSdkVersion:'36'" in badging
+assert "sdkVersion:'"+EXPECT['min_sdk']+"'" in badging and "targetSdkVersion:'"+EXPECT['target_sdk']+"'" in badging
 assert 'application-debuggable' not in badging
 manifest = subprocess.check_output([str(bt/'aapt'), 'dump', 'xmltree', str(apk), 'AndroidManifest.xml'], text=True)
 assert 'extractNativeLibs(0x010104ea)=(type 0x12)0xffffffff' in manifest
@@ -56,4 +59,4 @@ maven_receipt=maven.verify(pathlib.Path.cwd(),json.loads(maven_lock.read_text())
 (out/'alpha7-resource-table.txt').write_text(resources)
 for name, text in [('alpha7-badging.txt',badging),('alpha7-manifest.txt',manifest),('alpha7-cert.txt',cert)]:
     (out/name).write_text(text)
-(out/'alpha7-static-check.json').write_text(json.dumps({'apk_sha256':hashlib.sha256(apk.read_bytes()).hexdigest(),'bytes':apk.stat().st_size,'package':'com.frpboy.seali','name':'2.0.0-alpha.7','code':200000172,'signer_sha256':'88774e5211b61f7827db0ba6991a668000ceab9a9e9490648054b8a19b6e070f','native_sha256':want,'raw_engine_resource_id':hex(raw_id),'raw_engine_zip_path':raw_path,'runtime_tested':False,'upgrade_tested':False,'download_tested':False,'public_release_ready':False,'maven_artifacts':maven_receipt},indent=2)+'\n')
+(out/'release-static-check.json').write_text(json.dumps({'apk_sha256':hashlib.sha256(apk.read_bytes()).hexdigest(),'bytes':apk.stat().st_size,'package':EXPECT['package'],'name':EXPECT['name'],'code':EXPECT['code'],'signer_sha256':'88774e5211b61f7827db0ba6991a668000ceab9a9e9490648054b8a19b6e070f','native_sha256':want,'raw_engine_resource_id':hex(raw_id),'raw_engine_zip_path':raw_path,'runtime_tested':False,'upgrade_tested':False,'download_tested':False,'public_release_ready':False,'maven_artifacts':maven_receipt},indent=2)+'\n')

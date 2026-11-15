@@ -44,7 +44,9 @@ class RetainUnverified(unittest.TestCase):
         self.write_receipt()
         out = self.m.retain_unverified(self.lock, self.apk, self.receipt)
         names = sorted(r['name'] for r in out)
-        self.assertEqual(names, ['Seali-alpha7-12345-UNVERIFIED-arm64-v8a.apk', 'Seali-alpha7-12345-failure-receipt.json'])
+        import json as _json, pathlib as _pl
+        prefix = _json.loads(_pl.Path(__file__).with_name('..').joinpath('release-qualification', 'version-expectation.json').resolve().read_text())['asset_prefix']
+        self.assertEqual(names, [prefix + '-12345-UNVERIFIED-arm64-v8a.apk', prefix + '-12345-failure-receipt.json'])
         self.assertEqual(len(self.uploads), 2)
     def test_wrong_status_refused(self):
         self.write_receipt(status='verified')
@@ -56,7 +58,9 @@ class RetainUnverified(unittest.TestCase):
         self.assertEqual(self.uploads, [])
     def test_no_overwrite(self):
         m = self.m
-        release = {'id': 1, 'assets': [{'name': 'Seali-alpha7-12345-UNVERIFIED-arm64-v8a.apk'}]}
+        import json as _json, pathlib as _pl
+        prefix = _json.loads(_pl.Path(__file__).with_name('..').joinpath('release-qualification', 'version-expectation.json').resolve().read_text())['asset_prefix']
+        release = {'id': 1, 'assets': [{'name': prefix + '-12345-UNVERIFIED-arm64-v8a.apk'}]}
         m.check = lambda l: (release, None)
         self.write_receipt()
         with self.assertRaises(ValueError): m.retain_unverified(self.lock, self.apk, self.receipt)
