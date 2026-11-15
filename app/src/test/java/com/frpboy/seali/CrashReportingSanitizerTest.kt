@@ -24,10 +24,14 @@ import io.sentry.transport.ITransport
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.StringWriter
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -38,6 +42,13 @@ import org.junit.Test
  * constants plus fresh id/time) with no byte of the input carried over.
  */
 class CrashReportingSanitizerTest {
+
+    @Before
+    fun resetTransportState() {
+        // The transport's rate-limit/in-flight state is shared and static;
+        // isolate every test from the previous test's sends.
+        FixedEventTransport.resetForTests()
+    }
 
     private val hostileStrings =
         listOf(
@@ -142,6 +153,9 @@ class CrashReportingSanitizerTest {
             SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(hostileItem, attachmentItem)),
             hint,
         )
+        // The send runs on the bounded worker; wait for actual completion
+        // before asserting instead of racing it.
+        transport.flush(5_000)
         assertEquals(1, captured.size)
         // Parse the exact final wire bytes back: one envelope, one item.
         val wire = captured.single()
@@ -175,7 +189,43 @@ class CrashReportingSanitizerTest {
             SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(attachmentItem)),
             Hint(),
         )
+        transport.flush(5_000)
         assertEquals(0, captured.size)
+    }
+
+    @Test
+    fun `flush waits for the in-flight send to actually complete`() {
+        val options = SentryOptions()
+        options.serializer = JsonSerializer(options)
+        val finished = CountDownLatch(1)
+        val captured = mutableListOf<ByteArray>()
+        val transport =
+            FixedEventTransport(options) { bytes ->
+                Thread.sleep(300) // slow POST still in flight when flush starts
+                captured.add(bytes)
+                finished.countDown()
+            }
+        val item = SentryEnvelopeItem.fromEvent(options.serializer, SentryEvent())
+        transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(item)), Hint())
+        transport.flush(5_000)
+        // flush returned only after the worker finished the POST.
+        assertTrue(finished.await(0, TimeUnit.MILLISECONDS))
+        assertEquals(1, captured.size)
+    }
+
+    @Test
+    fun `a second send inside the one-minute window is dropped even after completion`() {
+        val options = SentryOptions()
+        options.serializer = JsonSerializer(options)
+        val captured = mutableListOf<ByteArray>()
+        val transport = FixedEventTransport(options) { bytes -> captured.add(bytes) }
+        val item = SentryEnvelopeItem.fromEvent(options.serializer, SentryEvent())
+        transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(item)), Hint())
+        transport.flush(5_000)
+        // First send completed; the rate window must still drop the second.
+        transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(item)), Hint())
+        transport.flush(5_000)
+        assertEquals(1, captured.size)
     }
 
     @Test
