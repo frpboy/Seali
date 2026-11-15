@@ -11,7 +11,7 @@ bt = pathlib.Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0'
 badging = subprocess.check_output([str(bt/'aapt'), 'dump', 'badging', str(apk)], text=True)
 assert "package: name='com.frpboy.seali' versionCode='200000172' versionName='2.0.0-alpha.7'" in badging
 assert re.findall(r"^native-code: (.+)$", badging, re.M) == ["'arm64-v8a'"]
-assert "sdkVersion:'24'" in badging and "targetSdkVersion:'36'" in badging
+assert "sdkVersion:'26'" in badging and "targetSdkVersion:'36'" in badging
 assert 'application-debuggable' not in badging
 manifest = subprocess.check_output([str(bt/'aapt'), 'dump', 'xmltree', str(apk), 'AndroidManifest.xml'], text=True)
 assert 'extractNativeLibs(0x010104ea)=(type 0x12)0xffffffff' in manifest

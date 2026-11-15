@@ -45,7 +45,7 @@ class Guards(unittest.TestCase):
      for n,v in data.items():z.writestr(n,v)
     pathlib.Path('functional-alpha-payload-manifest.json').write_text(json.dumps({'files':[{'path':'libqjs.so','sha256':hashlib.sha256(b'qjs').hexdigest()}] if change!='noqjs' else []}))
     pathlib.Path('functional-alpha-platform-jni.json').write_text('[]')
-    bad="package: name='com.frpboy.seali' versionCode='200000172' versionName='2.0.0-alpha.7'\nsdkVersion:'24'\ntargetSdkVersion:'36'\nnative-code: 'arm64-v8a'"
+    bad="package: name='com.frpboy.seali' versionCode='200000172' versionName='2.0.0-alpha.7'\nsdkVersion:'26'\ntargetSdkVersion:'36'\nnative-code: 'arm64-v8a'"
     if change=='oldcode':bad=bad.replace('200000172','200000162')
     if change=='debug':bad=bad.replace("name='com.frpboy.seali'","name='com.frpboy.seali.debug'")
     manifest='extractNativeLibs(0x010104ea)=(type 0x12)0xffffffff'

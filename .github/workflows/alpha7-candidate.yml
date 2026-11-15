@@ -82,6 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/release-qualification/test-compatible-alpha7-verifier.py
+          python3 scripts/build-contract/test-retain-unverified.py
           python3 scripts/release-qualification/verify-compatible-alpha7.py
       - name: Retain verified APK and receipt in unpublished custody only
         if: inputs.stage_only == false
@@ -93,3 +94,19 @@ jobs:
           test "${#apks[@]}" = 1
           python3 scripts/build-contract/custody-inputs.py retain --apk "${apks[0]}" --receipt "$CUSTODY_ROOT/evidence/alpha7-static-check.json"
           # Draft remains unpublished. No public artifact, release or tag operation.
+      - name: Retain failed-verification APK for investigation only
+        if: failure() && inputs.stage_only == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find app/build/outputs/apk/generic/release -maxdepth 1 -type f -name '*.apk')
+          test "${#apks[@]}" = 1
+          mkdir -p "$CUSTODY_ROOT/evidence"
+          APK_SHA256=$(sha256sum "${apks[0]}" | cut -d' ' -f1) python3 - <<'PYFAIL'
+import json, os, pathlib
+receipt = {'status': 'verification_failed', 'apk_sha256': os.environ['APK_SHA256'], 'note': 'Final signed APK did not pass verification; investigation custody only, never distribution.'}
+pathlib.Path(os.environ['CUSTODY_ROOT'], 'evidence', 'alpha7-failure-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+PYFAIL
+          python3 scripts/build-contract/custody-inputs.py retain-unverified --apk "${apks[0]}" --receipt "$CUSTODY_ROOT/evidence/alpha7-failure-receipt.json"
+          # Same unpublished draft custody. UNVERIFIED asset name; never a distribution route.
