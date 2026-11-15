@@ -24,7 +24,6 @@ import io.sentry.transport.ITransport
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.StringWriter
-import java.util.Date
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -53,7 +52,7 @@ class CrashReportingSanitizerTest {
 
     /** An event stuffed with hostile content in every writable slot. */
     private fun hostileEvent(): SentryEvent {
-        val e = SentryEvent(SentryId(), Date())
+        val e = SentryEvent()
         e.level = SentryLevel.FATAL
         e.logger = "hostile-marker-7f3a"
         e.release = "https://example.com/private/path?token=FIXTURE-NOT-A-SECRET"

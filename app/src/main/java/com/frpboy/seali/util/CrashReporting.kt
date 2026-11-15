@@ -14,15 +14,12 @@ import io.sentry.SentryItemType
 import io.sentry.SentryLevel
 import io.sentry.SentryOptions
 import io.sentry.android.core.SentryAndroid
-import io.sentry.protocol.Contexts
 import io.sentry.protocol.Message
 import io.sentry.protocol.SentryException
-import io.sentry.protocol.SentryId
 import io.sentry.transport.ITransport
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URI
-import java.util.Date
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -91,7 +88,9 @@ object CrashReporting {
      * from the captured input is read or carried over.
      */
     fun buildGenericEvent(): SentryEvent {
-        val out = SentryEvent(SentryId(), Date())
+        // Fresh random event id and timestamp come from the public no-arg
+        // constructor (verified in sentry-core 8.64.0).
+        val out = SentryEvent()
         out.level = SentryLevel.ERROR
         out.logger = "app"
         out.message = Message().apply { message = "app error - details withheld by privacy boundary" }
@@ -99,7 +98,6 @@ object CrashReporting {
         out.release = BuildConfig.VERSION_NAME + "+" + BuildConfig.VERSION_CODE
         out.dist = BuildConfig.VERSION_CODE.toString()
         out.environment = "production"
-        out.contexts = Contexts()
         return out
     }
 }
@@ -126,7 +124,10 @@ internal fun SentryOptions.applyPrivacyDefaults() {
  */
 internal class FixedEventTransport(
     private val options: SentryOptions,
-    private val poster: (ByteArray) -> Unit = { bytes -> defaultPost(options.dsn, bytes) },
+    private val poster: (ByteArray) -> Unit = { bytes ->
+        // No DSN configured means nothing to send; the report is dropped.
+        options.dsn?.let { dsn -> defaultPost(dsn, bytes) }
+    },
 ) : ITransport {
     override fun send(envelope: SentryEnvelope, hint: Hint) {
         // Gate: only an envelope carrying an error/crash event item is
@@ -166,7 +167,7 @@ internal class FixedEventTransport(
 
     override fun flush(timeoutMillis: Long) {}
 
-    override fun close() {}
+    override fun close(isRestarting: Boolean) {}
 
     companion object {
         private const val MIN_INTERVAL_MS = 60_000L
