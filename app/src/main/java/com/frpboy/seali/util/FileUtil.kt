@@ -22,6 +22,7 @@ const val AUDIO_REGEX = "(mp3|aac|opus|m4a)$"
 const val THUMBNAIL_REGEX = "\\.(jpg|png)$"
 const val SUBTITLE_REGEX = "\\.(lrc|vtt|srt|ass|json3|srv.|ttml)$"
 private const val PRIVATE_DIRECTORY_SUFFIX = ".Seali"
+private const val LEGACY_PRIVATE_DIRECTORY_SUFFIX = ".Seal"
 
 object FileUtil {
     fun openFileFromResult(downloadResult: Result<List<String>>) {
@@ -208,10 +209,28 @@ object FileUtil {
         File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Seali")
             .also { it.mkdir() }
 
+    // Pre-rename default download folder ("Seal"). Only used to recognize locations set up by
+    // older builds. Never use this for new paths.
+    internal fun getLegacySealDownloadDirectory() =
+        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Seal")
+
+    // True when a stored custom-command directory is exactly the pre-rename default. Used by
+    // settings to offer an explicit reset; never rewrites anything by itself.
+    internal fun isLegacySealCommandDirectory(storedPath: String, legacyDefaultPath: String) =
+        storedPath.isNotEmpty() && storedPath.trim() == legacyDefaultPath
+
+    // Keep serving the pre-rename private folder when it is the only one present, so upgrading
+    // does not hide existing private downloads. Hidden (dot-folder) treatment is preserved and
+    // no files are moved or merged. Pure and JVM-testable.
+    internal fun selectPrivateDownloadDirectory(base: File): File {
+        val current = File(base, PRIVATE_DIRECTORY_SUFFIX)
+        val legacy = File(base, LEGACY_PRIVATE_DIRECTORY_SUFFIX)
+        return if (!current.isDirectory && legacy.isDirectory) legacy else current
+    }
+
     internal fun getExternalPrivateDownloadDirectory() =
-        File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            PRIVATE_DIRECTORY_SUFFIX,
+        selectPrivateDownloadDirectory(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         )
 
     fun File.createEmptyFile(fileName: String): Result<File> =

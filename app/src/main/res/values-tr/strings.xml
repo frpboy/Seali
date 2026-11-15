@@ -66,7 +66,6 @@
     <string name="battery_configuration">Pil yapılandırması</string>
     <string name="service_title">Seali indiriyor…</string>
     <string name="unknown_error">Bilinmeyen hata</string>
-    <string name="translate_desc">Hosted Weblate\'de bu uygulamanın çevrilmesine yardımcı olun</string>
     <string name="video_directory">Video klasörü</string>
     <string name="permission_issue_desc">İndirilenler/ ve Belgeler/ dışındaki dizinler desteklenmez</string>
     <string name="subdirectory">Alt dizine kaydet</string>
@@ -285,7 +284,6 @@
     <string name="temporary_directory_desc">Geçici dosyaları dahili dizinde saklayın</string>
     <string name="sponsor">Sponsor</string>
     <string name="sponsor_desc">GitHub\'da sponsor olarak bu uygulamayı destekleyin</string>
-    <string name="sponsor_msg">Seal her zaman ücretsiz ve herkes için açık kaynak olacaktır. Beğendiyseniz, lütfen GitHub\'da bana sponsor olmayı düşünün!</string>
     <string name="feedback">Geri bildirim</string>
     <string name="sponsors">Sponsorlar</string>
     <string name="msg_from_developer">Geliştiriciden Mesaj</string>

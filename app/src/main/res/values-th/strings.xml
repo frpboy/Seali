@@ -228,7 +228,6 @@
     <string name="prefix">คำนำหน้า</string>
     <string name="new_template">เทมเพลตใหม่</string>
     <string name="embed_subtitles_desc">ฝังซับไตเติ้ลในไฟล์วิดีโอหากมีมาให้</string>
-    <string name="translate_desc">ช่วยแปลภาษาของแอพฯ นี้บน Hosted Weblate</string>
     <string name="download_directory_desc">เลือกตำแหน่งที่จะเก็บไฟล์วิดีโอและเสียง</string>
     <string name="invalid_index_range">ช่วงดัชนีไม่ถูกต้อง</string>
     <string name="download_range_selection">การเลือกเพลย์ลิสต์</string>
@@ -280,7 +279,6 @@
     <string name="subtitle">ซับไตเติ้ล</string>
     <string name="video_title_sample_text">ตัวอย่างข้อความของไตเติ้ล</string>
     <string name="running_tasks">กำลังรันงาน</string>
-    <string name="sponsor_msg">Seal จะยังคงเป็นซอร์ตฟรีและเปิดกว้างสำหรับทุกคน ถ้าคุณชอบมัน กรุณาพิจารณาสนับสนุนฉันใน GitHub!</string>
     <string name="format_sorting_desc">จัดเรียงรูปแบบด้วยตัวเลือก -S ของ yt-dlp</string>
     <string name="update_channel_desc">ติดตั้งรุ่นก่อนวางจำหน่ายเพื่อดูลักษณะใหม่และการเปลี่ยนแปลง
 \n

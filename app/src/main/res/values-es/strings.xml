@@ -125,7 +125,6 @@
     <string name="service_title">Seali está descargando…</string>
     <string name="unknown_error">Ha ocurrido un error desconocido</string>
     <string name="translate">Traducir</string>
-    <string name="translate_desc">Ayuda a traducir esta aplicación en Hosted Weblate</string>
     <string name="execute_command_notification">Ejecutando comandos personalizados…</string>
     <string name="playlist_indicator_text">Descargando la lista de reproducción (%1$d/%2$d)…</string>
     <string name="subdirectory_desc">Guardar los archivos en carpetas denominadas como campos respectivos</string>
@@ -279,7 +278,6 @@
     <string name="temporary_directory_desc">Almacena archivos temporales en el directorio seleccionado</string>
     <string name="sponsor">Patrocinador</string>
     <string name="sponsor_desc">Apoya esta aplicación patrocinando en GitHub</string>
-    <string name="sponsor_msg">Seal será siempre gratuito y de código abierto para todos. Si te gusta, ¡considera la posibilidad de patrocinarme en GitHub!</string>
     <string name="feedback">Comentario</string>
     <string name="sponsors">Patrocinadores</string>
     <string name="audio_format">Formato del audio</string>

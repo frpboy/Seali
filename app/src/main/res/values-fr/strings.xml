@@ -129,7 +129,6 @@
     <string name="video_quality_desc">Limiter la qualité lorsque plusieurs vidéos sont présentes</string>
     <string name="open_settings">Ouvrir les paramètres</string>
     <string name="translate">Traduire</string>
-    <string name="translate_desc">Aidez à traduire cette application sur Hosted Weblate</string>
     <string name="prefix">Préfixe</string>
     <string name="embed_subtitles">Sous-titres intégrés</string>
     <string name="embed_subtitles_desc">Intégrer les sous-titres dans les vidéos, si disponibles</string>
@@ -284,7 +283,6 @@
     <string name="clear_all_cookies_desc">Supprimer définitivement tous les cookies stockés dans l\'application ?</string>
     <string name="sponsor">Sponsor</string>
     <string name="sponsor_desc">Soutenez cette application en la parrainant sur GitHub</string>
-    <string name="sponsor_msg">Seal sera toujours libre et gratuit pour tout le monde. Si vous l\'aimez, pensez à me parrainer sur GitHub !</string>
     <string name="feedback">Remarques</string>
     <string name="sponsors">Sponsors</string>
     <string name="temporary_directory_desc">Stocker les fichiers temporaires dans le répertoire interne</string>

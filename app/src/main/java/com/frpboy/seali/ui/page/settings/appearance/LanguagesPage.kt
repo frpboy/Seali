@@ -48,7 +48,7 @@ import com.frpboy.seali.ui.component.BackButton
 import com.frpboy.seali.ui.component.PreferenceSingleChoiceItem
 import com.frpboy.seali.ui.component.PreferenceSubtitle
 import com.frpboy.seali.ui.component.PreferencesHintCard
-import com.frpboy.seali.ui.page.settings.about.weblate
+import com.frpboy.seali.ui.page.settings.about.translationHelpUrl
 import com.frpboy.seali.ui.theme.SealTheme
 import com.frpboy.seali.util.LocaleLanguageCodeMap
 import com.frpboy.seali.util.PreferenceUtil
@@ -171,7 +171,7 @@ private fun LanguagePageImpl(
                         description = stringResource(R.string.translate_desc),
                         icon = Icons.Outlined.Translate,
                     ) {
-                        uriHandler.openUri(weblate)
+                        uriHandler.openUri(translationHelpUrl)
                     }
                 }
 

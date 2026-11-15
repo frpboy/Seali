@@ -123,7 +123,6 @@
     <string name="service_title">Seali sta scaricando…</string>
     <string name="subdirectory_desc">Salva i file in cartelle chiamate come i rispettivi siti web</string>
     <string name="permission_issue">Problema relativo all\'autorizzazione di archiviazione</string>
-    <string name="translate_desc">Contribuisci a tradurre questa applicazione su Hosted Weblate</string>
     <string name="unknown_error">Errore sconosciuto</string>
     <string name="battery_configuration_desc">Ignora l\'ottimizzazione della batteria per lo scaricamento dell\'app in sfondo</string>
     <string name="translate">Traduci</string>
@@ -285,7 +284,6 @@
     <string name="apply">Applica</string>
     <string name="clip_video">Video clip</string>
     <string name="sponsor_desc">Sostieni questa applicazione sponsorizzando su GitHub</string>
-    <string name="sponsor_msg">Seal sarà sempre libero e gratuito per tutti. Se ti piace, considera la possibilità di sponsorizzarmi su GitHub!</string>
     <string name="import_from_preferences">Importa</string>
     <string name="temporary_directory_desc">Salva file temporanei nella directory interna</string>
     <string name="msg_from_developer">Messaggio dello sviluppatore</string>

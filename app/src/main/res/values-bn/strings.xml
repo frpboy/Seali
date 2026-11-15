@@ -212,7 +212,6 @@
     <string name="invalid_index_range">ইনডেক্স ভ্যালিড নয়</string>
     <string name="share_fail_msg">শেয়ার করা কনটেন্ট থেকে URL ম্যাচ করা যায়নি</string>
     <string name="video_url">ভিডিও লিঙ্ক</string>
-    <string name="translate_desc">হোস্টেড ওয়েবলেটে এই অ্যাপটি ট্রান্সলেট করতে সাহায্য করুন</string>
     <string name="import_from_clipboard">ক্লিপবোর্ড থেকে ইমপোর্ট করুন</string>
     <string name="delete_multiple_items_msg">আপনার ডাউনলোড হিস্ট্রি থেকে %1$d আইটেম(গুলি) সরাবেন?</string>
     <string name="aria2_desc">এক্সটারনাল ডাউনলোডার হিসাবে aria2c ব্যবহার করুন</string>
@@ -271,7 +270,6 @@
     <string name="crop_artwork">ক্রপ আর্টওয়ার্ক</string>
     <string name="crop_artwork_desc">এমবেডড ছবি ক্রপ করুন</string>
     <string name="download_selection_desc">প্লেলিস্ট \"%1$s\" থেকে ডাউনলোড করতে ভিডিও সিলেক্ট করুন</string>
-    <string name="sponsor_msg">সীল সর্বদা ফ্রি এবং ওবদ-সোর্স থাকবে। আপনার যদি প্রোজেক্টটি পছন্দ হয়, অনুগ্রহ করে আমাকে GitHub-এ স্পনসর করার কথা বিবেচনা করবেন</string>
     <string name="download_video_desc">URL থেকে ভিডিও ডাউনলোড করুন</string>
     <string name="copy_link">লিংক কপি করুন</string>
     <string name="copy_error_report">ইরর রিপোর্ট</string>

@@ -129,7 +129,6 @@
     <string name="battery_configuration_desc">Negeer batterijoptimalisatie voor deze app om op de achtergrond te kunnen downloaden</string>
     <string name="unknown_error">Onbekende fout</string>
     <string name="translate">Vertalen</string>
-    <string name="translate_desc">Help deze app te vertalen op Hosted Weblate</string>
     <string name="prefix">Path template</string>
     <string name="app_up_to_date">De huidige versie is up-to-date</string>
     <string name="template_selection">Sjabloon selectie</string>

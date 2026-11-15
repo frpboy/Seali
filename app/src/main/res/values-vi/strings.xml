@@ -141,7 +141,6 @@
     <string name="service_title">Seali đang tải xuống…</string>
     <string name="unknown_error">Lỗi không xác định</string>
     <string name="translate">Dịch</string>
-    <string name="translate_desc">Giúp dịch ứng dụng này trên Hosted Weblate</string>
     <string name="prefix">Mẫu đường dẫn</string>
     <string name="embed_subtitles">Nhúng phụ đề</string>
     <string name="embed_subtitles_desc">Nhúng phụ đề rời vào video nếu có</string>
@@ -223,7 +222,6 @@
     <string name="matrix_space">Khu vực Matrix</string>
     <string name="video_title_sample_text">Văn bản mẫu tiêu đề video</string>
     <string name="abs_hint">Đa số các nền tảng phát trực tuyến video đều phân phối âm thanh và video riêng biệt, bạn có thể chọn và hợp nhất định dạng chỉ có âm thanh với định dạng chỉ có video thành một video duy nhất.</string>
-    <string name="sponsor_msg">Seal sẽ luôn miễn phí và là mã nguồn mở cho tất cả mọi người. Nếu bạn thích nó, vui lòng xem xét tài trợ cho tôi trên GitHub!</string>
     <string name="title">Tiêu đề</string>
     <string name="remove_cookie_profile_desc">Xóa mục này cho \"%1$s\"? Xin lưu ý rằng các cookie được lưu trữ cho trang web này sẽ không bị xóa.</string>
     <string name="clip_video_dialog_msg">Các lượt tải xuống sử dụng tính năng này sẽ được ủy quyền cho FFmpeg để tải xuống các phần đã chọn của video, tính năng này vẫn đang thử nghiệm và việc cắt sẽ không hoàn toàn chính xác, không phải tất cả các định dạng đều hỗ trợ tính năng này và bạn có thể gặp phải tốc độ tải xuống chậm hơn.</string>

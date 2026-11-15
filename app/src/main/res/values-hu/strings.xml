@@ -75,7 +75,6 @@
     <string name="permission_issue_desc">A letöltések/ és a dokumentumok/ könyvtáron kívüli könyvtárak nem támogatottak</string>
     <string name="unknown_error">Ismeretlen hiba</string>
     <string name="translate">Fordítás</string>
-    <string name="translate_desc">Segits fordítani ezt az appot a Hosted Weblate-n</string>
     <string name="prefix">Elérési út sablon</string>
     <string name="download">Letöltés</string>
     <string name="download_start_msg">Letöltés \"%1$s\"</string>

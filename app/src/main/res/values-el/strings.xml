@@ -214,7 +214,6 @@
     <string name="temporary_directory_desc">Αποθήκευση προσωρινών αρχείων στον εσωτερικό κατάλογο</string>
     <string name="sponsor">Χορηγός</string>
     <string name="sponsor_desc">Υποστηρίξτε αυτή την εφαρμογή με χορηγία στο GitHub</string>
-    <string name="sponsor_msg">Η Seal θα είναι πάντα δωρεάν και ανοιχτού κώδικα για όλους. Αν σας αρέσει, παρακαλώ σκεφτείτε να με χρηματοδοτήσετε στο GitHub!</string>
     <string name="feedback">Ανατροφοδότηση</string>
     <string name="audio_format">Μορφή ήχου</string>
     <string name="beta_features">Beta</string>
@@ -293,7 +292,6 @@
     <string name="service_title">Η Seali κατεβάζει…</string>
     <string name="unknown_error">Άγνωστο σφάλμα</string>
     <string name="translate">Μεταφράστε</string>
-    <string name="translate_desc">Βοήθεια για τη μετάφραση αυτής της εφαρμογής στο Hosted Weblate</string>
     <string name="prefix">Πρόθεμα</string>
     <string name="embed_subtitles">Ενσωματώστε υπότιτλους</string>
     <string name="remove_template">Αφαιρέστε;</string>

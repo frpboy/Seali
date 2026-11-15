@@ -46,7 +46,6 @@
     <string name="service_title">Seali බාගත කරගනිමින් පවතී…</string>
     <string name="unknown_error">නොදන්නා දෝෂයක්</string>
     <string name="translate">පරිවර්තනය</string>
-    <string name="translate_desc">යෙදුම Hosted Weblate මත පරිවර්තනය කිරීමට සහාය වන්න</string>
     <string name="remove_template">ඉවත් කරන්න\?</string>
     <string name="task_canceled">බාගැනීම අවලංගු කරන ලදී</string>
     <string name="info_copied">තොරතුරු ක්ලිප්බෝඩයට පිටපත් විය</string>

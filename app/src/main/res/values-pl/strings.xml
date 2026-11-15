@@ -94,7 +94,6 @@
     <string name="download_notification_desc">Powiadamiaj o pobranych plikach i postępie</string>
     <string name="execute_command_notification">Uruchamianie niestandardowego polecenia…</string>
     <string name="translate">Przetłumacz</string>
-    <string name="translate_desc">Pomóż tłumaczyć tę aplikację na Hosted Weblate</string>
     <string name="unknown_error">Nieznany błąd</string>
     <string name="invalid_index_range">Nieprawidłowy zakres</string>
     <string name="download_desc">Następnie, po dostosowaniu opcji pobierania, naciśnij „Pobierz”.</string>
@@ -281,7 +280,6 @@
     <string name="running_tasks">Uruchomione zadania</string>
     <string name="show_logs">Pokaż logi</string>
     <string name="sponsors">Sponsorzy</string>
-    <string name="sponsor_msg">Seal zawsze będzie darmowy i z otwartym kodem źródłowym. Jeśli Ci się spodoba, rozważ wsparcie mnie na GitHub!</string>
     <string name="feedback">Informacja zwrotna</string>
     <string name="subtitle_sponsorblock">Podczas usuwania segmentów SponsorBlock napisy mogą wyświetlać się w niewłaściwym czasie.</string>
     <string name="filesize_mb">%.2f MB</string>

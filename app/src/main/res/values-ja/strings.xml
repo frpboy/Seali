@@ -124,7 +124,6 @@
     <string name="permission_issue_desc">Download/とDocuments/配下のディレクトリ以外には対応しません</string>
     <string name="battery_configuration">バッテリー設定</string>
     <string name="unknown_error">未知のエラー</string>
-    <string name="translate_desc">Hosted Weblateから本アプリの翻訳にご協力ください</string>
     <string name="prefix">パスのテンプレート</string>
     <string name="embed_subtitles">字幕を埋め込む</string>
     <string name="embed_subtitles_desc">字幕ファイルが利用できれば動画に埋め込む</string>
@@ -294,7 +293,6 @@
     <string name="clear_all_cookies">すべてのクッキーを消去</string>
     <string name="sponsor">スポンサー</string>
     <string name="sponsor_desc">GitHubでスポンサーになって本アプリを支援する</string>
-    <string name="sponsor_msg">Sealはいつでも無料で、誰でも使えるオープンソースです。もし気に入っていただけたなら、GitHubで私のスポンサーになることを検討してください！</string>
     <string name="temporary_directory_desc">内部ディレクトリーに一時ファイルを保存する</string>
     <string name="ytdlp_update_action">yt-dlp を更新</string>
     <string name="commands">コマンド</string>

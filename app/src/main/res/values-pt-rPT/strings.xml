@@ -153,7 +153,6 @@
     <string name="release">Versão mais recente</string>
     <string name="download_desc">Em seguida, clique em \"Descarregar\" depois de ajustar as definições.</string>
     <string name="audio_directory">Pasta áudio</string>
-    <string name="sponsor_msg">O Seal será sempre gratuito e de código aberto para todos. Se gostar, por favor considere patrocinar-me no GitHub!</string>
     <string name="crop_artwork">Cortar arte</string>
     <string name="subtitle_sponsorblock">As legendas podem ser desfasadas no tempo ao remover segmentos SponsorBlock.</string>
     <string name="start">Iniciar</string>
@@ -285,7 +284,6 @@
     <string name="video">Vídeo</string>
     <string name="open_file">Abrir ficheiro</string>
     <string name="video_creator_sample_text">Texto de exemplo do criador de vídeo</string>
-    <string name="translate_desc">Ajuda para traduzir esta aplicação no Hosted Weblate</string>
     <string name="expand">Expandir</string>
     <string name="fetch_info_error_msg">Não foi possível obter informações sobre o vídeo</string>
     <string name="recently_added">Recentemente adicionados</string>

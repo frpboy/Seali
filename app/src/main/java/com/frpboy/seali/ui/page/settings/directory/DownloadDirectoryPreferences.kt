@@ -165,6 +165,7 @@ fun DownloadDirectoryPreferences(onNavigateBack: () -> Unit) {
         }
     var sdcardUri by remember { mutableStateOf(SDCARD_URI.getString()) }
     var customCommandDirectory by COMMAND_DIRECTORY.stringState
+    val legacyCommandDirectoryDefault = remember { FileUtil.getLegacySealDownloadDirectory().absolutePath }
 
     var sdcardDownload by remember { mutableStateOf(SDCARD_DOWNLOAD.getBoolean()) }
 
@@ -311,6 +312,28 @@ fun DownloadDirectoryPreferences(onNavigateBack: () -> Unit) {
                     icon = Icons.Outlined.Folder,
                 ) {
                     showCustomCommandDirectoryDialog = true
+                }
+            }
+            // Older builds stored Download/Seal here. Offer an explicit reset instead of
+            // rewriting the saved path silently: nothing changes unless the user taps.
+            if (
+                FileUtil.isLegacySealCommandDirectory(
+                    customCommandDirectory,
+                    legacyCommandDirectoryDefault,
+                )
+            ) {
+                item {
+                    PreferencesHintCard(
+                        title = stringResource(R.string.legacy_command_directory_hint_title),
+                        description =
+                            stringResource(R.string.legacy_command_directory_hint_desc),
+                        icon = Icons.Outlined.Folder,
+                        descriptionMaxLines = 4,
+                    ) {
+                        val newDirectory = FileUtil.getExternalDownloadDirectory().absolutePath
+                        COMMAND_DIRECTORY.updateString(newDirectory)
+                        customCommandDirectory = newDirectory
+                    }
                 }
             }
             item {

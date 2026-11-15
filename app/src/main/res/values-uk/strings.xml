@@ -129,7 +129,6 @@
     <string name="service_title">Seali завантажує…</string>
     <string name="unknown_error">Невідома помилка</string>
     <string name="translate">Перекласти</string>
-    <string name="translate_desc">Допоможіть перекласти Seal на Weblate</string>
     <string name="prefix">Шаблон шляху</string>
     <string name="embed_subtitles">Вбудовані субтитри</string>
     <string name="embed_subtitles_desc">Вставляти м\'які субтитри у відео, якщо вони доступні</string>
@@ -281,7 +280,6 @@
     <string name="feedback">Зворотний зв\'язок</string>
     <string name="sponsors">Спонсори</string>
     <string name="sponsor_desc">Підтримайте цей застосунок, спонсоруючи нас на GitHub</string>
-    <string name="sponsor_msg">Seal завжди буде безплатним і відкритим для всіх. Якщо вам це подобається, подумайте про те, щоб стати моїм спонсором на GitHub!</string>
     <string name="no_downloaded_media">Немає завантажених медіа</string>
     <string name="beta_features">Бета</string>
     <string name="clip_video_desc">Створюйте відеокліпи на сторінці вибору формату</string>

@@ -145,7 +145,6 @@
     <string name="show_logs">הצג יומן</string>
     <string name="logs">לוג</string>
     <string name="edit_shortcuts_desc">ערוך את הקיצורים המותאמים אישית שניתן להשתמש בהם כדי ליצור תבניות פקודות.</string>
-    <string name="sponsor_msg">Seal יהיה תמיד קוד פתוח ובחינם לכולם. אם אתה אוהב את זה, בבקשה שקול לתת לי חסות ב-GitHub!</string>
     <string name="clear_all_cookies_desc">האם למחוק לצמיתות את כל העוגיות המאוחסנות באפליקציה?</string>
     <string name="clip_video_desc">צור קטעי וידאו בדף בחירת הפורמט</string>
     <string name="proxy">פרוקסי</string>
@@ -279,7 +278,6 @@
     <string name="clear_temp_files_desc">מחק את כל הקבצים הזמניים מהתיקייה הזמנית</string>
     <string name="fetching_playlist_info">משיג מידע פלייליסט…</string>
     <string name="unknown_error">שגיאה לא ידועה</string>
-    <string name="translate_desc">עזור לתרגם אפליקציה זו ב- Hosted Weblate</string>
     <string name="template_label">תווית</string>
     <string name="invalid_input">קלט לא חוקי</string>
     <string name="private_directory_desc">אחסן את ההורדות בתיקייה נסתרת</string>

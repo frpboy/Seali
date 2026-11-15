@@ -90,7 +90,6 @@
     <string name="battery_configuration_desc">Ignorirajte optimizaciju baterije kako bi aplikacija mogla preuzimati u pozadini</string>
     <string name="service_title">Seali preuzima…</string>
     <string name="unknown_error">Nepoznata greška</string>
-    <string name="translate_desc">Pomognite prevesti ovu aplikaciju pomoću Hosted Weblate</string>
     <string name="prefix">Predložak puta</string>
     <string name="embed_subtitles_desc">Ugradi titlove u videa, ako su dostupni</string>
     <string name="new_template">Novi predložak</string>
@@ -289,7 +288,6 @@
     <string name="unlimited">Neograničeno</string>
     <string name="audio_format_preference">Preferirani format zvuka</string>
     <string name="sponsor_desc">Podržite razvoj ove aplikacije njenim sponzoriranjem na GitHub-u</string>
-    <string name="sponsor_msg">Seal će uvijek biti besplatan i otvorenog koda za sve. Ako vam se sviđa, razmislite o tome da me sponzorirate na GitHub-u!</string>
     <string name="audio_format">Audio format</string>
     <string name="enable_experimental_feature">Omogućiti eksperimentalne značajke\?</string>
     <string name="auto_update_disabled_msg">Automatsko ažuriranje nije dostupno za %1$s inačice. Ako nemate %1$s instaliran na svom uređaju ili želite pregledati nadolazeće nove značajke u Seali-u, razmislite o %2$s.</string>

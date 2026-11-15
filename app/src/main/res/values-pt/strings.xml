@@ -159,7 +159,6 @@
     <string name="downloading_indicator_text">Descarga em curso…</string>
     <string name="task_canceled">Tarefa de descarga cancelada</string>
     <string name="export_to_clipboard">Exportar para a área de transferência</string>
-    <string name="translate_desc">Ajuda para traduzir esta aplicação no Hosted Weblate</string>
     <string name="remove_template">Remover\?</string>
     <string name="video_file_size">Tamanho do ficheiro de vídeo</string>
     <string name="import_from_clipboard">Importar da área de transferência</string>
@@ -270,7 +269,6 @@
     <string name="update_channel">Canal de atualização</string>
     <string name="apply">Aplicar</string>
     <string name="unlimited">Ilimitado</string>
-    <string name="sponsor_msg">O Seal será sempre gratuito e de código aberto para todos. Se gostar, por favor considere patrocinar-me no GitHub!</string>
     <string name="lowest_bitrate">Taxa de bits mais baixa</string>
     <string name="audio_quality">Qualidade do áudio</string>
     <string name="audio_quality_desc">Limitar a taxa de bits de áudio quando estão presentes várias qualidades</string>

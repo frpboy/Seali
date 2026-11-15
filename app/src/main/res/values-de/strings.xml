@@ -115,7 +115,6 @@
     <string name="unknown_error">Unbekannter Fehler</string>
     <string name="execute_command_notification">Benutzerdefinierte Befehlen ausführen …</string>
     <string name="translate">Übersetzen</string>
-    <string name="translate_desc">Hilf bei der Übersetzung dieser App auf Weblate</string>
     <string name="edit_template_desc">Ausgabepfad und URL werden von der App hinzugefügt.</string>
     <string name="convert_audio">Konvertieren</string>
     <string name="paste_desc">Klicke auf „Einfügen“, um den Videolink aus der Zwischenablage zu holen.</string>
@@ -279,7 +278,6 @@
     <string name="temporary_directory_desc">Temporäre Dateien im internen Ordner speichern</string>
     <string name="sponsor">Sponsor</string>
     <string name="sponsor_desc">Unterstütze diese App durch Sponsoring auf GitHub</string>
-    <string name="sponsor_msg">Seal wird immer frei und kostenlos für alle sein. Wenn du es magst, bitte denke bitte darüber nach, mich auf GitHub zu sponsern!</string>
     <string name="feedback">Rückmeldung</string>
     <string name="sponsors">Sponsoren</string>
     <string name="no_downloaded_media">Keine heruntergeladenen Medien</string>

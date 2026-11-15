@@ -202,7 +202,6 @@
     <string name="concurrent_download_num">%d धाराओं का उपयोग DASH/HLS नेटिव वीडियो को समवर्ती रूप से डाउनलोड करने के लिए किया जाएगा।</string>
     <string name="download_directory_desc">चुनें कि वीडियो और ऑडियो फ़ाइलें कहाँ संग्रहित करनी हैं</string>
     <string name="battery_configuration_desc">इस ऐप को पृष्ठभूमि में डाउनलोड करने के लिए बैटरी ऑप्टिमाइज़ेशन को इग्नोर करें</string>
-    <string name="translate_desc">होस्ट किए गए वेबलेट पर इस ऐप का अनुवाद करने में सहायता करें</string>
     <string name="aria2_desc">बाहरी डाउनलोडर के रूप में aria2c का प्रयोग करें</string>
     <string name="private_mode_desc">डाउनलोड इतिहास अक्षम करें</string>
     <string name="dynamic_color_desc">वॉलपेपर से ऐप थीम पर रंग लागू करें</string>
@@ -282,7 +281,6 @@
     <string name="enable_experimental_feature">प्रयोगात्मक सुविधा सक्षम करें\?</string>
     <string name="clip_video_desc">प्रारूप चयन पृष्ठ में वीडियो क्लिप बनाएं</string>
     <string name="switch_to_github_builds">GitHub बिल्ड पर स्विच करना</string>
-    <string name="sponsor_msg">सील हमेशा सभी के लिए स्वतंत्र और खुला स्रोत होगा। यदि आप इसे पसंद करते हैं, तो कृपया मुझे GitHub पर प्रायोजित करने पर विचार करें!</string>
     <string name="got_it">समझ गया</string>
     <string name="sponsors">प्रायोजक</string>
     <string name="auto_update_disabled_msg">%1$s बिल्ड के लिए ऑटो-अपडेट उपलब्ध नहीं है। यदि आपके डिवाइस पर %1$s स्थापित नहीं है, या सील में आने वाली नई सुविधाओं का पूर्वावलोकन करना चाहते हैं, तो कृपया %2$s पर विचार करें।</string>

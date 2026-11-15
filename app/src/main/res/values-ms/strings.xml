@@ -118,7 +118,6 @@
     <string name="battery_configuration_desc">Abaikan pengoptimuman bateri bagi aplikasi ini untuk membolehkannya berjalan di latar belakang</string>
     <string name="service_title">Seali sedang memuat turun…</string>
     <string name="translate">Terjemah</string>
-    <string name="translate_desc">Bantu terjemah aplikasi ini on Hosted Weblate</string>
     <string name="prefix">Templat laluan</string>
     <string name="embed_subtitles">Benamkan seri kata</string>
     <string name="template_label">Label</string>
@@ -290,5 +289,4 @@
     <string name="sponsor">Taja</string>
     <string name="feedback">Maklum balas</string>
     <string name="sponsors">Penaja</string>
-    <string name="sponsor_msg">Seal akan sentiasa menjadi percuma dan sumber terbuka untuk semua orang. Jika anda suka, sila pertimbangkan untuk menaja saya di GitHub!</string>
 </resources>
