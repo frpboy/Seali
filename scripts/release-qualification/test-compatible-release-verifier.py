@@ -2,7 +2,7 @@
 # Synthetic parser/guard fixtures ONLY. No Android build, native execution, real signer or runtime proof.
 import hashlib,json,os,pathlib,runpy,tempfile,unittest,zipfile,shutil,io
 from unittest.mock import patch
-SCRIPT=pathlib.Path(__file__).with_name('verify-compatible-alpha7.py')
+SCRIPT=pathlib.Path(__file__).with_name('verify-compatible-release.py')
 ROOT=SCRIPT.resolve().parents[2]
 ENGINE=b'engine';CHECKER=b'checker'
 def synthetic_maven_fixture():
@@ -30,6 +30,8 @@ class Guards(unittest.TestCase):
   with tempfile.TemporaryDirectory() as d:
    old=os.getcwd();os.chdir(d)
    try:
+    pathlib.Path('scripts/release-qualification').mkdir(parents=True)
+    pathlib.Path('scripts/release-qualification/version-expectation.json').write_text(json.dumps({'package':'com.frpboy.seali','name':'2.0.0-alpha.7','code':200000172,'asset_prefix':'Seali-alpha7','min_sdk':'26','target_sdk':'36'}))
     p=pathlib.Path('app/build/outputs/apk/generic/release');p.mkdir(parents=True)
     data={'lib/arm64-v8a/libqjs.so':b'qjs','assets/functional-engine/yt-dlp':ENGINE,'res/raw/ytdlp':ENGINE,'assets/seali-engine/verify-runtime-engine.py':CHECKER}
     synthetic_maven_fixture()
@@ -45,7 +47,7 @@ class Guards(unittest.TestCase):
      for n,v in data.items():z.writestr(n,v)
     pathlib.Path('functional-alpha-payload-manifest.json').write_text(json.dumps({'files':[{'path':'libqjs.so','sha256':hashlib.sha256(b'qjs').hexdigest()}] if change!='noqjs' else []}))
     pathlib.Path('functional-alpha-platform-jni.json').write_text('[]')
-    bad="package: name='com.frpboy.seali' versionCode='200000172' versionName='2.0.0-alpha.7'\nsdkVersion:'24'\ntargetSdkVersion:'36'\nnative-code: 'arm64-v8a'"
+    bad="package: name='com.frpboy.seali' versionCode='200000172' versionName='2.0.0-alpha.7'\nsdkVersion:'26'\ntargetSdkVersion:'36'\nnative-code: 'arm64-v8a'"
     if change=='oldcode':bad=bad.replace('200000172','200000162')
     if change=='debug':bad=bad.replace("name='com.frpboy.seali'","name='com.frpboy.seali.debug'")
     manifest='extractNativeLibs(0x010104ea)=(type 0x12)0xffffffff'
@@ -59,7 +61,7 @@ class Guards(unittest.TestCase):
     code=SCRIPT.read_text().replace('e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3',hashlib.sha256(ENGINE).hexdigest())
     with patch.dict(os.environ,{'CUSTODY_ROOT':d,'ANDROID_HOME':'/fake'}),patch('subprocess.check_output',side_effect=output),patch('subprocess.run'):
      exec(compile(code,str(SCRIPT),'exec'),{})
-    return json.loads(pathlib.Path('evidence/alpha7-static-check.json').read_text())
+    return json.loads(pathlib.Path('evidence/release-static-check.json').read_text())
    finally:os.chdir(old)
  def test_positive_static_only(self):
   r=self.fixture('ok');self.assertFalse(r['runtime_tested']);self.assertFalse(r['upgrade_tested']);self.assertFalse(r['public_release_ready']);self.assertTrue(r['maven_artifacts']['apk_payload_checked'])

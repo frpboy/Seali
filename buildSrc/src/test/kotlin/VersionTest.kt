@@ -39,7 +39,13 @@ class VersionTest {
 
     @Test
     fun `current version matches the guarded versionCode in app build file`() {
-        assertEquals(200_000_170L, currentVersion.code)
-        assertEquals("2.0.0-alpha.7", currentVersion.name)
+        assertEquals(200_000_400L, currentVersion.code)
+        assertEquals("2.0.0", currentVersion.name)
+    }
+
+    @Test
+    fun `stable base code exceeds every distributed alpha code`() {
+        // Old distributed max is alpha.7 arm64 (base 200000170 + abiCode 2).
+        assertTrue(currentVersion.code > 200_000_172L)
     }
 }
