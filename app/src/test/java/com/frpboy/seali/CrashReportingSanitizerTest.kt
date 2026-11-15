@@ -109,7 +109,7 @@ class CrashReportingSanitizerTest {
         options.beforeSend =
             SentryOptions.BeforeSendCallback { _, _ -> CrashReporting.buildGenericEvent() }
         val hint = Hint.withAttachment(Attachment("hostile-marker-7f3a".toByteArray(), "a.txt"))
-        val out = options.beforeSend.execute(hostileEvent(), hint)!!
+        val out = options.beforeSend!!.execute(hostileEvent(), hint)!!
         val payload = serialize(out)
         for (hostile in hostileStrings) {
             assertFalse("payload leaked: $hostile", payload.contains(hostile))
@@ -136,15 +136,15 @@ class CrashReportingSanitizerTest {
     fun `transport discards a hostile envelope and forwards one fixed event item`() {
         val options = SentryOptions()
         val captured = mutableListOf<ByteArray>()
-        options.serializer = JsonSerializer(options)
+        val serializer = JsonSerializer(options)
         val transport = FixedEventTransport(options) { bytes -> captured.add(bytes) }
         // Hostile envelope: hostile event item, an attachment item, hostile
         // hint, original envelope id.
         val hostileItem =
-            SentryEnvelopeItem.fromEvent(options.serializer, hostileEvent())
+            SentryEnvelopeItem.fromEvent(serializer, hostileEvent())
         val attachmentItem =
             SentryEnvelopeItem.fromAttachment(
-                options.serializer,
+                serializer,
                 NoOpLogger.getInstance(),
                 Attachment("hostile-marker-7f3a".toByteArray(), "a.txt"),
                 60_000,
@@ -160,9 +160,10 @@ class CrashReportingSanitizerTest {
         assertEquals(1, captured.size)
         // Parse the exact final wire bytes back: one envelope, one item.
         val wire = captured.single()
-        val parsed = options.serializer.deserializeEnvelope(ByteArrayInputStream(wire))!!
-        assertEquals(1, parsed.items.size)
-        assertEquals(SentryItemType.Event, parsed.items.single().header.type)
+        val parsed = serializer.deserializeEnvelope(ByteArrayInputStream(wire))!!
+        val parsedItems = parsed.items.toList()
+        assertEquals(1, parsedItems.size)
+        assertEquals(SentryItemType.Event, parsedItems.single().header.type)
         val payload = String(wire)
         for (hostile in hostileStrings) {
             assertFalse("envelope leaked: $hostile", payload.contains(hostile))
@@ -173,7 +174,7 @@ class CrashReportingSanitizerTest {
     @Test
     fun `transport drops envelopes without an event item`() {
         val options = SentryOptions()
-        options.serializer = JsonSerializer(options)
+        val serializer = JsonSerializer(options)
         val captured = mutableListOf<ByteArray>()
         val transport = FixedEventTransport(options) { bytes -> captured.add(bytes) }
         // Empty envelope: dropped.
@@ -181,7 +182,7 @@ class CrashReportingSanitizerTest {
         // Attachment-only envelope: dropped, never converted into an error.
         val attachmentItem =
             SentryEnvelopeItem.fromAttachment(
-                options.serializer,
+                serializer,
                 NoOpLogger.getInstance(),
                 Attachment("x".toByteArray(), "a.txt"),
                 60_000,
@@ -197,7 +198,7 @@ class CrashReportingSanitizerTest {
     @Test
     fun `flush waits for the in-flight send to actually complete`() {
         val options = SentryOptions()
-        options.serializer = JsonSerializer(options)
+        val serializer = JsonSerializer(options)
         val finished = CountDownLatch(1)
         val captured = mutableListOf<ByteArray>()
         val transport =
@@ -207,7 +208,7 @@ class CrashReportingSanitizerTest {
                 finished.countDown()
                 true // delivered
             }
-        val item = SentryEnvelopeItem.fromEvent(options.serializer, SentryEvent())
+        val item = SentryEnvelopeItem.fromEvent(serializer, SentryEvent())
         transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(item)), Hint())
         transport.flush(5_000)
         // flush returned only after the worker finished the POST.
@@ -218,16 +219,16 @@ class CrashReportingSanitizerTest {
     @Test
     fun `a crash flush latch is released only after actual delivery`() {
         val options = SentryOptions()
-        options.serializer = JsonSerializer(options)
+        val serializer = JsonSerializer(options)
         val transport = FixedEventTransport(options) { _ -> true } // delivered
         val flushable =
             object : BlockingFlushHint(5_000, NoOpLogger.getInstance()) {
                 override fun isFlushable(eventId: SentryId?): Boolean = true
-                override fun setFlushable(eventId: SentryId?) {}
+                override fun setFlushable(eventId: SentryId) {}
             }
         val hint = Hint()
         hint.set("sentry:typeCheckHint", flushable)
-        val item = SentryEnvelopeItem.fromEvent(options.serializer, SentryEvent())
+        val item = SentryEnvelopeItem.fromEvent(serializer, SentryEvent())
         transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(item)), hint)
         // waitFlush returns true only if the worker called markFlushed
         // after a confirmed delivery - the SDK crash handler contract.
@@ -237,16 +238,16 @@ class CrashReportingSanitizerTest {
     @Test
     fun `a failed delivery never releases the crash flush latch`() {
         val options = SentryOptions()
-        options.serializer = JsonSerializer(options)
+        val serializer = JsonSerializer(options)
         val transport = FixedEventTransport(options) { _ -> false } // failed
         val flushable =
             object : BlockingFlushHint(300, NoOpLogger.getInstance()) {
                 override fun isFlushable(eventId: SentryId?): Boolean = true
-                override fun setFlushable(eventId: SentryId?) {}
+                override fun setFlushable(eventId: SentryId) {}
             }
         val hint = Hint()
         hint.set("sentry:typeCheckHint", flushable)
-        val item = SentryEnvelopeItem.fromEvent(options.serializer, SentryEvent())
+        val item = SentryEnvelopeItem.fromEvent(serializer, SentryEvent())
         transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(item)), hint)
         transport.flush(5_000)
         // Timed out unflushed: the SDK logs a failed delivery, not a false one.
@@ -256,10 +257,10 @@ class CrashReportingSanitizerTest {
     @Test
     fun `a second send inside the one-minute window is dropped even after completion`() {
         val options = SentryOptions()
-        options.serializer = JsonSerializer(options)
+        val serializer = JsonSerializer(options)
         val captured = mutableListOf<ByteArray>()
         val transport = FixedEventTransport(options) { bytes -> captured.add(bytes) }
-        val item = SentryEnvelopeItem.fromEvent(options.serializer, SentryEvent())
+        val item = SentryEnvelopeItem.fromEvent(serializer, SentryEvent())
         transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(item)), Hint())
         transport.flush(5_000)
         // First send completed; the rate window must still drop the second.
