@@ -556,38 +556,6 @@
       "license": "Upstream MIT notice"
     },
     {
-      "component": "libcrypt/LICENSE",
-      "source": {
-        "url": "https://raw.githubusercontent.com/termux/termux-packages/2cb1f4277481e4c6a74d39f057580c82adadf372/packages/libcrypt/LICENSE",
-        "filename": "LICENSE",
-        "bytes": 1521,
-        "file_sha256": "311ad021879eeb7713e27e8d894950068689feafc198a236a95c2494710e3a1a"
-      },
-      "notices": [
-        {
-          "path": "libcrypt/LICENSE",
-          "bytes": 1521,
-          "sha256": "311ad021879eeb7713e27e8d894950068689feafc198a236a95c2494710e3a1a"
-        },
-        {
-          "path": "libcrypt/build.sh",
-          "bytes": 697,
-          "sha256": "bedf98276e9d84f8c00860b74519d371b3a9d46368b1bb81b2103049c1647891"
-        },
-        {
-          "path": "libcrypt/crypt3.c",
-          "bytes": 39587,
-          "sha256": "65009358f59f91b6118fc456bfe8186fc432d6c06af86c2346096e56079593c0"
-        },
-        {
-          "path": "libcrypt/crypt3.c.copyright-and-source",
-          "bytes": 39587,
-          "sha256": "65009358f59f91b6118fc456bfe8186fc432d6c06af86c2346096e56079593c0"
-        }
-      ],
-      "binding": "Pinned individual Termux source/recipe file, not a source archive hash."
-    },
-    {
       "component": "libcrypt/build.sh",
       "source": {
         "url": "https://raw.githubusercontent.com/termux/termux-packages/2cb1f4277481e4c6a74d39f057580c82adadf372/packages/libcrypt/build.sh",
@@ -597,9 +565,9 @@
       },
       "notices": [
         {
-          "path": "libcrypt/LICENSE",
-          "bytes": 1521,
-          "sha256": "311ad021879eeb7713e27e8d894950068689feafc198a236a95c2494710e3a1a"
+          "path": "libcrypt/crypt3.c.copyright-and-source",
+          "bytes": 39587,
+          "sha256": "65009358f59f91b6118fc456bfe8186fc432d6c06af86c2346096e56079593c0"
         },
         {
           "path": "libcrypt/build.sh",
@@ -629,9 +597,9 @@
       },
       "notices": [
         {
-          "path": "libcrypt/LICENSE",
-          "bytes": 1521,
-          "sha256": "311ad021879eeb7713e27e8d894950068689feafc198a236a95c2494710e3a1a"
+          "path": "libcrypt/crypt3.c.copyright-and-source",
+          "bytes": 39587,
+          "sha256": "65009358f59f91b6118fc456bfe8186fc432d6c06af86c2346096e56079593c0"
         },
         {
           "path": "libcrypt/build.sh",
@@ -754,7 +722,7 @@
       ],
       "binding": "Exact retained CA input equals selected Python payload usr/etc/tls/cert.pem. Mutable upstream URL alone is not a version pin; file hash fixes this snapshot. MPL2.0 notice retained. No TLS trust/runtime security claim.",
       "payload_binding": {
-        "zip_sha256": "38f6e236ba307217895ffd180569b6cacb7c854cc43ad8c9eac461c3430638df",
+        "zip_sha256": "a7960d4b60140cd02bba19c1211e80ce8d5fdc071332dece69bc0d4512f7855b",
         "path": "usr/etc/tls/cert.pem",
         "bytes": 200116,
         "sha256": "427c064216761a1e72a8b30f0d954d08cb6e4435a82091fb865afd20c8497285"
