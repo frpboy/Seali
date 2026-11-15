@@ -97,7 +97,6 @@
     <string name="subdirectory_desc">Αποθηκεύστε αρχεία σε φακέλους με το όνομα των αντίστοιχων πεδίων</string>
     <string name="permission_issue">Θέμα άδειας αποθήκευσης</string>
     <string name="battery_configuration">Διαμόρφωση μπαταρίας</string>
-    <string name="battery_configuration_desc">Αγνοήστε τη βελτιστοποίηση της μπαταρίας για αυτή την εφαρμογή για λήψη στο παρασκήνιο</string>
     <string name="embed_subtitles_desc">Ενσωματώστε τους υποτίτλους που παρέχονται στα βίντεο, εάν είναι διαθέσιμοι</string>
     <string name="new_template">Νέο πρότυπο</string>
     <string name="template_label">Ετικέτα</string>

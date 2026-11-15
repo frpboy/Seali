@@ -107,7 +107,6 @@
     <string name="video_quality_desc">در صورت وجود چندگانه، کیفیت فرمت ویدئو و اندازه فایل را محدود کنید</string>
     <string name="not_specified">مشخص نشده (پیش فرض)</string>
     <string name="convert_audio">تبدیل</string>
-    <string name="battery_configuration_desc">بهینه سازی باتری را برای دانلود در پس زمینه این برنامه نادیده بگیرید</string>
     <string name="translate">ترجمه</string>
     <string name="video_format">فرمت ویدئو</string>
     <string name="download_notification_desc">اطلاع از فایل های دانلود شده و پیشرفت</string>

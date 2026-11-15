@@ -111,7 +111,6 @@
     <string name="new_template">新增範本</string>
     <string name="embed_subtitles_desc">如有提供可用的軟字幕，則將其內嵌至影片中</string>
     <string name="permission_issue">儲存權限有已知問題</string>
-    <string name="battery_configuration_desc">忽略此應用程式的電池最佳化設定以利背景下載</string>
     <string name="template_label">標籤</string>
     <string name="remove_template">確定移除？</string>
     <string name="remove_template_desc">確定要從命令範例中移除「%1$s」嗎？</string>

@@ -102,7 +102,6 @@
     <string name="subtitle_sponsorblock">স্পন্সরব্লক দিয়ে সেগমেন্টগুলি সরানোর সময় সাবটাইটেলগুলি এলোমেলো হতে পারে।</string>
     <string name="pre_release_channel">প্রি রিলিজ</string>
     <string name="permission_issue_desc">ডাউনলোড/ এবং ডকুমেন্টস/ এর বাইরের ডিরেক্টরিগুলি সাপোর্টেড নয়</string>
-    <string name="battery_configuration_desc">ব্যাকগ্রাউন্ডে ডাউনলোডের জন্য এই অ্যাপটির ব্যাটারি অপ্টিমাইজেশন বন্ধ করুন</string>
     <string name="service_title">সিল ডাউনলোড হচ্ছে…</string>
     <string name="github_issue">GitHub ইস্যু</string>
     <string name="unknown_error">আননোন ইরর</string>

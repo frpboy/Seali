@@ -120,7 +120,6 @@
     <string name="subdirectory">Сохранить в подкаталог</string>
     <string name="subdirectory_desc">Сохраняйте файлы в папках, названных местами, откуда был скачан материал</string>
     <string name="permission_issue_desc">Каталоги за пределами Download/ и Documents/ не поддерживаются</string>
-    <string name="battery_configuration_desc">Игнорируйте оптимизацию батареи, чтобы приложение загружало также и в фоне</string>
     <string name="paste_desc">Нажмите \"Вставить\", чтобы вставить ссылку на видео из буфера обмена.</string>
     <string name="download_history_desc">Проверяйте и управляйте загрузками в приложении, включая видео- и аудио-файлы.</string>
     <string name="download_playlist">Загрузка плейлиста</string>

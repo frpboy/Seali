@@ -125,6 +125,5 @@
     <string name="permission_issue">Problem med åtkomst till lagringsutrymme</string>
     <string name="permission_issue_desc">Kataloger annat än Nedladdade filer/ och Dokument/ stödjs inte</string>
     <string name="battery_configuration">Batterikonfiguration</string>
-    <string name="battery_configuration_desc">Avaktivera appens batterioptimering för att aktivera bakgrundsnedladdning</string>
     <string name="ytdlp_update_action">Uppdatera yt-dlp</string>
 </resources>

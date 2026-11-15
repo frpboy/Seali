@@ -132,7 +132,7 @@
     <string name="permission_issue">Storage permission issue</string>
     <string name="permission_issue_desc">Directories outside Download/ and Documents/ are not supported</string>
     <string name="battery_configuration">Battery configuration</string>
-    <string name="battery_configuration_desc">Open battery settings to keep downloads running in the background</string>
+    <string name="battery_configuration_desc">Open battery optimization settings. Android or your device may still limit background downloads.</string>
     <string name="service_title">Seali is downloading…</string>
     <string name="unknown_error">Unknown error</string>
     <string name="translate">Translate</string>

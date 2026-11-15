@@ -137,7 +137,6 @@
     <string name="permission_issue">Vấn đề quyền truy cập bộ nhớ</string>
     <string name="permission_issue_desc">Các đường dẫn ngoài Download/ và Documents/ không được hỗ trợ</string>
     <string name="battery_configuration">Cấu hình pin</string>
-    <string name="battery_configuration_desc">Bỏ qua Tối ưu hóa pin để ứng dụng này tải xuống trong nền</string>
     <string name="service_title">Seali đang tải xuống…</string>
     <string name="unknown_error">Lỗi không xác định</string>
     <string name="translate">Dịch</string>

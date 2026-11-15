@@ -139,7 +139,6 @@
     <string name="service_title">Seali でダウンロード中…</string>
     <string name="subdirectory">サブフォルダに保存</string>
     <string name="subdirectory_desc">以下の項目名の各フォルダ内にファイルを保存</string>
-    <string name="battery_configuration_desc">バックグラウンドでダウンロードするにはこのアプリのバッテリー最適化を無効にしてください</string>
     <string name="translate">翻訳</string>
     <string name="remove_template_desc">「%1$s」をコマンドテンプレートから削除しますか？</string>
     <string name="downloading_indicator_text">ダウンロード中…</string>

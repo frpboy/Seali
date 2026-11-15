@@ -132,7 +132,6 @@
     <string name="copy_link">Скапіяваць спасылку</string>
     <string name="subdirectory_desc">Захоўвайце файлы ў папках з адпаведнымі назвамі</string>
     <string name="permission_issue">Каталог не падтрымліваецца</string>
-    <string name="battery_configuration_desc">Ігнаруйце аптымізацыю акумулятара, каб спампоўваць у фоне</string>
     <string name="service_title">Seali спампоўвае…</string>
     <string name="unknown_error">Невядомая памылка</string>
     <string name="translate">Пераклад</string>

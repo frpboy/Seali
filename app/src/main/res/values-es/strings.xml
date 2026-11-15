@@ -121,7 +121,6 @@
     <string name="permission_issue">Problema con permiso de almacenamiento</string>
     <string name="permission_issue_desc">Directorios fuera de las carpetas «Download/» y «Documents/» no están soportados</string>
     <string name="battery_configuration">Configuración de la batería</string>
-    <string name="battery_configuration_desc">Ignorar la optimización de la batería para esta aplicación en segundo plano</string>
     <string name="service_title">Seali está descargando…</string>
     <string name="unknown_error">Ha ocurrido un error desconocido</string>
     <string name="translate">Traducir</string>

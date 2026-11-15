@@ -214,7 +214,6 @@
     <string name="download_range_selection">בחירת פלייליסט</string>
     <string name="subdirectory">שמור לתת תיקייה</string>
     <string name="permission_issue">בעיית הרשאות אחסון</string>
-    <string name="battery_configuration_desc">התעלם מאופטימיזציה של סוללה כדי לאפשר לאפליקציה להוריד ברקע</string>
     <string name="translate">תרגום</string>
     <string name="embed_subtitles">כתוביות מוטמעות</string>
     <string name="custom_command_template_desc">ערוך ונהל תבניות פקודות</string>

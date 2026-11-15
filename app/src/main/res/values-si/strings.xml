@@ -158,7 +158,6 @@
     <string name="permission_issue_desc">Download/ සහ Documents/ ඩිරෙක්ටරිවලින් පිටත සහාය නොදක්වයි</string>
     <string name="battery_configuration">බැටරි කළමනාකරණය</string>
     <string name="subdirectory">උප ඩිරෙක්ටරිය තුළ සුරකින්න</string>
-    <string name="battery_configuration_desc">පසුබිම් බාගැනීම් සදහා බැටරි ප්‍රශස්තකරණය නොසලකා හරින්න</string>
     <string name="network">ජාලය</string>
     <string name="rate_limit_desc">බාගැනීම් සඳහා උපරිම වේගය සීමා කරන්න</string>
     <string name="permission_issue">ආචයන අවසර ගැටලුවකි</string>

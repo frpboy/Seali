@@ -126,7 +126,6 @@
     <string name="to">Einde</string>
     <string name="download_range_desc">Geef de reeks video\'s op die u wilt downloaden van de afspeellijst ‘%3$s’ (van %1$d tot %2$d).</string>
     <string name="download_directory_desc">Selecteer waar u video\'s en geluidsbestanden wilt opslaan</string>
-    <string name="battery_configuration_desc">Negeer batterijoptimalisatie voor deze app om op de achtergrond te kunnen downloaden</string>
     <string name="unknown_error">Onbekende fout</string>
     <string name="translate">Vertalen</string>
     <string name="prefix">Path template</string>

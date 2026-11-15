@@ -201,7 +201,6 @@
     <string name="max_rate">अधिकतम दर</string>
     <string name="concurrent_download_num">%d धाराओं का उपयोग DASH/HLS नेटिव वीडियो को समवर्ती रूप से डाउनलोड करने के लिए किया जाएगा।</string>
     <string name="download_directory_desc">चुनें कि वीडियो और ऑडियो फ़ाइलें कहाँ संग्रहित करनी हैं</string>
-    <string name="battery_configuration_desc">इस ऐप को पृष्ठभूमि में डाउनलोड करने के लिए बैटरी ऑप्टिमाइज़ेशन को इग्नोर करें</string>
     <string name="aria2_desc">बाहरी डाउनलोडर के रूप में aria2c का प्रयोग करें</string>
     <string name="private_mode_desc">डाउनलोड इतिहास अक्षम करें</string>
     <string name="dynamic_color_desc">वॉलपेपर से ऐप थीम पर रंग लागू करें</string>

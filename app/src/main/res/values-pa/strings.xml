@@ -189,7 +189,6 @@
     <string name="permission_issue">ਸਟੋਰੇਜ਼ ਇਜਾਜ਼ਤ ਸਮੱਸਿਆ</string>
     <string name="permission_issue_desc">ਡਾਉਨਲੋਡ/ ਅਤੇ ਦਸਤਾਵੇਜ਼/ ਤੋਂ ਬਾਹਰ ਦੀਆਂ ਡਾਇਰੈਕਟਰੀਆਂ ਸਮਰਥਿਤ ਨਹੀਂ ਹਨ</string>
     <string name="battery_configuration">ਬੈਟਰੀ ਸੰਰਚਨਾ</string>
-    <string name="battery_configuration_desc">ਇਸ ਐਪ ਨੂੰ ਬੈਕਗ੍ਰਾਊਂਡ ਵਿੱਚ ਡਾਊਨਲੋਡ ਕਰਨ ਦੇਣ ਲਈ ਬੈਟਰੀ ਔਪਟੀਮਾਈਜੇਸ਼ਨ ਨੂੰ ਅਣਡਿੱਠ ਕਰੋ</string>
     <string name="service_title">ਸੀਲ ਡਾਊਨਲੋਡ ਕਰ ਰਹੀ ਹੈ…</string>
     <string name="unknown_error">ਅਣਜਾਣ ਤਰੁੱਟੀ</string>
     <string name="translate">ਅਨੁਵਾਦ ਕਰੋ</string>

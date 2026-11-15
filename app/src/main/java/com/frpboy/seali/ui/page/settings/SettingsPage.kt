@@ -1,8 +1,8 @@
 package com.frpboy.seali.ui.page.settings
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
@@ -78,20 +78,6 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
         } else {
             Intent()
         }
-    val isActivityAvailable: Boolean =
-        if (Build.VERSION.SDK_INT < 23) false
-        else if (Build.VERSION.SDK_INT < 33)
-            context.packageManager
-                .queryIntentActivities(intent, PackageManager.MATCH_ALL)
-                .isNotEmpty()
-        else
-            context.packageManager
-                .queryIntentActivities(
-                    intent,
-                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_SYSTEM_ONLY.toLong()),
-                )
-                .isNotEmpty()
-
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -126,7 +112,7 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 item {
                     AnimatedVisibility(
-                        visible = showBatteryHint && isActivityAvailable,
+                        visible = showBatteryHint,
                         exit = shrinkVertically() + fadeOut(),
                     ) {
                         PreferencesHintCard(
@@ -134,7 +120,15 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
                             icon = Icons.Rounded.EnergySavingsLeaf,
                             description = stringResource(R.string.battery_configuration_desc),
                         ) {
-                            launcher.launch(intent)
+                            // Attempt the settings launch directly; a queryIntentActivities
+                            // precheck is unreliable on API 30+ without a manifest <queries>
+                            // declaration, so handle absence here instead of hiding the card.
+                            try {
+                                launcher.launch(intent)
+                            } catch (e: ActivityNotFoundException) {
+                                showBatteryHint = false
+                                return@PreferencesHintCard
+                            }
                             showBatteryHint =
                                 !pm.isIgnoringBatteryOptimizations(context.packageName)
                         }

@@ -68,7 +68,6 @@
     <string name="task_canceled">ยกเลิกงานดาวน์โหลดแล้ว</string>
     <string name="unknown_error">ข้อผิดพลาดที่ไม่รู้จัก</string>
     <string name="service_title">Seali กำลังดาวน์โหลด…</string>
-    <string name="battery_configuration_desc">ละเว้นการเพิ่มประสิทธิภาพแบตเตอรี่สำหรับแอพฯ นี้เพื่อดาวน์โหลดในพื้นหลัง</string>
     <string name="downloading_indicator_text">กำลังดาวน์โหลด…</string>
     <string name="info_copied">­ข้อมูลถูกคัดลอกไปยังคลิปบอร์ดแล้ว</string>
     <string name="status_canceled">ยกเลิกแล้ว</string>

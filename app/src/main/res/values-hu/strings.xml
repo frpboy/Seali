@@ -125,7 +125,6 @@
     <string name="permission_issue">Adattár engedéllyel kapcsolatos probléma</string>
     <string name="share_success_msg">Videó link olvasása megosztott tartalomból…</string>
     <string name="show_more_actions">További műveletek megjelenítése</string>
-    <string name="battery_configuration_desc">A háttérben történő letöltéshez kapcsold ki az alkalmazás akkumulátor-optimalizálását</string>
     <string name="service_title">Seali letöltése folyamatban van…</string>
     <string name="download_error_msg">A fájlt nem sikerült letölteni</string>
     <string name="channel_description">Értesítés a letöltött fájlokról és annak a folyamatról</string>
