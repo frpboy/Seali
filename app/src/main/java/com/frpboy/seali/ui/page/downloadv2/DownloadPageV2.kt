@@ -122,6 +122,7 @@ import com.frpboy.seali.util.FileUtil.getFileSize
 import com.frpboy.seali.util.getErrorReport
 import com.frpboy.seali.util.makeToast
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -208,9 +209,12 @@ fun DownloadPageV2(
     val clipboardManager = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
 
+    val missingHistoryFileIds by downloader.missingHistoryFileIds.collectAsStateWithLifecycle()
+
     DownloadPageImplV2(
         modifier = modifier,
         taskDownloadStateMap = downloader.getTaskStateMap(),
+        missingHistoryFileIds = missingHistoryFileIds,
         downloadCallback = {
             view.slightHapticFeedback()
             dialogViewModel.postAction(Action.ShowSheet())
@@ -323,6 +327,7 @@ private const val HeaderSpacingDp = 28
 fun DownloadPageImplV2(
     modifier: Modifier = Modifier,
     taskDownloadStateMap: SnapshotStateMap<Task, Task.State>,
+    missingHistoryFileIds: Set<String> = emptySet(),
     downloadCallback: () -> Unit = {},
     pasteCallback: () -> Unit = {},
     onMenuOpen: (() -> Unit) = {},
@@ -550,6 +555,7 @@ fun DownloadPageImplV2(
                 task = task,
                 downloadState = downloadState,
                 viewState = viewState,
+                isMissingFile = task.id in missingHistoryFileIds,
                 onDismissRequest = {
                     scope.launch { sheetState.hide() }.invokeOnCompletion { selectedTask = null }
                 },
@@ -739,6 +745,9 @@ internal class DownloadPageV2Test {
             override fun getTaskStateMap(): SnapshotStateMap<Task, Task.State> {
                 return map
             }
+
+            override val missingHistoryFileIds =
+                MutableStateFlow<Set<String>>(emptySet())
 
             override fun cancel(task: Task): Boolean {
                 return false

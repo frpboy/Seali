@@ -19,11 +19,13 @@ import com.frpboy.seali.download.Task.DownloadState.Running
 import com.frpboy.seali.download.Task.RestartableAction.Download
 import com.frpboy.seali.download.Task.RestartableAction.FetchInfo
 import com.frpboy.seali.download.Task.TypeInfo
+import com.frpboy.seali.util.DatabaseUtil
 import com.frpboy.seali.util.DownloadUtil
 import com.frpboy.seali.util.FileUtil
 import com.frpboy.seali.util.NotificationUtil
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.VideoInfo
+import com.frpboy.seali.util.planHistoryMerge
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlin.collections.component1
 import kotlin.collections.component2
@@ -32,6 +34,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
+import java.io.File
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -55,6 +61,12 @@ interface DownloaderV2 {
 
     /** Enqueue a [Task] with an empty [Task.State] */
     fun enqueue(task: Task)
+
+    /**
+     * Ids of Room-backed completed history entries whose file is currently missing
+     * from storage. Updated off the UI thread; presentation only.
+     */
+    val missingHistoryFileIds: StateFlow<Set<String>>
 
     fun enqueue(task: Task, state: Task.State)
 
@@ -84,6 +96,9 @@ internal object FakeDownloaderV2 : DownloaderV2 {
     override fun remove(task: Task): Boolean {
         return true
     }
+
+    override val missingHistoryFileIds: StateFlow<Set<String>> =
+        MutableStateFlow(emptySet())
 }
 
 /**
@@ -97,6 +112,8 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val taskStateMap = mutableStateMapOf<Task, Task.State>()
     private val snapshotFlow = snapshotFlow { taskStateMap.toMap() }
+    private val _missingHistoryFileIds = MutableStateFlow<Set<String>>(emptySet())
+    override val missingHistoryFileIds: StateFlow<Set<String>> = _missingHistoryFileIds
 
     init {
         scope.launch(Dispatchers.Default) {
@@ -110,6 +127,22 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
         scope.launch(Dispatchers.IO) {
             // don't write before we read
             enqueueFromBackup()
+
+            launch {
+                combine(snapshotFlow, DatabaseUtil.getDownloadHistoryFlow()) { session, history ->
+                        session to history
+                    }
+                    .collect { (session, history) ->
+                        val plan =
+                            planHistoryMerge(session, history) { path -> File(path).exists() }
+                        if (plan.toRemoveIds.isNotEmpty()) {
+                            val byId = taskStateMap.keys.associateBy { it.id }
+                            plan.toRemoveIds.forEach { id -> byId[id]?.let(taskStateMap::remove) }
+                        }
+                        plan.toAdd.forEach { (task, state) -> taskStateMap[task] = state }
+                        _missingHistoryFileIds.value = plan.missingFileIds
+                    }
+            }
 
             snapshotFlow
                 .map { it.filter { it.value.downloadState !is Completed } }

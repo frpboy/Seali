@@ -1,0 +1,91 @@
+package com.frpboy.seali.util
+
+import com.frpboy.seali.database.objects.DownloadedVideoInfo
+import com.frpboy.seali.download.Task
+
+/**
+ * Maps durable Room download history onto synthetic queue entries so the queue's
+ * Finished lane and its counts survive process restarts. Synthetic entries are
+ * in-memory only: they always use [Task.DownloadState.Completed], which the
+ * existing backup writer excludes, so nothing new is persisted. They carry an id
+ * prefix so the UI can withhold actions that require a live session task.
+ */
+
+internal const val HISTORY_TASK_ID_PREFIX = "history_"
+
+internal fun historyTaskId(historyRowId: Int): String = "$HISTORY_TASK_ID_PREFIX$historyRowId"
+
+fun Task.isHistoryEntry(): Boolean = id.startsWith(HISTORY_TASK_ID_PREFIX)
+
+internal data class HistoryMergePlan(
+    val toAdd: List<Pair<Task, Task.State>>,
+    val toRemoveIds: Set<String>,
+    val missingFileIds: Set<String>,
+)
+
+internal fun synthesizeHistoryEntry(info: DownloadedVideoInfo): Pair<Task, Task.State> {
+    val task =
+        Task(
+            url = info.videoUrl,
+            preferences = DownloadUtil.DownloadPreferences.EMPTY,
+            id = historyTaskId(info.id),
+        )
+    val state =
+        Task.State(
+            downloadState = Task.DownloadState.Completed(filePath = info.videoPath),
+            videoInfo = null,
+            viewState =
+                Task.ViewState(
+                    url = info.videoUrl,
+                    title = info.videoTitle,
+                    uploader = info.videoAuthor,
+                    extractorKey = info.extractor,
+                    thumbnailUrl = info.thumbnailUrl,
+                ),
+        )
+    return task to state
+}
+
+/**
+ * Computes the minimal mutation aligning synthetic history entries in [session]
+ * with durable [history]. Idempotent: applying the plan and re-planning the
+ * result yields an empty plan, which terminates the collector's apply loop.
+ * Newest history rows come first in [HistoryMergePlan.toAdd].
+ *
+ * [fileExists] is invoked by the caller off the UI thread; it must never run
+ * during composition or layout.
+ */
+internal fun planHistoryMerge(
+    session: Map<Task, Task.State>,
+    history: List<DownloadedVideoInfo>,
+    fileExists: (String) -> Boolean,
+): HistoryMergePlan {
+    val realCompletedPaths =
+        session.entries
+            .filter { !it.key.isHistoryEntry() }
+            .mapNotNull {
+                (it.value.downloadState as? Task.DownloadState.Completed)?.filePath
+            }
+            .toSet()
+    val existingHistoryIds =
+        session.keys.filter { it.isHistoryEntry() }.map { it.id }.toSet()
+
+    val wanted =
+        history.filter { it.videoPath.isNotBlank() && it.videoPath !in realCompletedPaths }
+    val wantedIds = wanted.map { historyTaskId(it.id) }.toSet()
+
+    val toRemoveIds = existingHistoryIds - wantedIds
+    val toAdd =
+        wanted
+            .filter { historyTaskId(it.id) !in existingHistoryIds }
+            .sortedByDescending { it.id }
+            .map(::synthesizeHistoryEntry)
+    val missingFileIds =
+        wanted.filter { !fileExists(it.videoPath) }.map { historyTaskId(it.id) }.toSet()
+
+    return HistoryMergePlan(
+        toAdd = toAdd,
+        toRemoveIds = toRemoveIds,
+        missingFileIds = missingFileIds,
+    )
+}
