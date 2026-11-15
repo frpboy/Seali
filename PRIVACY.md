@@ -65,4 +65,4 @@ This policy may be updated when Seali's behavior or distribution channels change
 
 ## Contact
 
-For privacy questions or requests, email frpboy12@gmail.com. Do not include passwords, cookies, access tokens, or other private information in your message unless specifically asked for them.
+For privacy questions or requests, email frpboy12@gmail.com. Do not include passwords, cookies, access tokens, or other private information in your message.
