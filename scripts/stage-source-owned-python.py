@@ -24,6 +24,10 @@ d['files']=[{'path':str(f.relative_to(root)),'bytes':f.stat().st_size,'sha256':h
 for row in d['files']:
  name=pathlib.Path(row['path']).name
  if name in pins:row.update(bytes=pins[name][0],sha256=pins[name][1])
+# Custody chain (sha256 of each retained private draft custody archive, oldest first):
+#   521b89e8..., e982ac7d...  pre-existing alpha7 chain entries (retained as recorded)
+#   b1a558b0...  seali-alpha7b-arm64-inputs.tar, draft release 446258542, asset 751874182,
+#                36,270,080 B, zip 83ce8864 (licensed-bundle-missing candidate, non-release evidence)
 d['source_owned_python']={'version':'3.11.18','cryptodome':'3.24.2','target_executed':False,'source_custody':['521b89e816949445036fd01de7241324aa4da443ba25f338d59669d188404d07','e982ac7d619733c511a8e88ca5dbc87190f9c76394b03284c3b952d12e2bc0ae','b1a558b0f2722fd332bdf720ef504a2f6bc004bc9113acd19319b5459b8a001b'],'arm64_only':True}
 manifest.write_text(json.dumps(d,indent=2)+'\n')
 print('exact reviewed source Python staged, ARM64 only; no Android execution')

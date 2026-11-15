@@ -236,8 +236,8 @@
  },
  {
   "path": "source-ledger.json",
-  "bytes": 33600,
-  "sha256": "d68ac98fa753c46bdab0a19d3101b52d5b7681a0f2dd8383e68b13c122d79fbe"
+  "bytes": 32454,
+  "sha256": "7fd2899e3ee0133621057d4f8f53cbcc06ec5c6b1f63c18b637995b6ad2e81c8"
  },
  {
   "path": "sqlite3/sqlite3.h.copyright-and-source",

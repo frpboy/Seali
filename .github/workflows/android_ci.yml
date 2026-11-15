@@ -117,6 +117,9 @@ jobs:
           python3 scripts/quickjs-source-preparation/test-verify-quickjs-target-main.py
           python3 scripts/release-qualification/test-compatible-release-verifier.py
           python3 scripts/release-qualification/test-version-expectation.py
+          # License-bundle coverage contract against synthetic fixtures; the real
+          # payload zip lives in private custody and is never available to CI.
+          python3 scripts/packaging/test_license_bundle_fixtures.py
 
       # Source verification needs no native payload and never produces an APK.
       # The candidate property admits this isolated source tree; it does not
@@ -639,6 +642,9 @@ jobs:
           python3 scripts/ci/test_verification_boundary.py
           python3 scripts/release-qualification/test-compatible-release-verifier.py
           python3 scripts/release-qualification/test-version-expectation.py
+          # License-bundle coverage contract against synthetic fixtures; the real
+          # payload zip lives in private custody and is never available to CI.
+          python3 scripts/packaging/test_license_bundle_fixtures.py
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
         with:
           distribution: temurin
