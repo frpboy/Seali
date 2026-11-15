@@ -7,13 +7,13 @@ retained stage libraries (`libcrypto.so.3`, `libssl.so.3`,
 `libexpat.so.1.13.1`) for non-page-aligned RELRO starts. Two independent
 reviews against the Bionic linker source (API 24 `android-7.0.0_r1` and
 Android 15 `android-15.0.0_r1` `linker/linker_phdr.cpp`) established the
-actual runtime contract for those linker generations. The 16 KiB
-app-compat segment-padding behavior across Android 16 releases was read
-but NOT fully traced, so the invariants below are page-size-agnostic and
-do not depend on it.: the linker rounds the RELRO start DOWN and the end
-UP to runtime page boundaries, and the true constraint is that the rounded
-mprotect range contains no byte that must stay writable or executable -
-not that the start is page-aligned. The strict check is therefore an
+actual runtime contract for those linker generations: the linker rounds
+the RELRO start DOWN and the end UP to runtime page boundaries, and the
+true constraint is that the rounded mprotect range contains no byte that
+must stay writable or executable - not that the start is page-aligned.
+The 16 KiB app-compat segment-padding behavior across Android 16 releases
+was read but NOT fully traced; the invariants below are page-size-agnostic
+and do not depend on it. The strict check is therefore an
 over-restrictive static layout finding, not evidence of a runtime defect.
 The strict findings are preserved in the build receipts; nothing is
 suppressed and no hash allowlist exists.
