@@ -251,11 +251,19 @@ internal class FixedEventTransport(
                 Thread(r, "seali-sentry-sender").apply { isDaemon = true }
             }
 
+        // Connection seam: production opens the real DSN endpoint;
+        // tests inject a loopback connection to observe the wire.
+        private val defaultConnectionFactory: (String) -> HttpURLConnection = { url ->
+            URI(url).toURL().openConnection() as HttpURLConnection
+        }
+        internal var connectionFactory: (String) -> HttpURLConnection = defaultConnectionFactory
+
         /** Test-only reset of the shared send state. Call only while idle. */
         internal fun resetForTests() {
             lastSendAt = 0L
             rateLimitedUntilMs = 0L
             inFlight.set(false)
+            connectionFactory = defaultConnectionFactory
         }
 
         /**
@@ -264,11 +272,15 @@ internal class FixedEventTransport(
          * redirects disabled, connect/read deadlines, no Cookie header
          * sent (this transport never installs a CookieHandler; it cannot
          * strip cookies a globally installed handler would add, and none
-         * is installed by this app). The connect/read timeouts bound
-         * those phases only: DNS resolution and the request write use the
-         * JVM/socket defaults, and there is no single whole-request
-         * deadline. Runs only on the worker thread. Returns true only on
-         * a 2xx response (accepted at the HTTP layer).
+         * is installed by this app). One connection attempt per call:
+         * fixed-length streaming is set before the write, so the body is
+         * streamed exactly once and never buffered, and the HTTP stack
+         * cannot transparently replay the POST after a connection drop.
+         * The connect/read timeouts bound those phases only: DNS
+         * resolution and the request write use the JVM/socket defaults,
+         * and there is no single whole-request deadline. Runs only on
+         * the worker thread. Returns true only on a 2xx response
+         * (accepted at the HTTP layer).
          */
         internal fun defaultPost(dsn: String, bytes: ByteArray): Boolean {
             try {
@@ -278,13 +290,17 @@ internal class FixedEventTransport(
                 val key = uri.userInfo ?: throw IllegalArgumentException("DSN has no key")
                 val port = if (uri.port > 0) ":${uri.port}" else ""
                 val endpoint = "https://$host$port/api${uri.path}/envelope/"
-                val conn = URI(endpoint).toURL().openConnection() as HttpURLConnection
+                val conn = connectionFactory(endpoint)
                 try {
                     conn.instanceFollowRedirects = false
                     conn.connectTimeout = TIMEOUT_MS
                     conn.readTimeout = TIMEOUT_MS
                     conn.requestMethod = "POST"
                     conn.doOutput = true
+                    // Fixed-length before the write: the body is not
+                    // buffered, so a dropped connection cannot be
+                    // transparently replayed (no silent second POST).
+                    conn.setFixedLengthStreamingMode(bytes.size)
                     conn.setRequestProperty("Content-Type", "application/x-sentry-envelope")
                     conn.setRequestProperty(
                         "X-Sentry-Auth",

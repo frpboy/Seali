@@ -25,6 +25,7 @@ import io.sentry.transport.ITransport
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.StringWriter
+import java.net.URI
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
@@ -303,6 +304,99 @@ class CrashReportingSanitizerTest {
         assertEquals(null, FixedEventTransport.computeBackoffSeconds("garbage", null, "not-a-date", now))
         assertEquals(null, FixedEventTransport.computeBackoffSeconds(null, "-5", null, now))
         assertEquals(null, FixedEventTransport.computeBackoffSeconds(null, null, null, now))
+    }
+
+    // ---- Loopback wire proofs for the direct poster ----
+    // These run the REAL defaultPost against a real local HTTP server
+    // (connection factory pointed at the loopback URL), so they observe
+    // actual HttpURLConnection behavior on the wire rather than app-side
+    // counters, which cannot see internal retries.
+
+    private class RecordedRequest(
+        val method: String,
+        val path: String,
+        val contentLength: String?,
+        val auth: String?,
+        val body: ByteArray,
+    )
+
+    private fun startLoopbackServer(
+        respond: Boolean,
+        requests: java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>,
+    ): com.sun.net.httpserver.HttpServer {
+        val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        server.executor = java.util.concurrent.Executors.newCachedThreadPool()
+        server.createContext("/api/envelope/") { exchange ->
+            val body = exchange.requestBody.readBytes()
+            requests.add(
+                RecordedRequest(
+                    exchange.requestMethod,
+                    exchange.requestURI.path,
+                    exchange.requestHeaders.getFirst("Content-Length"),
+                    exchange.requestHeaders.getFirst("X-Sentry-Auth"),
+                    body,
+                ),
+            )
+            if (respond) {
+                exchange.sendResponseHeaders(200, -1)
+            }
+            // For the drop test: headers and the entire Content-Length
+            // body were consumed above, then the connection closes with
+            // no response while the listener stays available, so any
+            // internal retry would arrive as a second observed request.
+            exchange.close()
+        }
+        server.start()
+        return server
+    }
+
+    private fun wireLoopback(server: com.sun.net.httpserver.HttpServer) {
+        val base = "http://127.0.0.1:${server.address.port}"
+        FixedEventTransport.connectionFactory = { url ->
+            URI(url.replace("https://dsn.example", base)).toURL().openConnection()
+                as java.net.HttpURLConnection
+        }
+    }
+
+    @Test
+    fun `poster sends one fixed-length POST with the exact envelope bytes`() {
+        val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
+        val server = startLoopbackServer(respond = true, requests = requests)
+        try {
+            wireLoopback(server)
+            val payload = "envelope-bytes-123".toByteArray()
+            assertTrue(FixedEventTransport.defaultPost("https://key1@dsn.example/42", payload))
+            assertEquals(1, requests.size)
+            val req = requests[0]
+            assertEquals("POST", req.method)
+            assertEquals("/api/42/envelope/", req.path)
+            assertEquals(payload.size.toString(), req.contentLength)
+            assertTrue(req.auth!!.contains("sentry_key=key1"))
+            assertTrue(req.body.contentEquals(payload))
+        } finally {
+            server.stop(0)
+        }
+    }
+
+    @Test
+    fun `poster does not replay the POST after a disconnect following the body`() {
+        val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
+        val server = startLoopbackServer(respond = false, requests = requests)
+        try {
+            wireLoopback(server)
+            val payload = ByteArray(2048) { 7 }
+            assertFalse(FixedEventTransport.defaultPost("https://key2@dsn.example/7", payload))
+            // Bounded window for a hypothetical internal replay: the
+            // listener stayed up, so a retried POST would be observed.
+            val deadline = System.currentTimeMillis() + 2_000
+            while (System.currentTimeMillis() < deadline && requests.size < 2) {
+                Thread.sleep(50)
+            }
+            assertEquals(1, requests.size)
+            assertTrue(requests[0].body.contentEquals(payload))
+        } finally {
+            server.stop(0)
+        }
     }
 
     @Test
