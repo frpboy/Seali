@@ -168,10 +168,14 @@ object UpdateUtil {
 
     suspend fun deleteOutdatedApk(context: Context = App.context) =
         context.runCatching {
-            // Per-operation downloads live in the private cache; stale ones are
-            // cleared at startup, when no download or install of this process can
-            // still be reading them.
-            context.getApkDownloadDir().listFiles()?.forEach { it.delete() }
+            // Per-operation downloads live in the private cache. Only files older
+            // than a day are reclaimed: a younger file may still be held by a
+            // pending system installer session handed off before a process death.
+            val cutoff = System.currentTimeMillis() - 24 * 60 * 60 * 1000L
+            context.getApkDownloadDir()
+                .listFiles()
+                ?.filter { it.lastModified() < cutoff }
+                ?.forEach { it.delete() }
             val apkFile = getLatestApk()
             if (apkFile.exists()) {
                 val apkVersion =
