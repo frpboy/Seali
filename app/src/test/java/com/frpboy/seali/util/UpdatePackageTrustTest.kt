@@ -22,6 +22,34 @@ class UpdatePackageTrustTest {
     }
 
     @Test
+    fun `startup cleanup preserves fresh downloads and only reclaims strictly stale ones`() {
+        val now = System.currentTimeMillis()
+        // fresh download: never reclaimed, a pending install may still read it
+        assertFalse(UpdateUtil.isStaleDownload(lastModifiedMs = now, nowMs = now))
+        // inside the window: retained
+        assertFalse(
+            UpdateUtil.isStaleDownload(
+                lastModifiedMs = now - UpdateUtil.STALE_DOWNLOAD_MAX_AGE_MS + 1,
+                nowMs = now,
+            )
+        )
+        // exactly at the boundary: retained, boundary age may still be a live handoff
+        assertFalse(
+            UpdateUtil.isStaleDownload(
+                lastModifiedMs = now - UpdateUtil.STALE_DOWNLOAD_MAX_AGE_MS,
+                nowMs = now,
+            )
+        )
+        // strictly past the window: reclaimed, bounding cache accumulation
+        assertTrue(
+            UpdateUtil.isStaleDownload(
+                lastModifiedMs = now - UpdateUtil.STALE_DOWNLOAD_MAX_AGE_MS - 1,
+                nowMs = now,
+            )
+        )
+    }
+
+    @Test
     fun `each download gets its own file so overlapping operations cannot substitute packages`() {
         val dir = java.nio.file.Files.createTempDirectory("dl").toFile()
         val first = UpdateUtil.newApkDownloadFile(dir)

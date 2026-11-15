@@ -131,6 +131,16 @@ object UpdateUtil {
      * interleave bytes or replace each other's verified package. */
     internal fun newApkDownloadFile(dir: File): File = File(dir, "update-${System.nanoTime()}.apk")
 
+    internal const val STALE_DOWNLOAD_MAX_AGE_MS: Long = 24 * 60 * 60 * 1000L
+
+    /**
+     * A per-operation download is stale only strictly past the retention window;
+     * a file at the boundary or younger is retained, since a pending system
+     * installer session handed off before a process death may still read it.
+     */
+    internal fun isStaleDownload(lastModifiedMs: Long, nowMs: Long): Boolean =
+        nowMs - lastModifiedMs > STALE_DOWNLOAD_MAX_AGE_MS
+
     fun installLatestApk(context: Context = App.context, apkFile: File = context.getLatestApk()) =
         context.run {
             kotlin
@@ -168,13 +178,14 @@ object UpdateUtil {
 
     suspend fun deleteOutdatedApk(context: Context = App.context) =
         context.runCatching {
-            // Per-operation downloads live in the private cache. Only files older
-            // than a day are reclaimed: a younger file may still be held by a
-            // pending system installer session handed off before a process death.
-            val cutoff = System.currentTimeMillis() - 24 * 60 * 60 * 1000L
+            // Per-operation downloads live in the private cache. Only stale files
+            // are reclaimed at startup, so a normal restart never deletes the
+            // file of a current or recently handed-off pending install; the age
+            // bound still keeps downloads from accumulating without limit.
+            val nowMs = System.currentTimeMillis()
             context.getApkDownloadDir()
                 .listFiles()
-                ?.filter { it.lastModified() < cutoff }
+                ?.filter { isStaleDownload(lastModifiedMs = it.lastModified(), nowMs = nowMs) }
                 ?.forEach { it.delete() }
             val apkFile = getLatestApk()
             if (apkFile.exists()) {
