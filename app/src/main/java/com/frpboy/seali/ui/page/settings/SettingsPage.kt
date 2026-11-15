@@ -1,8 +1,10 @@
 package com.frpboy.seali.ui.page.settings
 
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.frpboy.seali.App
@@ -56,8 +59,16 @@ import com.frpboy.seali.util.SHOW_SPONSOR_MSG
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
+    val context = LocalContext.current
+    val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     var showBatteryHint by remember {
-        mutableStateOf(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                !pm.isIgnoringBatteryOptimizations(context.packageName)
+            } else {
+                false
+            }
+        )
     }
     val intent =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -69,9 +80,9 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
         }
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            // Do not query exemption state: that requires the special permission intentionally
-            // omitted for Google Play policy compliance.
-            showBatteryHint = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                showBatteryHint = !pm.isIgnoringBatteryOptimizations(context.packageName)
+            }
         }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -111,15 +122,16 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
                             // The description carries a qualification, so never ellipsize it.
                             descriptionMaxLines = Int.MAX_VALUE,
                         ) {
-                            // Attempt the settings launch directly; a queryIntentActivities
-                            // precheck is unreliable on API 30+ without a manifest <queries>
-                            // declaration, so handle absence here instead of hiding the card.
+                            // isIgnoringBatteryOptimizations needs no special permission or
+                            // query (official PowerManager API). Launch settings, then
+                            // re-check the real state in every outcome.
                             try {
                                 launcher.launch(intent)
                             } catch (e: ActivityNotFoundException) {
-                                showBatteryHint = false
-                                return@PreferencesHintCard
+                                // No settings screen on this device; the re-check still runs.
                             }
+                            showBatteryHint =
+                                !pm.isIgnoringBatteryOptimizations(context.packageName)
                         }
                     }
                 }
