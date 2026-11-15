@@ -99,6 +99,9 @@ android {
     buildFeatures { buildConfig = true }
 
     defaultConfig {
+        // Public Sentry DSN (client key, not a secret). Empty disables reporting.
+        val sentryDsn: String = providers.gradleProperty("SEALI_SENTRY_DSN").orElse("").get()
+        buildConfigField("String", "SEALI_SENTRY_DSN", "\"$sentryDsn\"")
         applicationId = "com.frpboy.seali"
         minSdk = 26
         targetSdk = 36
@@ -256,6 +259,7 @@ dependencies {
     implementation(libs.bundles.accompanist)
 
     implementation(libs.coil.kt.compose)
+    implementation(libs.sentry.android.core)
 
     implementation(libs.kotlinx.serialization.json)
 

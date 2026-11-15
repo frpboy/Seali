@@ -19,6 +19,7 @@ androidxTestExt = "1.1.4"
 coil = "2.5.0"
 
 junit4 = "4.13.2"
+sentry = "8.64.0"
 
 kotlin = "2.0.20"
 
@@ -39,6 +40,7 @@ koin = "4.0.0"
 ktfmt = "0.20.1"
 
 [libraries]
+sentry-android-core = { group = "io.sentry", name = "sentry-android-core", version.ref = "sentry" }
 
 
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }

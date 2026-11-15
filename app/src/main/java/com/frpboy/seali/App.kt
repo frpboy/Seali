@@ -24,6 +24,7 @@ import com.frpboy.seali.ui.page.settings.network.CookiesViewModel
 import com.frpboy.seali.ui.page.videolist.VideoListViewModel
 import com.frpboy.seali.util.AUDIO_DIRECTORY
 import com.frpboy.seali.util.COMMAND_DIRECTORY
+import com.frpboy.seali.util.CrashReporting
 import com.frpboy.seali.util.DownloadUtil
 import com.frpboy.seali.util.FileUtil
 import com.frpboy.seali.util.FunctionalEngine
@@ -63,6 +64,7 @@ private const val SEALI_INIT_STATUS_FILE = "seali-init-status"
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
+        CrashReporting.init(this)
         MMKV.initialize(this)
 
         startKoin {
@@ -108,6 +110,7 @@ class App : Application() {
                         .writeText("OK pid=${android.os.Process.myPid()}")
                 }
             } catch (th: Throwable) {
+                CrashReporting.capture(th)
                 runCatching {
                     File(filesDir, SEALI_INIT_STATUS_FILE)
                         .writeText("ERROR pid=${android.os.Process.myPid()}")
@@ -124,7 +127,13 @@ class App : Application() {
         }
         if (Build.VERSION.SDK_INT >= 26) NotificationUtil.createNotificationChannel()
 
-        Thread.setDefaultUncaughtExceptionHandler { _, e -> startCrashReportActivity(e) }
+        // Chain to any previously installed handler (e.g. crash reporting) so
+        // fatal JVM exceptions are both shown locally and reported.
+        val previousCrashHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, e ->
+            startCrashReportActivity(e)
+            previousCrashHandler?.uncaughtException(thread, e)
+        }
     }
 
     private fun startCrashReportActivity(th: Throwable) {
