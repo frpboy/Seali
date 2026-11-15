@@ -53,6 +53,7 @@ const val FORMAT_SORTING = "format_sorting"
 const val SORTING_FIELDS = "sorting_fields"
 
 const val WELCOME_DIALOG = "welcome_dialog"
+const val ONBOARDING_DONE = "onboarding_done"
 const val UI_STYLE = "ui_style"
 const val UI_STYLE_V2 = 0
 const val UI_STYLE_CLASSIC = 1
@@ -224,6 +225,7 @@ private val BooleanPreferenceDefaults =
         NOTIFICATION to true,
         EMBED_METADATA to true,
         USE_CUSTOM_AUDIO_PRESET to false,
+        ONBOARDING_DONE to false,
     )
 
 private val IntPreferenceDefaults =
@@ -237,7 +239,7 @@ private val IntPreferenceDefaults =
         AUDIO_CONVERSION_FORMAT to NOT_SPECIFIED,
         VIDEO_QUALITY to NOT_SPECIFIED,
         VIDEO_FORMAT to FORMAT_QUALITY,
-        UPDATE_CHANNEL to STABLE,
+        UPDATE_CHANNEL to PRE_RELEASE,
         SHOW_SPONSOR_MSG to 0,
         CONVERT_SUBTITLE to NOT_SPECIFIED,
         DOWNLOAD_TYPE_INITIALIZATION to USE_PREVIOUS_SELECTION,
@@ -280,6 +282,8 @@ object PreferenceUtil {
     fun updateUiStyle(style: Int) = UI_STYLE.updateInt(style)
 
     fun encodeInt(key: String, int: Int) = key.updateInt(int)
+
+    fun encodeBoolean(key: String, boolean: Boolean) = key.updateBoolean(boolean)
 
     fun encodeString(key: String, string: String) = key.updateString(string)
 

@@ -16,7 +16,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import com.frpboy.seali.BuildConfig
+import com.frpboy.seali.App
 import com.frpboy.seali.R
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.ToastUtil
@@ -28,8 +28,9 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun AppUpdater() {
-    // Google Play distribution must be updated through Play Store, never by sideloading APKs.
-    if (BuildConfig.APPLICATION_ID == "com.frpboy.seali") return
+    // Google Play builds update through the Play Store and F-Droid builds through the
+    // F-Droid client; only direct-distribution builds self-update by sideloading APKs.
+    if (App.isPlayBuild() || App.isFDroidBuild()) return
 
     val context = LocalContext.current
 

@@ -2,6 +2,7 @@ package com.frpboy.seali.util
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
@@ -15,6 +16,7 @@ import com.frpboy.seali.util.PreferenceUtil.getInt
 import com.frpboy.seali.util.PreferenceUtil.updateLong
 import com.yausername.youtubedl_android.YoutubeDL
 import java.io.File
+import java.security.MessageDigest
 import java.util.regex.Pattern
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -87,16 +89,22 @@ object UpdateUtil {
     private fun getLatestRelease(): Release =
         client.newCall(requestForReleases).execute().body.use {
             val releaseList = jsonFormat.decodeFromString<List<Release>>(it.string())
-            val stable = UPDATE_CHANNEL.getInt() == STABLE
-            val latestRelease =
-                releaseList
-                    .filter { if (stable) it.name.toVersion() is Version.Stable else true }
-                    .maxByOrNull { it.name.toVersion() } ?: throw Exception("null response")
-            latestRelease
+            selectLatestRelease(releaseList, stableOnly = UPDATE_CHANNEL.getInt() == STABLE)
+                ?: throw Exception("null response")
         }
 
+    /**
+     * Picks the newest published release for the configured channel. Drafts are never
+     * eligible: private candidate drafts must not surface through the updater.
+     */
+    internal fun selectLatestRelease(releases: List<Release>, stableOnly: Boolean): Release? =
+        releases
+            .filter { it.draft != true }
+            .filter { if (stableOnly) it.name.toVersion() is Version.Stable else true }
+            .maxByOrNull { it.name.toVersion() }
+
     fun checkForUpdate(context: Context = App.context): Release? {
-        CandidateFeaturePolicy.requireAppUpdatesAvailable()
+        CandidateFeaturePolicy.requireAppUpdatesAvailable(App.isPlayBuild(), App.isFDroidBuild())
         val currentVersion = context.getCurrentVersion()
         val latestRelease = getLatestRelease()
         val latestVersion = latestRelease.name.toVersion()
@@ -119,7 +127,14 @@ object UpdateUtil {
         context.run {
             kotlin
                 .runCatching {
-                    CandidateFeaturePolicy.requireAppUpdatesAvailable()
+                    CandidateFeaturePolicy.requireAppUpdatesAvailable(
+                        App.isPlayBuild(),
+                        App.isFDroidBuild(),
+                    )
+                    if (downloadedApkSignatureMatches() == false) {
+                        ToastUtil.makeToast(R.string.app_update_signature_mismatch)
+                        return@runCatching
+                    }
                     val contentUri =
                         FileProvider.getUriForFile(this, getFileProvider(), getLatestApk())
                     val intent =
@@ -156,7 +171,7 @@ object UpdateUtil {
         release: Release,
     ): Flow<DownloadStatus> =
         withContext(Dispatchers.IO) {
-            CandidateFeaturePolicy.requireAppUpdatesAvailable()
+            CandidateFeaturePolicy.requireAppUpdatesAvailable(App.isPlayBuild(), App.isFDroidBuild())
             val apkVersion =
                 context.packageManager
                     .getPackageArchiveInfo(context.getLatestApk().absolutePath, 0)
@@ -190,6 +205,65 @@ object UpdateUtil {
             }
             emptyFlow()
         }
+
+    /**
+     * Compares the downloaded APK's signing certificate hashes with the running app's.
+     * Returns null when either side cannot be read; Android still enforces signature
+     * continuity at install time in that case, so null means "let the platform decide".
+     */
+    @Suppress("DEPRECATION")
+    fun downloadedApkSignatureMatches(context: Context = App.context): Boolean? =
+        runCatching {
+                val apkFile = context.getLatestApk()
+                if (!apkFile.exists()) return null
+                val packageManager = context.packageManager
+                val archiveInfo =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        packageManager.getPackageArchiveInfo(
+                            apkFile.absolutePath,
+                            PackageManager.GET_SIGNING_CERTIFICATES,
+                        )
+                    } else {
+                        packageManager.getPackageArchiveInfo(
+                            apkFile.absolutePath,
+                            PackageManager.GET_SIGNATURES,
+                        )
+                    }
+                val currentInfo =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        packageManager.getPackageInfo(
+                            context.packageName,
+                            PackageManager.GET_SIGNING_CERTIFICATES,
+                        )
+                    } else {
+                        packageManager.getPackageInfo(
+                            context.packageName,
+                            PackageManager.GET_SIGNATURES,
+                        )
+                    }
+                val archiveHashes = signatureHashes(archiveInfo)
+                val currentHashes = signatureHashes(currentInfo)
+                if (archiveHashes.isEmpty() || currentHashes.isEmpty()) null
+                else archiveHashes.toSet() == currentHashes.toSet()
+            }
+            .getOrNull()
+
+    private fun signatureHashes(info: PackageInfo?): List<String> {
+        info ?: return emptyList()
+        val signatures: Array<android.content.pm.Signature>? =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.signingInfo?.let { signingInfo ->
+                    if (signingInfo.hasMultipleSigners()) signingInfo.apkContentsSigners
+                    else signingInfo.signingCertificateHistory
+                }
+            } else {
+                @Suppress("DEPRECATION") info.signatures
+            }
+        return signatures?.map { sha256Hex(it.toByteArray()) } ?: emptyList()
+    }
+
+    private fun sha256Hex(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     private fun ResponseBody.downloadFileWithProgress(saveFile: File): Flow<DownloadStatus> =
         flow {

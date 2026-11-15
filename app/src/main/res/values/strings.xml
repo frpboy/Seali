@@ -500,4 +500,34 @@
     <string name="runtime_nightly_dont_show_again">Don\'t show again</string>
     <string name="runtime_nightly_save_hint">Allow selects Nightly for now. Confirm in Update settings to save your choice and this checkbox. Cancel here keeps Stable selected.</string>
     <string name="runtime_nightly_allow">Allow</string>
+    <string name="app_update_signature_mismatch">Update package signature does not match this installation. Install canceled.</string>
+    <string name="app_updates_unavailable_channel" translatable="false">App self-update is disabled for this distribution channel. Play builds update through Google Play; F-Droid builds update through the F-Droid client.</string>
+    <string name="update_channel_stable">Stable</string>
+    <string name="update_channel_prerelease">Prerelease</string>
+    <string name="update_channel_nightly">Nightly</string>
+    <string name="check_now">Check now</string>
+    <string name="already_latest">Seali is up to date</string>
+    <string name="onboarding_welcome_title">Welcome to Seali</string>
+    <string name="onboarding_welcome_desc">Download video and audio from your favorite sites straight to this device. No account, no sign-in: your downloads and settings stay on your device.</string>
+    <string name="onboarding_permissions_title">Download notifications</string>
+    <string name="onboarding_notifications_desc">Seali shows download progress and completion as notifications while it works in the background. You can change this anytime in system settings.</string>
+    <string name="onboarding_notifications_allow">Allow notifications</string>
+    <string name="onboarding_notifications_granted">Notifications are on</string>
+    <string name="onboarding_notifications_skip_note">You can allow this later; downloads still work without notifications.</string>
+    <string name="onboarding_storage_title">Your download folder</string>
+    <string name="onboarding_storage_desc">New downloads are saved to:\n%1$s\nYou can change the folder anytime in Settings.</string>
+    <string name="onboarding_appearance_title">Make it yours</string>
+    <string name="onboarding_appearance_desc">Pick a look now; everything here stays changeable in Settings.</string>
+    <string name="onboarding_theme_label">Theme</string>
+    <string name="onboarding_interface_style">Interface style</string>
+    <string name="onboarding_style_v2">New (v2)</string>
+    <string name="onboarding_style_classic">Classic</string>
+    <string name="onboarding_engine_title">Engine updates</string>
+    <string name="onboarding_engine_desc">Seali uses the yt-dlp engine to read media sites. Stable is recommended for most people. Nightly gets site fixes sooner but can break downloads.</string>
+    <string name="onboarding_finish_title">You\'re all set</string>
+    <string name="onboarding_finish_desc">Paste a link on the home page to start your first download. Update and engine settings live in Settings.</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_back">Back</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_get_started">Get started</string>
 </resources>
