@@ -61,6 +61,7 @@ import com.frpboy.seali.util.PreferenceUtil.getInt
 import com.frpboy.seali.util.UI_STYLE
 import com.frpboy.seali.util.UI_STYLE_CLASSIC
 import com.frpboy.seali.util.UI_STYLE_V2
+import com.frpboy.seali.ui.page.settings.general.RuntimeNightlyWarningDialog
 import com.frpboy.seali.util.YT_DLP_NIGHTLY
 import com.frpboy.seali.util.YT_DLP_STABLE
 import com.google.accompanist.pager.HorizontalPagerIndicator
@@ -123,6 +124,8 @@ fun OnboardingFlow(onFinish: () -> Unit) {
     var engineChannel by rememberSaveable {
         mutableIntStateOf(PreferenceUtil.effectiveYtdlpUpdateChannel())
     }
+    var showNightlyWarning by remember { mutableStateOf(false) }
+    var dontWarnPending by remember { mutableStateOf(false) }
     val notificationPermission =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             rememberPermissionState(permission = Manifest.permission.POST_NOTIFICATIONS)
@@ -177,21 +180,41 @@ fun OnboardingFlow(onFinish: () -> Unit) {
                         4 ->
                             OnboardingEngineStep(
                                 channel = engineChannel,
-                                onChannelSelected = {
-                                    engineChannel = it
-                                    // Selecting Nightly here is the explicit acceptance of
-                                    // the warning text shown on this step.
-                                    PreferenceUtil.saveYtdlpChannelSelection(
-                                        NightlyChannelSelection(
-                                            channel = it,
-                                            nightlyAllowed = it == YT_DLP_NIGHTLY,
-                                            dontWarnAgain = false,
+                                onChannelSelected = { selected ->
+                                    if (selected == YT_DLP_NIGHTLY) {
+                                        // Nightly takes effect only through the required
+                                        // Allow/Cancel consent dialog below, never from
+                                        // the chip alone.
+                                        dontWarnPending = false
+                                        showNightlyWarning = true
+                                    } else {
+                                        engineChannel = YT_DLP_STABLE
+                                        PreferenceUtil.saveYtdlpChannelSelection(
+                                            NightlyChannelSelection()
                                         )
-                                    )
+                                    }
                                 },
                             )
                         else -> OnboardingFinishStep()
                     }
+                }
+                if (showNightlyWarning) {
+                    RuntimeNightlyWarningDialog(
+                        dontWarnPending = dontWarnPending,
+                        onDontWarnPendingChange = { dontWarnPending = it },
+                        onAllow = {
+                            engineChannel = YT_DLP_NIGHTLY
+                            PreferenceUtil.saveYtdlpChannelSelection(
+                                NightlyChannelSelection(
+                                    channel = YT_DLP_NIGHTLY,
+                                    nightlyAllowed = true,
+                                    dontWarnAgain = dontWarnPending,
+                                )
+                            )
+                            showNightlyWarning = false
+                        },
+                        onDeny = { showNightlyWarning = false },
+                    )
                 }
                 HorizontalPagerIndicator(
                     pagerState = pagerState,
@@ -378,15 +401,6 @@ fun OnboardingEngineStep(channel: Int, onChannelSelected: (Int) -> Unit) {
             selected = channel,
             onSelected = onChannelSelected,
         )
-        if (channel == YT_DLP_NIGHTLY) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = stringResource(R.string.runtime_nightly_warning_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                textAlign = TextAlign.Center,
-            )
-        }
     }
 }
 

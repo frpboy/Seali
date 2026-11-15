@@ -194,11 +194,15 @@ object UpdateUtil {
             val preferredArch = abiList.firstOrNull() ?: return@withContext emptyFlow()
 
             val targetAsset =
-                release.assets?.find {
-                    return@find it.name?.contains(preferredArch) ?: false
-                } ?: return@withContext emptyFlow()
-            val targetUrl = targetAsset.browserDownloadUrl ?: return@withContext emptyFlow()
-            if (!isTrustedDownloadUrl(targetUrl)) return@withContext emptyFlow()
+                release.assets?.find { assetMatchesAbi(it.name, preferredArch) }
+                    ?: return@withContext flow {
+                        throw Exception("no update package matches this device ABI")
+                    }
+            val targetUrl =
+                targetAsset.browserDownloadUrl?.takeIf { isTrustedDownloadUrl(it) }
+                    ?: return@withContext flow {
+                        throw Exception("update package URL is missing or untrusted")
+                    }
             val expectedSha256 = expectedSha256(release = release, assetName = targetAsset.name)
             try {
                 val response = executeFollowingTrustedRedirects(Request.Builder().url(targetUrl).build())
@@ -207,7 +211,7 @@ object UpdateUtil {
                         responseBody.downloadFileWithProgress(context.getLatestApk()).collect {
                             status ->
                             if (status is DownloadStatus.Finished && expectedSha256 != null) {
-                                val actual = sha256Hex(status.file.readBytes())
+                                val actual = sha256FileHex(status.file)
                                 if (!actual.equals(expectedSha256, ignoreCase = true)) {
                                     status.file.delete()
                                     throw Exception("update package checksum mismatch")
@@ -364,7 +368,7 @@ object UpdateUtil {
                 }
                 ApkValidation.Valid
             }
-            .getOrElse { ApkValidation.Indeterminate }
+            .getOrElse { ApkValidation.Rejected(R.string.app_update_validation_failed) }
 
     internal fun isUpgrade(archiveVersionCode: Long, currentVersionCode: Long): Boolean =
         archiveVersionCode > currentVersionCode
@@ -388,6 +392,29 @@ object UpdateUtil {
 
     private fun sha256Hex(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
+    private fun sha256FileHex(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read == -1) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * ABI token match with non-identifier boundaries, so the x86 selector cannot match
+     * an x86_64 asset (or vice versa) the way a plain substring check would.
+     */
+    internal fun assetMatchesAbi(assetName: String?, abi: String): Boolean {
+        assetName ?: return false
+        return Regex("(^|[^A-Za-z0-9_])" + Regex.escape(abi) + "([^A-Za-z0-9_]|\$)")
+            .containsMatchIn(assetName)
+    }
 
     private fun ResponseBody.downloadFileWithProgress(saveFile: File): Flow<DownloadStatus> =
         flow {
