@@ -320,34 +320,57 @@ class CrashReportingSanitizerTest {
         val body: ByteArray,
     )
 
-    private fun startLoopbackServer(
-        respond: Boolean,
-        requests: java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>,
-    ): com.sun.net.httpserver.HttpServer {
+    private class LoopbackServer(
+        val server: com.sun.net.httpserver.HttpServer,
+        val requests: java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>,
+        val handlerErrors: java.util.concurrent.CopyOnWriteArrayList<Throwable>,
+        val handlerDone: java.util.concurrent.CountDownLatch,
+    )
+
+    private fun startLoopbackServer(respond: Boolean): LoopbackServer {
+        val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
+        val handlerErrors = java.util.concurrent.CopyOnWriteArrayList<Throwable>()
+        val handlerDone = java.util.concurrent.CountDownLatch(1)
         val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
         server.executor = java.util.concurrent.Executors.newCachedThreadPool()
         server.createContext("/api/envelope/") { exchange ->
-            val body = exchange.requestBody.readBytes()
-            requests.add(
-                RecordedRequest(
-                    exchange.requestMethod,
-                    exchange.requestURI.path,
-                    exchange.requestHeaders.getFirst("Content-Length"),
-                    exchange.requestHeaders.getFirst("X-Sentry-Auth"),
-                    body,
-                ),
-            )
-            if (respond) {
-                exchange.sendResponseHeaders(200, -1)
+            try {
+                // A valid POST must declare a positive Content-Length
+                // (set by fixed-length streaming) and deliver exactly
+                // that many bytes; a short read (early EOF) is a failure,
+                // never silently accepted as the full body.
+                val declared =
+                    exchange.requestHeaders.getFirst("Content-Length")?.toIntOrNull()
+                        ?: error("missing Content-Length")
+                check(declared > 0) { "non-positive Content-Length $declared" }
+                val body = exchange.requestBody.readNBytes(declared)
+                check(body.size == declared) { "short body ${body.size} < $declared" }
+                requests.add(
+                    RecordedRequest(
+                        exchange.requestMethod,
+                        exchange.requestURI.path,
+                        exchange.requestHeaders.getFirst("Content-Length"),
+                        exchange.requestHeaders.getFirst("X-Sentry-Auth"),
+                        body,
+                    ),
+                )
+                if (respond) {
+                    exchange.sendResponseHeaders(200, -1)
+                }
+                // For the drop test: headers and the entire declared
+                // body were consumed above, then the connection closes
+                // with no response while the listener stays available,
+                // so any internal retry would arrive as a second request.
+                exchange.close()
+            } catch (t: Throwable) {
+                handlerErrors.add(t)
+                runCatching { exchange.close() }
+            } finally {
+                handlerDone.countDown()
             }
-            // For the drop test: headers and the entire Content-Length
-            // body were consumed above, then the connection closes with
-            // no response while the listener stays available, so any
-            // internal retry would arrive as a second observed request.
-            exchange.close()
         }
         server.start()
-        return server
+        return LoopbackServer(server, requests, handlerErrors, handlerDone)
     }
 
     private fun wireLoopback(server: com.sun.net.httpserver.HttpServer) {
@@ -360,42 +383,48 @@ class CrashReportingSanitizerTest {
 
     @Test
     fun `poster sends one fixed-length POST with the exact envelope bytes`() {
-        val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
-        val server = startLoopbackServer(respond = true, requests = requests)
+        val payload = "envelope-bytes-123".toByteArray()
+        val loop = startLoopbackServer(respond = true)
         try {
-            wireLoopback(server)
-            val payload = "envelope-bytes-123".toByteArray()
+            wireLoopback(loop.server)
             assertTrue(FixedEventTransport.defaultPost("https://key1@dsn.example/42", payload))
-            assertEquals(1, requests.size)
-            val req = requests[0]
+            assertTrue(loop.handlerDone.await(5, TimeUnit.SECONDS))
+            assertEquals(emptyList<Throwable>(), loop.handlerErrors)
+            assertEquals(1, loop.requests.size)
+            val req = loop.requests[0]
             assertEquals("POST", req.method)
             assertEquals("/api/42/envelope/", req.path)
             assertEquals(payload.size.toString(), req.contentLength)
             assertTrue(req.auth!!.contains("sentry_key=key1"))
             assertTrue(req.body.contentEquals(payload))
         } finally {
-            server.stop(0)
+            loop.server.stop(0)
         }
     }
 
     @Test
     fun `poster does not replay the POST after a disconnect following the body`() {
-        val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
-        val server = startLoopbackServer(respond = false, requests = requests)
+        val payload = ByteArray(2048) { 7 }
+        val loop = startLoopbackServer(respond = false)
         try {
-            wireLoopback(server)
-            val payload = ByteArray(2048) { 7 }
+            wireLoopback(loop.server)
             assertFalse(FixedEventTransport.defaultPost("https://key2@dsn.example/7", payload))
-            // Bounded window for a hypothetical internal replay: the
-            // listener stayed up, so a retried POST would be observed.
+            // The handler ran to completion (exact body consumed, then
+            // close with no response) without a listener-side error.
+            assertTrue(loop.handlerDone.await(5, TimeUnit.SECONDS))
+            assertEquals(emptyList<Throwable>(), loop.handlerErrors)
+            // Bounded observation window for a hypothetical internal
+            // replay: the listener stayed up, so a retried POST would
+            // be observed as a second request. This is a bounded
+            // observed-loopback claim, not a general no-retry guarantee.
             val deadline = System.currentTimeMillis() + 2_000
-            while (System.currentTimeMillis() < deadline && requests.size < 2) {
+            while (System.currentTimeMillis() < deadline && loop.requests.size < 2) {
                 Thread.sleep(50)
             }
-            assertEquals(1, requests.size)
-            assertTrue(requests[0].body.contentEquals(payload))
+            assertEquals(1, loop.requests.size)
+            assertTrue(loop.requests[0].body.contentEquals(payload))
         } finally {
-            server.stop(0)
+            loop.server.stop(0)
         }
     }
 
