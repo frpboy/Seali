@@ -26,7 +26,7 @@ class QueueHistoryMergeTest {
 
     @Test
     fun addsHistoryRowsAsCompletedSyntheticEntriesNewestFirst() {
-        val plan = planHistoryMerge(emptyMap(), listOf(row(1), row(2)), allExist)
+        val plan = planHistoryMerge(emptyMap(), listOf(row(1), row(2)), fileExists = allExist)
         assertEquals(listOf(historyTaskId(2), historyTaskId(1)), plan.toAdd.map { it.first.id })
         assertTrue(
             plan.toAdd.all {
@@ -49,7 +49,7 @@ class QueueHistoryMergeTest {
                     videoInfo = null,
                     viewState = Task.ViewState(),
                 )
-        val plan = planHistoryMerge(mapOf(live), listOf(row(1)), allExist)
+        val plan = planHistoryMerge(mapOf(live), listOf(row(1)), fileExists = allExist)
         assertTrue(plan.toAdd.isEmpty())
         assertTrue(plan.toRemoveIds.isEmpty())
     }
@@ -57,7 +57,7 @@ class QueueHistoryMergeTest {
     @Test
     fun removesSyntheticEntriesWhoseHistoryRowDisappeared() {
         val (task, state) = synthesizeHistoryEntry(row(3))
-        val plan = planHistoryMerge(mapOf(task to state), emptyList(), allExist)
+        val plan = planHistoryMerge(mapOf(task to state), emptyList(), fileExists = allExist)
         assertEquals(setOf(historyTaskId(3)), plan.toRemoveIds)
         assertTrue(plan.toAdd.isEmpty())
     }
@@ -72,15 +72,15 @@ class QueueHistoryMergeTest {
     @Test
     fun planningIsIdempotentAfterApplyingThePlan() {
         val history = listOf(row(1), row(2))
-        val first = planHistoryMerge(emptyMap(), history, allExist)
-        val second = planHistoryMerge(first.toAdd.toMap(), history, allExist)
+        val first = planHistoryMerge(emptyMap(), history, fileExists = allExist)
+        val second = planHistoryMerge(first.toAdd.toMap(), history, fileExists = allExist)
         assertTrue(second.toAdd.isEmpty())
         assertTrue(second.toRemoveIds.isEmpty())
     }
 
     @Test
     fun blankPathsAreNotSynthesized() {
-        val plan = planHistoryMerge(emptyMap(), listOf(row(6, path = " ")), allExist)
+        val plan = planHistoryMerge(emptyMap(), listOf(row(6, path = " ")), fileExists = allExist)
         assertTrue(plan.toAdd.isEmpty())
         assertTrue(plan.missingFileIds.isEmpty())
     }
@@ -96,7 +96,7 @@ class QueueHistoryMergeTest {
     fun duplicateHistoryPathsCollapseToTheNewestRow() {
         val older = row(8, path = "/downloads/dup.mp4", url = "https://example.com/old")
         val newer = row(9, path = "/downloads/dup.mp4", url = "https://example.com/new")
-        val plan = planHistoryMerge(emptyMap(), listOf(older, newer), allExist)
+        val plan = planHistoryMerge(emptyMap(), listOf(older, newer), fileExists = allExist)
         assertEquals(listOf(historyTaskId(9)), plan.toAdd.map { it.first.id })
     }
 
