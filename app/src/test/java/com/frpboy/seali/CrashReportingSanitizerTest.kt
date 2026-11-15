@@ -43,8 +43,8 @@ class CrashReportingSanitizerTest {
     private val hostileStrings =
         listOf(
             "rahul.muraleedharan@example.com",
-            "https://example.com/private/path?token=abc123",
-            "Authorization: Bearer xyz",
+            "https://example.com/private/path?token=FIXTURE-NOT-A-SECRET",
+            "Authorization: Bearer FIXTURE-NOT-A-SECRET",
             "/sdcard/Download/secret-file.txt",
             "user-supplied free text title",
             "192.168.10.77",
@@ -56,13 +56,13 @@ class CrashReportingSanitizerTest {
         val e = SentryEvent(SentryId(), Date())
         e.level = SentryLevel.FATAL
         e.logger = "hostile-marker-7f3a"
-        e.release = "https://example.com/private/path?token=abc123"
-        e.dist = "Authorization: Bearer xyz"
+        e.release = "https://example.com/private/path?token=FIXTURE-NOT-A-SECRET"
+        e.dist = "Authorization: Bearer FIXTURE-NOT-A-SECRET"
         e.environment = "user-supplied free text title"
         e.message = io.sentry.protocol.Message().apply { message = "hostile-marker-7f3a" }
         e.serverName = "192.168.10.77"
         e.user = User().apply { email = "rahul.muraleedharan@example.com" }
-        e.request = Request().apply { url = "https://example.com/private/path?token=abc123" }
+        e.request = Request().apply { url = "https://example.com/private/path?token=FIXTURE-NOT-A-SECRET" }
         e.breadcrumbs = listOf(Breadcrumb("user-supplied free text title"))
         e.exceptions =
             listOf(
@@ -73,7 +73,7 @@ class CrashReportingSanitizerTest {
                 }
             )
         e.setTag("k", "hostile-marker-7f3a")
-        e.setExtra("k", "Authorization: Bearer xyz")
+        e.setExtra("k", "Authorization: Bearer FIXTURE-NOT-A-SECRET")
         e.contexts.setDevice(
             Device().apply {
                 name = "rahul's personal phone"
