@@ -1,10 +1,8 @@
 package com.frpboy.seali.ui.page.settings
 
 import android.content.ActivityNotFoundException
-import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,7 +39,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.frpboy.seali.App
@@ -59,16 +56,8 @@ import com.frpboy.seali.util.SHOW_SPONSOR_MSG
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
-    val context = LocalContext.current
-    val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     var showBatteryHint by remember {
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                !pm.isIgnoringBatteryOptimizations(context.packageName)
-            } else {
-                false
-            }
-        )
+        mutableStateOf(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
     }
     val intent =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -80,9 +69,9 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
         }
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                showBatteryHint = !pm.isIgnoringBatteryOptimizations(context.packageName)
-            }
+            // Do not query exemption state: that requires the special permission intentionally
+            // omitted for Google Play policy compliance.
+            showBatteryHint = false
         }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -131,8 +120,6 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
                                 showBatteryHint = false
                                 return@PreferencesHintCard
                             }
-                            showBatteryHint =
-                                !pm.isIgnoringBatteryOptimizations(context.packageName)
                         }
                     }
                 }
