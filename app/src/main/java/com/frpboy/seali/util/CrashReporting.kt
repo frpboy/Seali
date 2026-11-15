@@ -259,11 +259,11 @@ internal class FixedEventTransport(
          * redirects disabled, connect/read deadlines, no Cookie header
          * sent (this transport never installs a CookieHandler; it cannot
          * strip cookies a globally installed handler would add, and none
-         * is installed by this app). The connect/read timeouts bound the
-         * connect and read phases only; DNS resolution uses the JVM
-         * default and the response drain is capped (see below), so there
-         * is no single whole-request deadline. Runs only on the worker
-         * thread. Returns true only on a 2xx response.
+         * is installed by this app). The connect/read timeouts bound
+         * those phases only: DNS resolution and the request write use the
+         * JVM/socket defaults, and there is no single whole-request
+         * deadline. Runs only on the worker thread. Returns true only on
+         * a 2xx response (accepted at the HTTP layer).
          */
         internal fun defaultPost(dsn: String, bytes: ByteArray): Boolean {
             try {
@@ -287,14 +287,23 @@ internal class FixedEventTransport(
                     )
                     conn.outputStream.use { it.write(bytes) }
                     val code = conn.responseCode // completes the request
-                    // Honor server rate-limit windows immediately, before
-                    // touching the body: X-Sentry-Rate-Limits (plural,
-                    // comma-separated "seconds:categories:scope" entries -
-                    // take the maximum), legacy X-Sentry-Rate-Limit, and
-                    // Retry-After (delta-seconds or HTTP-date). Applies on
-                    // any status carrying the header; values clamp to 1h,
-                    // an unparseable 429 falls back to the 1-minute floor.
-                    applyRateLimitHeaders(conn, code)
+                    // Honor every rate-limit signal present on the
+                    // response (max wins, 1-hour truncate, 429 floor),
+                    // before touching the body.
+                    val backoffSeconds =
+                        computeBackoffSeconds(
+                            conn.getHeaderField("X-Sentry-Rate-Limits"),
+                            conn.getHeaderField("X-Sentry-Rate-Limit"),
+                            conn.getHeaderField("Retry-After"),
+                            System.currentTimeMillis() / 1000,
+                        )
+                    when {
+                        backoffSeconds != null ->
+                            rateLimitedUntilMs =
+                                System.currentTimeMillis() + backoffSeconds * 1000
+                        code == 429 ->
+                            rateLimitedUntilMs = System.currentTimeMillis() + MIN_INTERVAL_MS
+                    }
                     // Bounded drain: at most MAX_DRAIN_BYTES are read
                     // (bounded memory and a bounded read count; each read
                     // is individually bounded by the read timeout, so a
@@ -313,39 +322,42 @@ internal class FixedEventTransport(
             }
         }
 
-        private fun applyRateLimitHeaders(conn: HttpURLConnection, code: Int) {
-            // Honor every rate-limit signal present on the response, on
-            // any status: the maximum across X-Sentry-Rate-Limits entries
-            // (plural, comma-separated "seconds:categories:scope"), legacy
-            // X-Sentry-Rate-Limit and Retry-After (delta-seconds or
-            // HTTP-date) wins. Fractional seconds round up; values
-            // truncate at the 1-hour cap. An unparseable 429 falls back
-            // to the 1-minute floor.
+        /**
+         * Longest server rate-limit window across every present signal:
+         * X-Sentry-Rate-Limits entries (plural, comma-separated
+         * "seconds:categories:scope"), legacy X-Sentry-Rate-Limit, and
+         * Retry-After (delta-seconds or HTTP-date relative to
+         * [nowEpochSeconds]). Fractional seconds round up; the result is
+         * truncated at the 1-hour cap. Null when no signal parses, so the
+         * caller can apply its own 429 floor. Pure and test-visible.
+         */
+        internal fun computeBackoffSeconds(
+            rateLimits: String?,
+            rateLimit: String?,
+            retryAfter: String?,
+            nowEpochSeconds: Long,
+        ): Long? {
             val candidates = mutableListOf<Long>()
-            conn.getHeaderField("X-Sentry-Rate-Limits")
+            rateLimits
                 ?.split(',')
                 ?.mapNotNull { parseSeconds(it.trim().substringBefore(':')) }
                 ?.let { candidates.addAll(it) }
-            conn.getHeaderField("X-Sentry-Rate-Limit")
+            rateLimit
                 ?.let { parseSeconds(it.substringBefore(':').trim()) }
                 ?.let { candidates.add(it) }
-            conn.getHeaderField("Retry-After")
+            retryAfter
                 ?.let { h ->
                     parseSeconds(h.trim())
                         ?: runCatching {
                             ZonedDateTime.parse(h, DateTimeFormatter.RFC_1123_DATE_TIME)
-                                .toEpochSecond() - System.currentTimeMillis() / 1000
+                                .toEpochSecond() - nowEpochSeconds
                         }.getOrNull()
                 }
                 ?.let { candidates.add(it) }
-            val seconds = candidates.filter { it > 0 }.maxOrNull()
-            when {
-                seconds != null ->
-                    rateLimitedUntilMs =
-                        System.currentTimeMillis() + minOf(seconds, MAX_BACKOFF_SECONDS) * 1000
-                code == 429 ->
-                    rateLimitedUntilMs = System.currentTimeMillis() + MIN_INTERVAL_MS
-            }
+            return candidates
+                .filter { it > 0 }
+                .maxOrNull()
+                ?.let { minOf(it, MAX_BACKOFF_SECONDS) }
         }
 
         private fun parseSeconds(raw: String): Long? =

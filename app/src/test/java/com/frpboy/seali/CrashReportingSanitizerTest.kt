@@ -269,6 +269,42 @@ class CrashReportingSanitizerTest {
     }
 
     @Test
+    fun `backoff takes the maximum across all present rate-limit headers`() {
+        val now = 1_700_000_000L
+        assertEquals(
+            120L,
+            FixedEventTransport.computeBackoffSeconds("30:a:b, 120:c:d", "90:k", "45", now),
+        )
+    }
+
+    @Test
+    fun `backoff parses legacy singular header and retry-after seconds`() {
+        val now = 1_700_000_000L
+        assertEquals(90L, FixedEventTransport.computeBackoffSeconds(null, "90:key:scope", null, now))
+        assertEquals(45L, FixedEventTransport.computeBackoffSeconds(null, null, "45", now))
+    }
+
+    @Test
+    fun `backoff parses retry-after http date and fractional seconds round up`() {
+        val now = 1_700_000_000L
+        val date =
+            java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochSecond(now + 100), java.time.ZoneOffset.UTC)
+                .format(java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME)
+        val fromDate = FixedEventTransport.computeBackoffSeconds(null, null, date, now)!!
+        assertTrue(fromDate in 95..100)
+        assertEquals(2L, FixedEventTransport.computeBackoffSeconds(null, "1.5:k", null, now))
+    }
+
+    @Test
+    fun `backoff truncates at one hour and ignores unparseable or negative values`() {
+        val now = 1_700_000_000L
+        assertEquals(3_600L, FixedEventTransport.computeBackoffSeconds("99999999:a", null, null, now))
+        assertEquals(null, FixedEventTransport.computeBackoffSeconds("garbage", null, "not-a-date", now))
+        assertEquals(null, FixedEventTransport.computeBackoffSeconds(null, "-5", null, now))
+        assertEquals(null, FixedEventTransport.computeBackoffSeconds(null, null, null, now))
+    }
+
+    @Test
     fun `privacy defaults keep pii sessions stacktraces and logs off`() {
         val options = SentryOptions()
         options.applyPrivacyDefaults()
