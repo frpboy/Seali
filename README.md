@@ -12,14 +12,16 @@ This repository is maintained by [Rahul Muraleedharan (@frpboy)](https://github.
 
 > **Project status:** [Seali 2.0.0-alpha.5](https://github.com/frpboy/Seali/releases/tag/v2.0.0-alpha.5) is available as an alpha prerelease. The app uses the Seali identity and `com.frpboy.seali` package. The final cleanup build still needs device testing; it is not a stable or Play-qualified release. Later changes on main are not automatically included in those published APKs.
 
-[![Download Seali](https://img.shields.io/badge/Download-Seali%202.0.0--alpha.5-00ed9d?style=for-the-badge&logo=android&logoColor=white)](https://github.com/frpboy/Seali/releases/tag/v2.0.0-alpha.5)
+[![Latest published prerelease: 2.0.0-alpha.5](https://img.shields.io/badge/Latest%20published%20prerelease-2.0.0--alpha.5-00ed9d?style=for-the-badge&logo=android&logoColor=white)](https://github.com/frpboy/Seali/releases/tag/v2.0.0-alpha.5)
+
+<sub>The badge always links the latest published build (alpha.5). alpha.7 is still in development and is not published yet.</sub>
 
 ## Why Seali instead of upstream Seal?
 
 Seali is a fork of [Seal](https://github.com/JunkFood02/Seal) with its own identity and active maintenance by [@frpboy](https://github.com/frpboy). What the fork changes:
 
 - **Independent identity**: Seali branding and the `com.frpboy.seali` package, so it installs alongside upstream Seal without replacing it.
-- **Current Android platform**: targets API 36 with 16 KB page-size native libraries for recent devices; minimum Android 8.0 (API 26).
+- **Current Android platform**: targets API 36 (Android 16) with a minimum of Android 8.0 (API 26). Native libraries are built with 16 KB page-size alignment for current devices; on-device runtime qualification of that support is still pending.
 - **Owned, verified engine packaging**: the yt-dlp Android runtime is built from the [frpboy/youtubedl-android](https://github.com/frpboy/youtubedl-android) fork and consumed as pinned, hash-locked Maven Central artifacts instead of inherited opaque binaries.
 - **Choice of interface**: switch between the Classic and v2 interfaces in Settings > Appearance.
 - **Play policy work**: no battery-exemption request and a published [privacy policy](https://seali.frpboy.in/privacy).
