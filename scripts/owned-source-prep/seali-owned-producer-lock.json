@@ -151,8 +151,13 @@
       "sha256": "d06a162098c264d1d8d0413547c0bf943c652871ea378d58526155794a5eed4b"
     },
     "README.md": {
-      "bytes": 10690,
-      "sha256": "cdae529c4f825eaef7a1f38dabdb3450212482f43c9fa6c3d448000ae9d2cab3"
+      "bytes": 5028,
+      "sha256": "c9c1ed2a65bf589913de4f28f9923d77169f3db3c809097206f201608c3df920",
+      "supersedes": {
+        "bytes": 10690,
+        "sha256": "cdae529c4f825eaef7a1f38dabdb3450212482f43c9fa6c3d448000ae9d2cab3",
+        "note": "original unrecovered; documentation-only reconciliation composed 2026-11-15, see recipe/README.md header"
+      }
     },
     "SECURITY-DISPOSITION.md": {
       "bytes": 6210,

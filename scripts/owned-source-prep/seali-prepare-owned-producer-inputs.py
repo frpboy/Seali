@@ -10,7 +10,7 @@ import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
 
-LOCK_SHA256 = '5c6244cb912a2548959adb951f4f527e91045abab37b5c878f4e9d2a3eacc4f5'
+LOCK_SHA256 = 'a69d64369396bb936e9050e0da5f1cac1dbd3aba32da38b3a040cc21c18623ca'
 MAX_MEMBERS = 20000
 MAX_BYTES = 128 * 1024 * 1024
 MAX_FILE = 32 * 1024 * 1024
