@@ -208,6 +208,12 @@ object FileUtil {
         File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Seali")
             .also { it.mkdir() }
 
+    // Pre-rename default download folder ("Seal"). Only used to detect the value that
+    // older builds auto-stored for the custom-command directory, so upgrades can migrate it.
+    // Never use this for new paths.
+    internal fun getLegacySealDownloadDirectory() =
+        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Seal")
+
     internal fun getExternalPrivateDownloadDirectory() =
         File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),

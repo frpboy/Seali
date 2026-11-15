@@ -31,6 +31,7 @@ import com.frpboy.seali.util.FileUtil.createEmptyFile
 import com.frpboy.seali.util.FileUtil.getCookiesFile
 import com.frpboy.seali.util.FileUtil.getExternalDownloadDirectory
 import com.frpboy.seali.util.FileUtil.getExternalPrivateDownloadDirectory
+import com.frpboy.seali.util.FileUtil.getLegacySealDownloadDirectory
 import com.frpboy.seali.util.NotificationUtil
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.PreferenceUtil.getString
@@ -119,7 +120,12 @@ class App : Application() {
         videoDownloadDir = VIDEO_DIRECTORY.getString(getExternalDownloadDirectory().absolutePath)
 
         audioDownloadDir = AUDIO_DIRECTORY.getString(File(videoDownloadDir, "Audio").absolutePath)
-        if (!PreferenceUtil.containsKey(COMMAND_DIRECTORY)) {
+        // Older builds eagerly stored the then-default ("Download/Seal") for the custom-command
+        // directory. Migrate only that auto-stored legacy default; user-chosen paths are kept.
+        if (
+            !PreferenceUtil.containsKey(COMMAND_DIRECTORY) ||
+                COMMAND_DIRECTORY.getString() == getLegacySealDownloadDirectory().absolutePath
+        ) {
             COMMAND_DIRECTORY.updateString(videoDownloadDir)
         }
         if (Build.VERSION.SDK_INT >= 26) NotificationUtil.createNotificationChannel()
