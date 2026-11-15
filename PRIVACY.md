@@ -21,7 +21,7 @@ Seali processes information needed to provide its features, including:
 - Cookies that you choose to use through Seali's built-in WebView or cookie feature.
 - Diagnostic information such as app version details and stack traces when an error occurs.
 
-Download history and application preferences are stored locally in the app's data area. Downloaded media is saved to the directory you select. Seali's crash screen displays diagnostic information locally and offers a copy action; it does not automatically transmit that report to the developer.
+Download history and application preferences are stored locally in the app's data area. Downloaded media is saved to the directory you select. Seali's crash screen and download-failure notifications can display diagnostic information, which may include web addresses or account-related details, and offer a copy action; this information stays on your device unless you choose to share it. Seali does not automatically transmit these reports to the developer.
 
 ## Network connections and third-party services
 
@@ -29,7 +29,7 @@ Download history and application preferences are stored locally in the app's dat
 
 When you start a download, Seali uses its downloader components (including yt-dlp and FFmpeg where applicable) to contact the media provider or other services required to retrieve the content. Those services may receive your IP address, requested URL, user-agent and other request metadata. Their own privacy policies govern how they handle that information.
 
-If you enable cookie-based downloads, Seali can use cookies from its built-in WebView for requests to the site you selected. Cookies can identify or authenticate you to that site. Only use cookies for accounts you control, and do not share cookie data with other people.
+If you save cookies (through the built-in sign-in page or by pasting them), Seali stores them in its private app database. When you start a download, Seali writes your saved cookies to a plain-text cookie file in the app's private storage so the download engine (yt-dlp) can use them. That file can include cookies for more than one site you have saved, not only the site being downloaded. Cookies can identify or authenticate you to the sites they belong to. Only use cookies for accounts you control, and do not share cookie data with other people.
 
 ### Update checks
 
@@ -47,9 +47,9 @@ Seali does not sell personal information.
 
 ## Retention and deletion
 
-Application settings, download history, and WebView cookies remain in the app's local storage until you remove them, clear the app's storage, or uninstall Seali. Downloaded files are stored in the location you selected and are not necessarily deleted when the app is uninstalled; remove those files separately if you no longer want them.
+Application settings, download history, and saved cookies remain in the app's local storage until you delete them. You can remove individual cookie profiles or clear all cookies in Settings, under Network, Cookies. Clearing the app's storage or uninstalling Seali removes the app's local data. The temporary cookie file can also be removed when the app's cache is cleared. Downloaded files are stored in the location you selected and are not necessarily deleted when the app is uninstalled; remove those files separately if you no longer want them.
 
-Android device backup behavior is controlled by Android and the device's backup settings.
+Seali excludes its app database, which holds download history and saved cookie profiles, from Android cloud backups and device-to-device transfer. Other app settings may be included in backups; this is controlled by Android and your device's backup settings.
 
 ## Children's privacy
 
