@@ -71,6 +71,7 @@ import com.frpboy.seali.ui.page.downloadv2.configure.PreferencesMock
 import com.frpboy.seali.ui.theme.ErrorTonalPalettes
 import com.frpboy.seali.ui.theme.SealTheme
 import com.frpboy.seali.util.SafeErrorReport
+import com.frpboy.seali.util.isHistoryEntry
 import com.frpboy.seali.util.Format
 import com.frpboy.seali.util.toBitrateText
 import com.frpboy.seali.util.toDurationText
@@ -128,14 +129,18 @@ private fun ErrorReportButton(modifier: Modifier = Modifier, onClick: () -> Unit
 }
 
 @Composable
-private fun DeleteButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun DeleteButton(
+    modifier: Modifier = Modifier,
+    text: String = stringResource(R.string.delete),
+    onClick: () -> Unit,
+) {
     ActionSheetPrimaryButton(
         modifier = modifier,
         containerColor = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
         imageVector = Icons.Outlined.Delete,
         outlineColor = MaterialTheme.colorScheme.outlineVariant,
-        text = stringResource(R.string.delete),
+        text = text,
         onClick = onClick,
     )
 }
@@ -243,6 +248,7 @@ fun SheetContent(
     viewState: ViewState,
     downloadState: DownloadState,
     onDismissRequest: () -> Unit,
+    isMissingFile: Boolean = false,
     onActionPost: (Task, UiAction) -> Unit,
 ) {
 
@@ -290,6 +296,7 @@ fun SheetContent(
                     onDismissRequest = onDismissRequest,
                     onActionPost = onActionPost,
                     includeErrorPrimary = false,
+                    isMissingFile = isMissingFile,
                 )
             }
         }
@@ -305,7 +312,35 @@ fun LazyListScope.ActionButtons(
     onDismissRequest: () -> Unit,
     onActionPost: (Task, UiAction) -> Unit,
     includeErrorPrimary: Boolean = true,
+    isMissingFile: Boolean = false,
 ) {
+    if (task.isHistoryEntry()) {
+        // Room-backed history entries support only file actions on an existing
+        // file plus link actions; session-task actions (cancel/resume/delete)
+        // do not apply.
+        if (isMissingFile) {
+            item(key = "MissingFileNote") {
+                Text(
+                    stringResource(R.string.queue_history_file_removed),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            item(key = "PlayButton") {
+                PlayButton(modifier = Modifier.animateItem()) {
+                    onActionPost(task, UiAction.OpenFile((downloadState as? Completed)?.filePath))
+                    onDismissRequest()
+                }
+            }
+            item(key = "ShareButton") {
+                ShareButton(modifier = Modifier.animateItem()) {
+                    onActionPost(task, UiAction.ShareFile((downloadState as? Completed)?.filePath))
+                }
+            }
+        }
+    } else {
     when (downloadState) {
         is Canceled -> {
             item(key = "ResumeButton") {
@@ -355,11 +390,20 @@ fun LazyListScope.ActionButtons(
     }
     if (downloadState is DownloadState.Restartable || downloadState is Completed) {
         item(key = "DeleteButton") {
-            DeleteButton(modifier = Modifier.animateItem()) {
+            // Completed entries are backed by durable download history: the
+            // action only removes the queue entry and never deletes the saved
+            // file, so say so instead of implying deletion.
+            DeleteButton(
+                modifier = Modifier.animateItem(),
+                text =
+                    if (downloadState is Completed) stringResource(R.string.queue_remove_from_queue)
+                    else stringResource(R.string.delete),
+            ) {
                 onActionPost(task, UiAction.Delete)
                 onDismissRequest()
             }
         }
+    }
     }
     item(key = "CopyURLButton") {
         CopyURLButton(modifier = Modifier.animateItem()) {

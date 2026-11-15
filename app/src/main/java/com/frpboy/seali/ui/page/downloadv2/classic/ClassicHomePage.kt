@@ -51,6 +51,7 @@ import com.frpboy.seali.R
 import com.frpboy.seali.database.objects.DownloadedVideoInfo
 import com.frpboy.seali.ui.component.MediaListItem
 import com.frpboy.seali.util.DatabaseUtil
+import com.frpboy.seali.util.isHistoryEntry
 import com.frpboy.seali.util.FileUtil.getFileSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -212,9 +213,12 @@ fun ClassicHomePageImpl(
 ) {
     var urlInput by rememberSaveable { mutableStateOf("") }
     val clipboardManager = LocalClipboardManager.current
-    val tasks = taskDownloadStateMap.keys.sortedDescending()
-    val completedPaths = taskDownloadStateMap.values.mapNotNull {
-        (it.downloadState as? Task.DownloadState.Completed)?.filePath
+    // Room-backed history entries are shown in the saved-downloads lane below;
+    // keep them out of the live task cards and the live-completed dedupe set.
+    val tasks = taskDownloadStateMap.keys.filter { !it.isHistoryEntry() }.sortedDescending()
+    val completedPaths = taskDownloadStateMap.entries.mapNotNull { (task, state) ->
+        if (task.isHistoryEntry()) null
+        else (state.downloadState as? Task.DownloadState.Completed)?.filePath
     }.toSet()
     val savedDownloads = classicSavedDownloads(completedDownloads, completedPaths)
 
