@@ -29,3 +29,6 @@ local.properties
 
 # Source-built MMKV payload is staged only after local source build and audit.
 /dependencies/frpboy-mmkv/src/main/jniLibs/
+
+__pycache__/
+*.pyc
