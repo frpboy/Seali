@@ -2,7 +2,7 @@
 
 **Last updated: 15 November 2026**
 
-This policy describes the Android application **Seali** maintained in the [frpboy/Seali repository](https://github.com/frpboy/Seali).
+This policy describes the Android application **Seali**, developed by Rahul ([@frpboy](https://github.com/frpboy)) and maintained in the [frpboy/Seali repository](https://github.com/frpboy/Seali).
 
 ## Summary
 
