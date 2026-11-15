@@ -29,7 +29,7 @@ Download history and application preferences are stored locally in the app's dat
 
 When you start a download, Seali uses its downloader components (including yt-dlp and FFmpeg where applicable) to contact the media provider or other services required to retrieve the content. Those services may receive your IP address, requested URL, user-agent and other request metadata. Their own privacy policies govern how they handle that information.
 
-If you save cookies (through the built-in sign-in page or by pasting them), Seali stores them in its private app database. When you start a download, Seali writes your saved cookies to a plain-text cookie file in the app's private storage so the download engine (yt-dlp) can use them. That file can include cookies for more than one site you have saved, not only the site being downloaded. Cookies can identify or authenticate you to the sites they belong to. Only use cookies for accounts you control, and do not share cookie data with other people.
+Seali handles cookies in a few places. Cookies from the built-in browser are held in the system-managed WebView cookie store on your device. Cookie profiles you save are stored in Seali's private app database. So the download engine (yt-dlp) can use them, Seali also writes a plain-text copy of the entire WebView cookie jar to a cookies.txt file in the app's cache directory, at app startup, when you open the Cookies settings page, and when you open download settings. That file can contain cookies for every site you have signed into in the built-in browser, not only the site you are downloading from. The cache directory is private to the app, but Android can delete cache files at any time. Cookies can identify or authenticate you to the sites they belong to. Only use cookies for accounts you control, and do not share cookie data with other people.
 
 ### Update checks
 
@@ -47,9 +47,9 @@ Seali does not sell personal information.
 
 ## Retention and deletion
 
-Application settings, download history, and saved cookies remain in the app's local storage until you delete them. You can remove individual cookie profiles or clear all cookies in Settings, under Network, Cookies. Clearing the app's storage or uninstalling Seali removes the app's local data. The temporary cookie file can also be removed when the app's cache is cleared. Downloaded files are stored in the location you selected and are not necessarily deleted when the app is uninstalled; remove those files separately if you no longer want them.
+Application settings, download history, and saved cookie profiles remain in the app's local storage until you delete them. In Settings, under Network, Cookies, you can clear all cookies from the WebView cookie store and delete saved cookie profiles; these are separate actions. The plain-text cookies.txt copy in the app cache is not deleted by them and can remain until it is overwritten or the app's cache is cleared. Clearing the app's storage or uninstalling Seali removes the app's local data. Downloaded files are stored in the location you selected and are not necessarily deleted when the app is uninstalled; remove those files separately if you no longer want them.
 
-Seali excludes its app database, which holds download history and saved cookie profiles, from Android cloud backups and device-to-device transfer. Other app settings may be included in backups; this is controlled by Android and your device's backup settings.
+Seali excludes its app database, which holds download history, saved cookie profiles, and command templates, from Android cloud backups and device-to-device transfer. Other app data, such as settings and WebView data, may be included in backups depending on Android and your device's backup settings.
 
 ## Children's privacy
 
