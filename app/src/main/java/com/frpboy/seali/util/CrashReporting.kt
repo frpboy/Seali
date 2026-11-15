@@ -132,27 +132,33 @@ internal class FixedEventTransport(
         // Gate: only an envelope carrying an error/crash event item is
         // worth reporting.
         if (envelope.items.none { it.header.type == SentryItemType.Event }) return
-        // One send in flight: busy drops instead of queueing. The flag is
-        // taken BEFORE the rate check and spans the actual POST below.
+        // Local rate cap: at most one send per minute, shared across
+        // instances; a burst is dropped, not queued.
+        val now = System.currentTimeMillis()
+        if (now - lastSendAt < MIN_INTERVAL_MS) return
+        // Sanitize BEFORE handoff: only the fixed generic event's bytes
+        // ever reach the worker - the raw envelope stays on the caller.
+        val event = CrashReporting.buildGenericEvent()
+        val serializer = options.serializer ?: JsonSerializer(options)
+        val out =
+            SentryEnvelope(
+                SentryEnvelopeHeader(event.eventId),
+                listOf(SentryEnvelopeItem.fromEvent(serializer, event)),
+            )
+        val bytes = ByteArrayOutputStream()
+        serializer.serialize(out, bytes)
+        // Single bounded worker: the blocking POST never runs on the
+        // capture caller (which can be the Android main thread). One send
+        // in flight; busy drops instead of queueing, and the flag spans
+        // the actual I/O on the worker.
         if (!inFlight.compareAndSet(false, true)) return
-        try {
-            // Local rate cap: at most one send per minute, shared across
-            // instances; a burst is dropped, not queued.
-            val now = System.currentTimeMillis()
-            if (now - lastSendAt < MIN_INTERVAL_MS) return
-            lastSendAt = now
-            val event = CrashReporting.buildGenericEvent()
-            val serializer = options.serializer ?: JsonSerializer(options)
-            val out =
-                SentryEnvelope(
-                    SentryEnvelopeHeader(event.eventId),
-                    listOf(SentryEnvelopeItem.fromEvent(serializer, event)),
-                )
-            val bytes = ByteArrayOutputStream()
-            serializer.serialize(out, bytes)
-            poster(bytes.toByteArray())
-        } finally {
-            inFlight.set(false)
+        lastSendAt = now
+        worker.execute {
+            try {
+                poster(bytes.toByteArray())
+            } finally {
+                inFlight.set(false)
+            }
         }
     }
 
@@ -167,14 +173,28 @@ internal class FixedEventTransport(
         private const val TIMEOUT_MS = 10_000
         @Volatile private var lastSendAt = 0L
         private val inFlight = AtomicBoolean(false)
+        private val worker =
+            java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+                Thread(r, "seali-sentry-sender").apply { isDaemon = true }
+            }
 
-        /** Blocking POST of the final envelope bytes to the DSN endpoint. */
+        /**
+         * Blocking POST of the final envelope bytes to the exact DSN
+         * endpoint: HTTPS only, host/port taken verbatim from the DSN,
+         * redirects disabled, connect/read deadlines, no cookies. Runs
+         * only on the worker thread.
+         */
         internal fun defaultPost(dsn: String, bytes: ByteArray) {
             try {
                 val uri = URI(dsn)
-                val endpoint = "${uri.scheme}://${uri.host}/api${uri.path}/envelope/"
+                require(uri.scheme == "https") { "DSN must be https" }
+                val host = uri.host ?: throw IllegalArgumentException("DSN has no host")
+                val key = uri.userInfo ?: throw IllegalArgumentException("DSN has no key")
+                val port = if (uri.port > 0) ":${uri.port}" else ""
+                val endpoint = "https://$host$port/api${uri.path}/envelope/"
                 val conn = URI(endpoint).toURL().openConnection() as HttpURLConnection
                 try {
+                    conn.instanceFollowRedirects = false
                     conn.connectTimeout = TIMEOUT_MS
                     conn.readTimeout = TIMEOUT_MS
                     conn.requestMethod = "POST"
@@ -182,7 +202,7 @@ internal class FixedEventTransport(
                     conn.setRequestProperty("Content-Type", "application/x-sentry-envelope")
                     conn.setRequestProperty(
                         "X-Sentry-Auth",
-                        "Sentry sentry_version=7, sentry_client=seali-boundary/1, sentry_key=${uri.userInfo}",
+                        "Sentry sentry_version=7, sentry_client=seali-boundary/1, sentry_key=$key",
                     )
                     conn.outputStream.use { it.write(bytes) }
                     conn.responseCode // force completion of the request
