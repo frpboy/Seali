@@ -155,7 +155,9 @@ internal class FixedEventTransport(
         val now = System.currentTimeMillis()
         if (now - lastSendAt < MIN_INTERVAL_MS || now < rateLimitedUntilMs) return
         // Sanitize BEFORE handoff: only the fixed generic event's bytes
-        // ever reach the worker - the raw envelope stays on the caller.
+        // ever reach the network path - the raw envelope stays on the
+        // caller. The flush latch reference also crosses to the worker,
+        // for lifecycle signaling only; it is never read or sent.
         val event = CrashReporting.buildGenericEvent()
         val serializer = options.serializer ?: JsonSerializer(options)
         val out =
@@ -182,8 +184,13 @@ internal class FixedEventTransport(
         try {
             worker.execute {
                 val delivered = runCatching { poster(bytes.toByteArray()) }.getOrDefault(false)
-                // Release the SDK crash flush latch only on confirmed
-                // delivery; a failed or dropped send stays unflushed.
+                // Release the SDK crash flush latch only after the server
+                // accepted the envelope (2xx at the HTTP layer). This is
+                // not a server-side storage receipt: a swallowed or
+                // truncated response body still counts as accepted, which
+                // matches the SDK's own transport semantics. A failed or
+                // dropped send stays unflushed, so the SDK waitFlush logs
+                // an honest failure instead of a false delivery.
                 if (delivered) runCatching { flushNotification?.markFlushed() }
                 inFlight.set(false)
                 synchronized(idleLock) { idleLock.notifyAll() }
@@ -288,10 +295,12 @@ internal class FixedEventTransport(
                     // any status carrying the header; values clamp to 1h,
                     // an unparseable 429 falls back to the 1-minute floor.
                     applyRateLimitHeaders(conn, code)
-                    // Bounded drain: read at most MAX_DRAIN_BYTES so the
-                    // exchange completes for keep-alive purposes without an
-                    // unbounded allocation or an indefinite slow-trickle
-                    // read, then cancel the rest via disconnect().
+                    // Bounded drain: at most MAX_DRAIN_BYTES are read
+                    // (bounded memory and a bounded read count; each read
+                    // is individually bounded by the read timeout, so a
+                    // slow trickle delays at most reads x timeout - there
+                    // is no whole-request deadline), then the rest is
+                    // cancelled via disconnect().
                     val stream = runCatching { conn.inputStream }.getOrNull() ?: conn.errorStream
                     stream?.let { discardBounded(it) }
                     return code in 200..299
@@ -305,38 +314,42 @@ internal class FixedEventTransport(
         }
 
         private fun applyRateLimitHeaders(conn: HttpURLConnection, code: Int) {
-            var seconds: Long? = null
+            // Honor every rate-limit signal present on the response, on
+            // any status: the maximum across X-Sentry-Rate-Limits entries
+            // (plural, comma-separated "seconds:categories:scope"), legacy
+            // X-Sentry-Rate-Limit and Retry-After (delta-seconds or
+            // HTTP-date) wins. Fractional seconds round up; values
+            // truncate at the 1-hour cap. An unparseable 429 falls back
+            // to the 1-minute floor.
+            val candidates = mutableListOf<Long>()
             conn.getHeaderField("X-Sentry-Rate-Limits")
                 ?.split(',')
-                ?.mapNotNull { it.trim().substringBefore(':').toLongOrNull() }
-                ?.maxOrNull()
-                ?.let { seconds = it }
-            if (seconds == null) {
-                seconds =
-                    conn.getHeaderField("X-Sentry-Rate-Limit")
-                        ?.substringBefore(':')
-                        ?.trim()
-                        ?.toLongOrNull()
-            }
-            if (seconds == null) {
-                val retryAfter = conn.getHeaderField("Retry-After")
-                seconds =
-                    retryAfter?.trim()?.toLongOrNull()
-                        ?: retryAfter?.let {
-                            runCatching {
-                                ZonedDateTime.parse(it, DateTimeFormatter.RFC_1123_DATE_TIME)
-                                    .toEpochSecond() - System.currentTimeMillis() / 1000
-                            }.getOrNull()
-                        }
-            }
+                ?.mapNotNull { parseSeconds(it.trim().substringBefore(':')) }
+                ?.let { candidates.addAll(it) }
+            conn.getHeaderField("X-Sentry-Rate-Limit")
+                ?.let { parseSeconds(it.substringBefore(':').trim()) }
+                ?.let { candidates.add(it) }
+            conn.getHeaderField("Retry-After")
+                ?.let { h ->
+                    parseSeconds(h.trim())
+                        ?: runCatching {
+                            ZonedDateTime.parse(h, DateTimeFormatter.RFC_1123_DATE_TIME)
+                                .toEpochSecond() - System.currentTimeMillis() / 1000
+                        }.getOrNull()
+                }
+                ?.let { candidates.add(it) }
+            val seconds = candidates.filter { it > 0 }.maxOrNull()
             when {
-                seconds != null && seconds!! > 0 ->
+                seconds != null ->
                     rateLimitedUntilMs =
-                        System.currentTimeMillis() + minOf(seconds!!, MAX_BACKOFF_SECONDS) * 1000
+                        System.currentTimeMillis() + minOf(seconds, MAX_BACKOFF_SECONDS) * 1000
                 code == 429 ->
                     rateLimitedUntilMs = System.currentTimeMillis() + MIN_INTERVAL_MS
             }
         }
+
+        private fun parseSeconds(raw: String): Long? =
+            raw.toDoubleOrNull()?.takeIf { it > 0 }?.let { kotlin.math.ceil(it).toLong() }
 
         private fun discardBounded(stream: InputStream) {
             runCatching {
