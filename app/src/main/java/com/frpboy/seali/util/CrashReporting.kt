@@ -208,6 +208,11 @@ internal class FixedEventTransport(
         waitForIdle(TIMEOUT_MS.toLong())
     }
 
+    // ITransport extends java.io.Closeable: both close signatures exist.
+    override fun close() {
+        waitForIdle(TIMEOUT_MS.toLong())
+    }
+
     /** Blocks the caller until no POST is in flight or the deadline passes. */
     private fun waitForIdle(timeoutMillis: Long) {
         val deadline = System.currentTimeMillis() + timeoutMillis
