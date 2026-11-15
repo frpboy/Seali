@@ -3,7 +3,11 @@ package com.frpboy.seali
 import com.frpboy.seali.util.SentryEventSanitizer
 import com.frpboy.seali.util.applyPrivacyDefaults
 import io.sentry.Breadcrumb
+import io.sentry.Hint
+import io.sentry.ITransportFactory
 import io.sentry.JsonSerializer
+import io.sentry.Sentry
+import io.sentry.SentryLevel
 import io.sentry.SentryEnvelope
 import io.sentry.SentryEnvelopeHeader
 import io.sentry.SentryEnvelopeItem
@@ -16,6 +20,9 @@ import io.sentry.protocol.SentryException
 import io.sentry.protocol.SentryStackFrame
 import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.User
+import io.sentry.transport.ITransport
+import java.io.ByteArrayInputStream
+import java.util.concurrent.CopyOnWriteArrayList
 import java.io.ByteArrayOutputStream
 import java.io.StringWriter
 import org.junit.Assert.assertEquals
@@ -188,6 +195,90 @@ class CrashReportingSanitizerTest {
         assertTrue(payload.contains("RuntimeException"))
         for (hostile in hostileStrings) {
             assertFalse("envelope leaked: $hostile", payload.contains(hostile))
+        }
+    }
+
+    /**
+     * Actual capture-pipeline evidence: the real SDK hub, scope, client,
+     * beforeSend hook and envelope build run end to end with a recording
+     * transport. Hostile data rides the ordinary carriers (throwable
+     * message, scope user, breadcrumb, tag, extra). The envelope the
+     * transport receives must contain exactly one item (the event - no
+     * attachment items, and our code adds none anywhere) and no hostile
+     * string in the deserialized real SDK event or the raw bytes.
+     */
+    @Test
+    fun realCapturePipelineProducesSanitizedSingleItemEnvelope() {
+        val captured = CopyOnWriteArrayList<SentryEnvelope>()
+        val options =
+            SentryOptions().apply {
+                dsn = "https://examplePublicKey@o0.ingest.sentry.io/0"
+                applyPrivacyDefaults()
+                beforeSend =
+                    SentryOptions.BeforeSendCallback { event, _ ->
+                        SentryEventSanitizer.apply(event)
+                    }
+                setTransportFactory(
+                    ITransportFactory { _, _ ->
+                        object : ITransport {
+                            override fun send(envelope: SentryEnvelope, hint: Hint) {
+                                captured.add(envelope)
+                            }
+
+                            override fun isHealthy(): Boolean = true
+
+                            override fun flush(timeoutMillis: Long) {}
+
+                            override fun close() {}
+                        }
+                    }
+                )
+            }
+        Sentry.init(options)
+        try {
+            Sentry.configureScope { scope ->
+                scope.setUser(
+                    User().apply {
+                        email = "person@example.com"
+                        username = "account-name"
+                    }
+                )
+                scope.addBreadcrumb(Breadcrumb().apply { message = "user typed private text" })
+                scope.setTag("user_query", "private-item")
+                scope.setExtra(
+                    "attempt_url",
+                    "https://media.example/watch?v=private-item&token=eyJhbGciOiJIUzI1NiJ9",
+                )
+                scope.setLevel(SentryLevel.ERROR)
+            }
+            Sentry.captureException(
+                RuntimeException(
+                    "failed to load https://media.example/watch?v=private-item&token=eyJhbGciOiJIUzI1NiJ9"
+                )
+            )
+            val deadline = System.currentTimeMillis() + 10_000
+            while (captured.isEmpty() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(50)
+            }
+            assertEquals("exactly one envelope expected", 1, captured.size)
+            val envelope = captured.single()
+            assertEquals("envelope must carry the event item only", 1, envelope.items.count())
+
+            val serializer = JsonSerializer(SentryOptions())
+            val raw = ByteArrayOutputStream()
+            serializer.serializeEnvelope(envelope, raw)
+            val bytes = raw.toByteArray()
+            val payload = bytes.toString(Charsets.UTF_8.name())
+            assertTrue(payload.contains("RuntimeException"))
+            for (hostile in hostileStrings) {
+                assertFalse("pipeline envelope leaked: $hostile", payload.contains(hostile))
+            }
+
+            val decoded =
+                serializer.deserializeEnvelope(ByteArrayInputStream(bytes))
+            assertEquals(1, decoded!!.items.count())
+        } finally {
+            Sentry.close()
         }
     }
 
