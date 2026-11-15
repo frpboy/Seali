@@ -18,6 +18,7 @@ import io.sentry.hints.DiskFlushNotification
 import io.sentry.protocol.Message
 import io.sentry.protocol.SentryException
 import io.sentry.transport.ITransport
+import io.sentry.transport.RateLimiter
 import io.sentry.util.HintUtils
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -202,6 +203,10 @@ internal class FixedEventTransport(
     }
 
     override fun isHealthy(): Boolean = true
+
+    // Rate limiting is enforced inside send() (one send per minute plus the
+    // server 429/Retry-After window), so no SDK RateLimiter is exposed.
+    override fun getRateLimiter(): RateLimiter? = null
 
     /** Waits, up to [timeoutMillis], for any in-flight POST to finish. */
     override fun flush(timeoutMillis: Long) {
