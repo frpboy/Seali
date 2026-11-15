@@ -12,10 +12,13 @@ import io.sentry.SentryEnvelopeHeader
 import io.sentry.SentryEnvelopeItem
 import io.sentry.SentryEvent
 import io.sentry.SentryId
+import io.sentry.SentryItemType
 import io.sentry.SentryLevel
 import io.sentry.SentryOptions
 import io.sentry.android.core.SentryAndroid
 import io.sentry.protocol.Contexts
+import io.sentry.protocol.Message
+import io.sentry.protocol.SentryException
 import io.sentry.transport.ITransport
 import java.util.Date
 
@@ -82,6 +85,8 @@ object CrashReporting {
         val out = SentryEvent(SentryId(), Date())
         out.level = SentryLevel.ERROR
         out.logger = "app"
+        out.message = Message().apply { message = "app error - details withheld by privacy boundary" }
+        out.exceptions = listOf(SentryException().apply { type = "AppError" })
         out.release = BuildConfig.VERSION_NAME + "+" + BuildConfig.VERSION_CODE
         out.dist = BuildConfig.VERSION_CODE.toString()
         out.environment = "production"
@@ -112,10 +117,27 @@ internal class FixedEventTransport(
     private val inner: ITransport,
 ) : ITransport {
     override fun send(envelope: SentryEnvelope, hint: Hint) {
-        val event = CrashReporting.buildGenericEvent()
-        val serializer = options.serializer ?: JsonSerializer(options)
-        val item = SentryEnvelopeItem.fromEvent(serializer, event)
-        inner.send(SentryEnvelope(SentryEnvelopeHeader(event.eventId), listOf(item)), Hint())
+        // Gate: only an envelope carrying an error/crash event item is
+        // worth reporting. Session, client-report, transaction, log-only
+        // or empty envelopes are dropped, never converted into an error.
+        if (envelope.items.none { it.header.type == SentryItemType.Event }) return
+        // Local rate cap: at most one send per minute, shared across
+        // instances. A burst is dropped, not queued.
+        val now = System.currentTimeMillis()
+        if (now - lastSendAt < MIN_INTERVAL_MS) return
+        // One send in flight at a time: a busy sender drops instead of
+        // queueing. The busy flag holds until the send actually
+        // completes (or throws), never released early.
+        if (!inFlight.compareAndSet(false, true)) return
+        try {
+            lastSendAt = now
+            val event = CrashReporting.buildGenericEvent()
+            val serializer = options.serializer ?: JsonSerializer(options)
+            val item = SentryEnvelopeItem.fromEvent(serializer, event)
+            inner.send(SentryEnvelope(SentryEnvelopeHeader(event.eventId), listOf(item)), Hint())
+        } finally {
+            inFlight.set(false)
+        }
     }
 
     override fun isHealthy(): Boolean = inner.isHealthy
@@ -123,4 +145,10 @@ internal class FixedEventTransport(
     override fun flush(timeoutMillis: Long) = inner.flush(timeoutMillis)
 
     override fun close() = inner.close()
+
+    companion object {
+        private const val MIN_INTERVAL_MS = 60_000L
+        @Volatile private var lastSendAt = 0L
+        private val inFlight = java.util.concurrent.atomic.AtomicBoolean(false)
+    }
 }

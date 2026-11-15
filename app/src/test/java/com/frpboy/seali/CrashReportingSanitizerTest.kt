@@ -106,10 +106,10 @@ class CrashReportingSanitizerTest {
         assertEquals(SentryLevel.ERROR, out.level)
         assertEquals("app", out.logger)
         assertEquals("production", out.environment)
+        assertEquals("app error - details withheld by privacy boundary", out.message?.message)
+        assertEquals("AppError", out.exceptions?.single()?.type)
         assertNull(out.user)
         assertNull(out.request)
-        assertNull(out.message)
-        assertNull(out.exceptions)
         assertNull(out.breadcrumbs)
         assertNull(out.serverName)
     }
@@ -163,6 +163,38 @@ class CrashReportingSanitizerTest {
             assertFalse("envelope leaked: $hostile", payload.contains(hostile))
         }
         // Fresh ids: header id differs from the submitted envelope's id.
+    }
+
+    @Test
+    fun `transport drops envelopes without an event item`() {
+        val options = SentryOptions()
+        options.serializer = JsonSerializer(options)
+        val captured = mutableListOf<SentryEnvelope>()
+        val inner =
+            object : ITransport {
+                override fun send(envelope: SentryEnvelope, hint: Hint) {
+                    captured.add(envelope)
+                }
+                override fun isHealthy() = true
+                override fun flush(timeoutMillis: Long) {}
+                override fun close() {}
+            }
+        val transport = FixedEventTransport(options, inner)
+        // Empty envelope: dropped.
+        transport.send(SentryEnvelope(SentryEnvelopeHeader(SentryId()), emptyList()), Hint())
+        // Attachment-only envelope: dropped, never converted into an error.
+        val attachmentItem =
+            SentryEnvelopeItem.fromAttachment(
+                options.serializer,
+                NoOpLogger.getInstance(),
+                Attachment("x".toByteArray(), "a.txt"),
+                60_000,
+            )
+        transport.send(
+            SentryEnvelope(SentryEnvelopeHeader(SentryId()), listOf(attachmentItem)),
+            Hint(),
+        )
+        assertEquals(0, captured.size)
     }
 
     @Test
