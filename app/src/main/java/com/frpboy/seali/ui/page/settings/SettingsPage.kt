@@ -1,10 +1,8 @@
 package com.frpboy.seali.ui.page.settings
 
-import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
@@ -58,7 +56,6 @@ import com.frpboy.seali.util.PreferenceUtil.getBoolean
 import com.frpboy.seali.util.PreferenceUtil.updateInt
 import com.frpboy.seali.util.SHOW_SPONSOR_MSG
 
-@SuppressLint("BatteryLife")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
@@ -75,26 +72,12 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
     }
     val intent =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${context.packageName}")
-            }
+            // Play policy: open the general battery-optimization settings list instead of
+            // requesting a direct exemption (REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
         } else {
             Intent()
         }
-    val isActivityAvailable: Boolean =
-        if (Build.VERSION.SDK_INT < 23) false
-        else if (Build.VERSION.SDK_INT < 33)
-            context.packageManager
-                .queryIntentActivities(intent, PackageManager.MATCH_ALL)
-                .isNotEmpty()
-        else
-            context.packageManager
-                .queryIntentActivities(
-                    intent,
-                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_SYSTEM_ONLY.toLong()),
-                )
-                .isNotEmpty()
-
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -129,15 +112,24 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 item {
                     AnimatedVisibility(
-                        visible = showBatteryHint && isActivityAvailable,
+                        visible = showBatteryHint,
                         exit = shrinkVertically() + fadeOut(),
                     ) {
                         PreferencesHintCard(
                             title = stringResource(R.string.battery_configuration),
                             icon = Icons.Rounded.EnergySavingsLeaf,
                             description = stringResource(R.string.battery_configuration_desc),
+                            // The description carries a qualification, so never ellipsize it.
+                            descriptionMaxLines = Int.MAX_VALUE,
                         ) {
-                            launcher.launch(intent)
+                            // isIgnoringBatteryOptimizations needs no special permission or
+                            // query (official PowerManager API). Launch settings, then
+                            // re-check the real state in every outcome.
+                            try {
+                                launcher.launch(intent)
+                            } catch (e: ActivityNotFoundException) {
+                                // No settings screen on this device; the re-check still runs.
+                            }
                             showBatteryHint =
                                 !pm.isIgnoringBatteryOptimizations(context.packageName)
                         }

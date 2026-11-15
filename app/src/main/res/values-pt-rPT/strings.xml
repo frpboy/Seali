@@ -324,7 +324,6 @@
     <string name="concurrent_download_num">%d thread(s) seria(m) utilizado(s) para descarregar vídeo nativo DASH/HLS em simultâneo.</string>
     <string name="import_from_clipboard">Importar da área de transferência</string>
     <string name="add">Adicionar</string>
-    <string name="battery_configuration_desc">Ignorar a otimização da bateria para que esta aplicação seja transferida em segundo plano</string>
     <string name="execute_command_notification">Executar comandos personalizados…</string>
     <string name="convert_to">Converter para %1$s</string>
     <string name="privacy">Privacidade</string>

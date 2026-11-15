@@ -144,7 +144,6 @@
     <string name="permission_issue_desc">Os directórios fora de Download/ e Documents/ não são suportados</string>
     <string name="battery_configuration">Configuração da bateria</string>
     <string name="from">Iniciar</string>
-    <string name="battery_configuration_desc">Ignorar a otimização da bateria para que esta aplicação faça descarga em segundo plano</string>
     <string name="service_title">O Seali está a descarregar…</string>
     <string name="unknown_error">Erro desconhecido</string>
     <string name="translate">Traduzir</string>

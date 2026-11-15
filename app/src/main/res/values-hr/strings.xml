@@ -87,7 +87,6 @@
     <string name="permission_issue">Problem s dozvolom pristupa pohrani</string>
     <string name="permission_issue_desc">Direktoriji izvan Preuzimanja/ i Dokumenti/ nisu podržani</string>
     <string name="battery_configuration">Konfiguracija baterije</string>
-    <string name="battery_configuration_desc">Ignorirajte optimizaciju baterije kako bi aplikacija mogla preuzimati u pozadini</string>
     <string name="service_title">Seali preuzima…</string>
     <string name="unknown_error">Nepoznata greška</string>
     <string name="prefix">Predložak puta</string>

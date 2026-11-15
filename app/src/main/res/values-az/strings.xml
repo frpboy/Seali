@@ -186,7 +186,6 @@
     <string name="crop_artwork_desc">Yerləşdirilən şəkli kvadrat şəklində kəs</string>
     <string name="selected_item_count">%1$d seçildi</string>
     <string name="battery_configuration">Batareya konfiqurasiyası</string>
-    <string name="battery_configuration_desc">Arxa planda yükləmə üçün, bu tətbiqin batareya optimallaşdırılmasın istəmə</string>
     <string name="playlist_indicator_text">Oynatma siyahısı yüklənilir (%1$d/%2$d)…</string>
     <string name="subdirectory_desc">Faylları uyğun sahələr kimi adlandırılan qovluqlarda saxla</string>
     <string name="github_issue_desc">Səhv məlumatı və ya xüsusiyyət sorğusu üçün problem təqdim et</string>

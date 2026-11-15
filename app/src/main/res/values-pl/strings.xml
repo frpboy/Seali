@@ -126,7 +126,6 @@
     <string name="permission_issue">Problem z uprawnieniami</string>
     <string name="permission_issue_desc">Foldery poza Download/ i Documents/ nie są wspierane</string>
     <string name="battery_configuration">Ustawienia baterii</string>
-    <string name="battery_configuration_desc">Ignoruj optymalizację baterii dla tej aplikacji, aby pobierać w tle</string>
     <string name="service_title">Seali pobiera…</string>
     <string name="download_range_desc">Określ zakres filmów z playlisty „%3$s”, które chcesz pobrać (od %1$d do %2$d).</string>
     <string name="prefix">Szablon folderu wyjściowego</string>

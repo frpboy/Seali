@@ -115,7 +115,6 @@
     <string name="permission_issue">Masalah keizinan bagi peti simpanan</string>
     <string name="permission_issue_desc">Folder selain Download and Document tidak disokong</string>
     <string name="battery_configuration">Konfigurasi bateri</string>
-    <string name="battery_configuration_desc">Abaikan pengoptimuman bateri bagi aplikasi ini untuk membolehkannya berjalan di latar belakang</string>
     <string name="service_title">Seali sedang memuat turun…</string>
     <string name="translate">Terjemah</string>
     <string name="prefix">Templat laluan</string>

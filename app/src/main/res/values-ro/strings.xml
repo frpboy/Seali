@@ -221,7 +221,6 @@
     <string name="download_playlist">Descărcați playlist-ul</string>
     <string name="permission_issue">Problemă cu permisiunea de stocare</string>
     <string name="edit_template_desc">Calea de ieșire și URL-ul vor fi adăugate de aplicație.</string>
-    <string name="battery_configuration_desc">Ignorați optimizarea bateriei pentru ca această aplicație să fie descărcată în fundal</string>
     <string name="matrix_space">Spațiu Matrix</string>
     <string name="github_issue">Problemă GitHub</string>
     <string name="not_convert">Neconvertit</string>

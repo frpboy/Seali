@@ -125,7 +125,6 @@
     <string name="subdirectory_desc">فایلەکان لە فۆڵدەرەکاندا هەڵبگرە کە وەک بواری تایبەت بە خۆیان ناویان لێنراوە</string>
     <string name="permission_issue">کێشەی مۆڵەتی هەڵگرتن</string>
     <string name="battery_configuration">ڕێکخستنی پاتری</string>
-    <string name="battery_configuration_desc">پشتگوێخستنی باشکردنی پاتری بۆ ئەم ئەپە بۆ ئەوەی لە پاشبنەمادا دایبەزێنیت</string>
     <string name="service_title">Seali خەریکی دابەزاندنە…</string>
     <string name="unknown_error">هەلەیەکی نەناسراوە</string>
     <string name="translate">وەرگێڕان</string>

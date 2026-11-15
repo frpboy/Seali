@@ -126,7 +126,6 @@
     <string name="subdirectory_desc">Dosyaları ilgili alanlar olarak adlandırılan klasörlere kaydedin</string>
     <string name="close_never_show_again">Tekrar gösterme</string>
     <string name="audio_directory">Ses dosyası</string>
-    <string name="battery_configuration_desc">Bu uygulamanın arka planda indirilmesi için pil optimizasyonunu yoksay</string>
     <string name="download_range_desc">Oynatma listesinden indirilecek video aralığını belirtin \"%3$s\" (%1$d ile %2$d arası).</string>
     <string name="translate">Çeviri</string>
     <string name="prefix">Önek</string>

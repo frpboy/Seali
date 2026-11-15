@@ -76,7 +76,6 @@
     <string name="permission_issue">مشكلة أذونات التخزين</string>
     <string name="permission_issue_desc">المجلدات خارج «التنزيل» و«المستندات» غير مدعومة</string>
     <string name="battery_configuration">إدارة البطارية</string>
-    <string name="battery_configuration_desc">تجاهل تحسين البطارية لجعل هذا التطبيق يحمل في الخلفية</string>
     <string name="translate">ترجم</string>
     <string name="video_directory">مجلد الفيديو</string>
     <string name="settings">الإعدادات</string>

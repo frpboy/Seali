@@ -109,7 +109,6 @@
     <string name="battery_configuration">Configuration de la batterie</string>
     <string name="permission_issue">Problème de permission de stockage</string>
     <string name="permission_issue_desc">Les répertoires autres que Download/ et Documents/ ne sont pas pris en charge</string>
-    <string name="battery_configuration_desc">Ignorer l\'optimisation de la batterie pour les téléchargements en arrière-plan</string>
     <string name="service_title">Seali est en cours de téléchargement…</string>
     <string name="unknown_error">Erreur inconnue</string>
     <string name="video_url">Lien vidéo</string>

@@ -110,7 +110,6 @@
     <string name="concurrent_download_num">%d fragmento(s) seriam usados para baixar vídeo nativo DASH/HLS simultaneamente.</string>
     <string name="permission_issue">Problema de permissão de armazenamento</string>
     <string name="translate">Traduzir</string>
-    <string name="battery_configuration_desc">Ignorar \"Otimização da Bateria\" para este aplicativo fazer download em segundo plano</string>
     <string name="unknown_error">Erro desconhecido</string>
     <string name="back">Voltar</string>
     <string name="checked">Verificado</string>

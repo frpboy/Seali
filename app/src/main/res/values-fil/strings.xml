@@ -109,7 +109,6 @@
     <string name="audio_directory">Folder ng audio</string>
     <string name="subdirectory">I-save sa subdirectory</string>
     <string name="subdirectory_desc">I-save ang mga file sa mga folder na may pangalan na katulad ng kanilang mga field</string>
-    <string name="battery_configuration_desc">Huwag pansinin ang pag-optimize ng baterya para ma-download ang app na ito sa background</string>
     <string name="yt_dlp_update_fail">Hindi ma-install ang pinakabagong bersyon ng yt-dlp, siguraduhing naka-konekta sa internet.</string>
     <string name="delete_file">Tanggalin ang file</string>
     <string name="about_page">Bersyon, mag feedback, awtomatikong pag-update</string>

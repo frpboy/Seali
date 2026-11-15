@@ -156,7 +156,6 @@
     <string name="max_rate">പരമാവധി നിരക്ക്</string>
     <string name="lowest_quality">ഏറ്റവും കുറഞ്ഞ നിലവാരം</string>
     <string name="dynamic_color_desc">വാൾപേപ്പറുകളിൽ നിന്ന് ആപ്പ് തീമിലേക്ക് നിറങ്ങൾ പ്രയോഗിക്കുക</string>
-    <string name="battery_configuration_desc">പശ്ചാത്തലത്തിൽ ഡൗൺലോഡ് ചെയ്യാൻ ഈ ആപ്പിനായി ബാറ്ററി ഒപ്റ്റിമൈസേഷൻ അവഗണിക്കുക</string>
     <string name="remove_template_desc">കമാൻഡ് ടെംപ്ലേറ്റുകളിൽ നിന്ന് \"%1$s\" നീക്കം ചെയ്യണോ\?</string>
     <string name="video_file_size">വീഡിയോ ഫയലിന്റെ വലിപ്പം</string>
     <string name="translate">വിവർത്തനം ചെയ്യുക</string>

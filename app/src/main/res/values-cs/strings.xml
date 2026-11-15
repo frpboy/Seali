@@ -80,7 +80,6 @@
     <string name="subdirectory_desc">Ukládat soubory do složek pojmenovaných jako příslušná pole</string>
     <string name="permission_issue">Problém s oprávněním</string>
     <string name="permission_issue_desc">Složky mimo Download/ a Documents/ nejsou podporovány</string>
-    <string name="battery_configuration_desc">Ignorovat optimalizaci baterie pro tuto aplikaci ke stahování na pozadí</string>
     <string name="language">Jazyk</string>
     <string name="video_directory">Složka videí</string>
     <string name="settings">Nastavení</string>

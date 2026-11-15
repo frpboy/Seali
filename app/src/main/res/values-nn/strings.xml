@@ -77,7 +77,6 @@
     <string name="subdirectory_desc">Gøym filer i mapper kalla opp etter nettstadane filene kjem ifrå</string>
     <string name="permission_issue">Problem med gøymetilgjenget</string>
     <string name="battery_configuration">Batteri-innstilling</string>
-    <string name="battery_configuration_desc">Hopp over batteriforlenging for denne appen, slik at han kan hente ting i bakgrunnen</string>
     <string name="service_title">Seali hentar…</string>
     <string name="unknown_error">Ukjent mistak</string>
     <string name="translate">Omsett</string>

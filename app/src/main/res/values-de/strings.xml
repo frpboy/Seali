@@ -100,7 +100,6 @@
     <string name="subdirectory_desc">Dateien in Ordnern mit den Namen der jeweiligen Felder speichern</string>
     <string name="permission_issue">Problem mit der Speicherberechtigung</string>
     <string name="battery_configuration">Akkukonfiguration</string>
-    <string name="battery_configuration_desc">Akku-Optimierung für diese App ignorieren, um im Hintergrund herunterzuladen</string>
     <string name="service_title">Seali lädt herunter …</string>
     <string name="channel_description">Benachrichtigung über heruntergeladene Dateien und den Fortschritt</string>
     <string name="additional_settings">Zusätzliche Einstellungen</string>

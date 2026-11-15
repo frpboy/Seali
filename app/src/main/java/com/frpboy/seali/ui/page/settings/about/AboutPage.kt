@@ -14,6 +14,7 @@ import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material.icons.outlined.UpdateDisabled
 import androidx.compose.material.icons.outlined.VolunteerActivism
@@ -66,6 +67,7 @@ private const val portfolioUrl = "https://www.frpboy.in/"
 private const val githubProfileUrl = "https://github.com/frpboy"
 private const val linkedinUrl = "https://www.linkedin.com/in/rahul-muraleedharan-it"
 private const val supportGroupUrl = "https://t.me/FRPboy_Projects"
+private const val privacyPolicyUrl = "https://seali.frpboy.in/privacy"
 const val translationHelpUrl = "https://github.com/frpboy/Seali/blob/main/CONTRIBUTING.md#translations"
 const val YtdlpRepository = "https://github.com/yt-dlp/yt-dlp"
 private const val TAG = "AboutPage"
@@ -150,6 +152,15 @@ fun AboutPage(
                         icon = Icons.Outlined.ContactSupport,
                     ) {
                         openUrl(supportGroupUrl)
+                    }
+                }
+                item {
+                    PreferenceItem(
+                        title = stringResource(R.string.privacy_policy),
+                        description = aboutLinkLabel(privacyPolicyUrl),
+                        icon = Icons.Outlined.PrivacyTip,
+                    ) {
+                        openUrl(privacyPolicyUrl)
                     }
                 }
                 item {

@@ -112,7 +112,6 @@
     <string name="download_notification">Pemberitahuan unduhan</string>
     <string name="fetching_playlist_info">Mengambil informasi daftar putar…</string>
     <string name="to">Akhir</string>
-    <string name="battery_configuration_desc">Abaikan pengoptimalan baterai pada aplikasi ini untuk mengunduh di latar belakang</string>
     <string name="translate">Terjemahkan</string>
     <string name="download_range_desc">Tentukan rentang video yang akan diunduh dari daftar putar \"%3$s\"(dari %1$d hingga %2$d).</string>
     <string name="extract_audio">Simpan sebagai audio</string>
