@@ -104,35 +104,49 @@ def tool_path(name):
     return None
 
 
+def artifact_digest(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def check_artifact(path, results):
     if not os.path.isfile(path):
         fail(results, "artifact", "missing file: %s" % path)
-        return False
+        return None
     size = os.path.getsize(path)
     if size == 0:
         fail(results, "artifact", "empty file: %s" % path)
-        return False
+        return None
     if not path.endswith(".aab"):
         fail(results, "artifact", "expected an .aab file: %s" % path)
-        return False
+        return None
     if not zipfile.is_zipfile(path):
         fail(results, "artifact", "not a valid zip/AAB: %s" % path)
-        return False
+        return None
     with zipfile.ZipFile(path) as bundle:
         names = set(bundle.namelist())
     if "base/manifest/AndroidManifest.xml" not in names:
         fail(results, "artifact",
             "base/manifest/AndroidManifest.xml missing; not an App Bundle layout")
-        return False
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
+        return None
+    digest = artifact_digest(path)
     ok(results, "artifact", "valid App Bundle zip with base manifest")
     ok(results, "artifact",
        "sha256=%s bytes=%d; record this digest - the identical file must be "
-       "the uploaded artifact" % (digest.hexdigest(), size))
-    return True
+       "the uploaded artifact" % (digest, size))
+    return digest
+
+
+def check_unchanged(path, digest, results):
+    if artifact_digest(path) != digest:
+        fail(results, "artifact",
+             "artifact changed during qualification (digest mismatch after checks); "
+             "re-run on the final file")
+    else:
+        ok(results, "artifact", "artifact unchanged across all checks")
 
 
 def signer_sha256s(path, jarsigner, keytool):
@@ -412,6 +426,15 @@ def self_test():
         if check_artifact(os.path.join(tmp, "nope.aab"), res):
             print("SELF-TEST FAIL: missing artifact accepted")
             failures += 1
+        digest = artifact_digest(bundle)
+        res = []
+        check_unchanged(bundle, digest, res)
+        expect_passes(res, "unchanged artifact")
+        with zipfile.ZipFile(bundle, "a") as z:
+            z.writestr("base/dex/late-change.dex", b"\x00")
+        res = []
+        check_unchanged(bundle, digest, res)
+        expect_fails(res, "artifact changed after digest")
 
         good_manifest = (
             '<manifest xmlns:android="http://schemas.android.com/apk/res/android"'
@@ -493,8 +516,8 @@ def main():
         parser.error("--bundle, --expected-cert-sha256 and --expected-version-code are required")
 
     results = []
-    artifact_ok = check_artifact(args.bundle, results)
-    if artifact_ok:
+    digest = check_artifact(args.bundle, results)
+    if digest:
         check_signer(args.bundle, args.expected_cert_sha256,
                      args.forbid_cert_sha256, results)
         bundletool = resolve_bundletool(args.bundletool)
@@ -506,6 +529,7 @@ def main():
             check_manifest(args.bundle, bundletool, args.expected_package,
                            tuple(DEFAULT_FORBIDDEN_PERMISSIONS) + tuple(args.forbid_permission),
                            results, args.expected_min_sdk, args.expected_version_code)
+        check_unchanged(args.bundle, digest, results)
     failed = report(results)
     if failed:
         print("QUALIFICATION FAILED: %d check(s) failed" % failed)
