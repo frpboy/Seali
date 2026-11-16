@@ -23,8 +23,8 @@ Checks (each fail-closed; any failure or tooling gap exits non-zero):
      certificate's validity window is printed for the reviewer; expiry is
      informational, not a gate (Play upload keys are long-lived).
   3. Manifest invariants (via `bundletool dump manifest`): package equals
-     --expected-package, versionCode is a positive integer (and equals
-     --expected-version-code when given), versionName is present,
+     --expected-package, versionCode equals --expected-version-code
+     (required), versionName is present,
      uses-sdk minSdkVersion equals --expected-min-sdk (default 26),
      android:debuggable is not true, no io.sentry.dsn meta-data value,
      io.sentry.auto-init meta-data is explicitly false, and no forbidden permission
@@ -61,10 +61,14 @@ PERMISSION_TAGS = ("uses-permission", "uses-permission-sdk-23", "uses-permission
 SHA256_RE = re.compile(r"SHA256:\s*([0-9A-Fa-f:]{95})")
 VALIDITY_RE = re.compile(r"Valid from:\s*(.+?)\s+until:\s*(.+)")
 # jarsigner -verbose entry line: flags (subset of "smk", may be empty),
-# size, locale-dependent date, then the entry name as the last token.
-# Anything that does not match this shape is ignored here; the namelist
-# cross-check below fails closed on any entry we could not classify.
-VERBOSE_ENTRY_RE = re.compile(r"^([a-z]{0,3})\s+(\d+)\s+(.*?)\s+(\S+)\s*$")
+# size, locale-dependent date, then the entry name. Entry names may contain
+# spaces, so names are matched against the line tail (" " + name) instead of
+# splitting tokens; the prefix still must look like flags+size. Only actual
+# signature metadata is exempt from the coverage check; anything else under
+# META-INF/ must be signed like any other entry.
+VERBOSE_PREFIX_RE = re.compile(r"^([a-z]{0,3})\s+(\d+)\s+")
+SIGNATURE_METADATA_RE = re.compile(
+    r"^META-INF/(MANIFEST\.MF|[^/]+\.(SF|RSA|DSA|EC))$", re.IGNORECASE)
 
 
 def normalize_sha256(value):
@@ -140,18 +144,21 @@ def signer_sha256s(path, jarsigner, keytool):
     lowered = out.lower()
     if "unsigned entries" in lowered or "signer errors" in lowered:
         return None, "jarsigner reported unsigned entries or signer errors"
-    signed = {}
+    flagged = []
     for line in out.splitlines():
-        match = VERBOSE_ENTRY_RE.match(line)
-        if not match:
-            continue
-        flags, _size, _date, name = match.groups()
-        if any(char not in "smk" for char in flags):
-            continue
-        signed[name] = "s" in flags
+        match = VERBOSE_PREFIX_RE.match(line)
+        if match and all(char in "smk" for char in match.group(1)):
+            flagged.append((line, "s" in match.group(1)))
     with zipfile.ZipFile(path) as bundle:
         names = [n for n in bundle.namelist()
-                 if not n.endswith("/") and not n.startswith("META-INF/")]
+                 if not n.endswith("/") and not SIGNATURE_METADATA_RE.match(n)]
+    signed = {}
+    for name in names:
+        suffix = " " + name
+        for line, has_s in flagged:
+            if line.endswith(suffix):
+                signed[name] = has_s
+                break
     unsigned = [n for n in names if not signed.get(n, False)]
     if unsigned:
         return None, ("%d non-META-INF entr%s not covered by the signature "
@@ -367,6 +374,9 @@ def self_test():
             return bundle
 
         bundle = fresh_bundle()
+        with zipfile.ZipFile(bundle, "a") as z:
+            z.writestr("base/res/with space.xml", b"\x00")
+        sign(bundle, good_store, "play")
 
         def signer_verdicts(target, expected, forbid):
             res = []
@@ -382,6 +392,12 @@ def self_test():
             z.writestr("base/dex/extra-unsigned.dex", b"\x00")
         expect_fails(signer_verdicts(tampered, good_sha, None),
                      "entry appended after signing")
+
+        tampered_meta = fresh_bundle("tampered-meta.aab")
+        with zipfile.ZipFile(tampered_meta, "a") as z:
+            z.writestr("META-INF/evil.dex", b"\x00")
+        expect_fails(signer_verdicts(tampered_meta, good_sha, None),
+                     "non-signature META-INF entry appended after signing")
 
         unsigned = os.path.join(tmp, "unsigned.aab")
         with zipfile.ZipFile(unsigned, "w") as z:
@@ -461,7 +477,7 @@ def main():
     parser.add_argument("--forbid-cert-sha256",
                         help="SHA-256 of a certificate that must never sign (e.g. GitHub key)")
     parser.add_argument("--expected-version-code",
-                        help="versionCode the upload candidate must carry (stale/reused codes fail)")
+                        help="versionCode the upload candidate must carry (required; stale/reused codes fail)")
     parser.add_argument("--expected-min-sdk", default="26",
                         help="minSdkVersion the manifest must declare (default 26)")
     parser.add_argument("--forbid-permission", action="append", default=[],
@@ -473,8 +489,8 @@ def main():
     if args.self_test:
         return self_test()
 
-    if not args.bundle or not args.expected_cert_sha256:
-        parser.error("--bundle and --expected-cert-sha256 are required")
+    if not args.bundle or not args.expected_cert_sha256 or not args.expected_version_code:
+        parser.error("--bundle, --expected-cert-sha256 and --expected-version-code are required")
 
     results = []
     artifact_ok = check_artifact(args.bundle, results)
