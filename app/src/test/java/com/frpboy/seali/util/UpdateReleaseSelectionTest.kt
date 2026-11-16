@@ -56,6 +56,19 @@ class UpdateReleaseSelectionTest {
     }
 
     @Test
+    fun `stable channel rejects prerelease flag even when the display name looks stable`() {
+        val releases =
+            listOf(
+                release("Seali 2.0.0", preRelease = true),
+                release("Seali 1.4.0", preRelease = false),
+            )
+        assertEquals(
+            "Seali 1.4.0",
+            UpdateUtil.selectLatestRelease(releases, stableOnly = true)?.name,
+        )
+    }
+
+    @Test
     fun `release display names parse to comparable versions`() {
         val alpha5 = "Seali 2.0.0-alpha.5 (alpha prerelease)".toVersion()
         val alpha7 = "2.0.0-alpha.7".toVersion()
