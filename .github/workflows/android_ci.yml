@@ -143,6 +143,17 @@ jobs:
       - name: Compile app and instrumentation test sources
         run: ./gradlew -PfunctionalAlphaCandidate compileGenericDebugKotlin compileGenericDebugAndroidTestKotlin
 
+      # Merged-manifest Sentry invariants on every push/PR (no signing, no
+      # APK): the manifest-merger output must keep SDK auto-init disabled
+      # and must never carry a baked io.sentry.dsn element. Catches a
+      # library-manifest or future-edit regression that the source-manifest
+      # unit test cannot see. Startup must never depend on a DSN
+      # (robo run matrix-2wkcs6zz3bjp5 crashed on exactly this).
+      - name: Verify merged debug manifest Sentry invariants
+        run: |
+          ./gradlew -PfunctionalAlphaCandidate :app:processGenericDebugMainManifest --console=plain
+          python3 scripts/release-qualification/verify-merged-manifest-sentry.py
+
       # Verification is secret-free for every push/PR and default manual run.
       # Owner signing/release packaging require an explicit manual opt-in.
       # Public artifact upload remains separately gated and is distribution.
