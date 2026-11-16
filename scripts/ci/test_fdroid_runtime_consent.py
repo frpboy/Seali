@@ -19,12 +19,11 @@ class RuntimeConsentBoundaryTests(unittest.TestCase):
         self.assertIn('FDROID_RUNTIME_AUTO_UPDATE_CONSENT to false', text)
         self.assertIn('YT_DLP_AUTO_UPDATE to true', text)  # other flavors unchanged
 
-    def test_empty_version_bootstrap_is_after_fdroid_opt_in_gate(self):
+    def test_fdroid_opt_in_gate_precedes_network_and_update(self):
         text = (SRC / 'ui/page/YtdlpUpdater.kt').read_text()
-        self.assertLess(text.index('!FDROID_RUNTIME_AUTO_UPDATE_CONSENT.getBoolean()'),
-                        text.index('YT_DLP_VERSION.getString().isNotEmpty()'))
-        self.assertLess(text.index('!FDROID_RUNTIME_AUTO_UPDATE_CONSENT.getBoolean()'),
-                        text.index('isNetworkAvailableForDownload()'))
+        gate = text.index('!FDROID_RUNTIME_AUTO_UPDATE_CONSENT.getBoolean()')
+        self.assertLess(gate, text.index('isNetworkAvailableForDownload()'))
+        self.assertLess(gate, text.index('UpdateUtil.updateYtDlp('))
 
     def test_all_manual_callers_prompt_before_the_download(self):
         callers = []

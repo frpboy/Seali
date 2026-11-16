@@ -4,6 +4,7 @@ import unittest
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/android_ci.yml"
 SIGNING = "(github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.build_release == true"
+SIGNING_PLAY = SIGNING + " && inputs.build_play_bundle == true"
 
 
 class VerificationBoundaryTest(unittest.TestCase):
@@ -27,23 +28,45 @@ class VerificationBoundaryTest(unittest.TestCase):
             self.assertIn("default: false", field)
 
     def test_key_staging_requires_explicit_release_opt_in(self):
-        section = self.source.split("      - name: Validate and stage private Play upload key\n", 1)[1]
+        section = self.source.split("      - name: Validate and stage private GitHub upload key\n", 1)[1]
         self.assertTrue(section.startswith("        if: " + SIGNING + "\n"))
         self.assertNotIn('if [[ "$GITHUB_EVENT_NAME" == "pull_request"', section)
+        play_section = self.source.split("      - name: Validate and stage private Play upload key\n", 1)[1]
+        self.assertTrue(play_section.startswith("        if: " + SIGNING_PLAY + "\n"))
+        self.assertNotIn('if [[ "$GITHUB_EVENT_NAME" == "pull_request"', play_section)
+
+    def test_play_bundle_input_is_opt_in(self):
+        dispatch = self.source.split("  workflow_dispatch:\n", 1)[1].split("  workflow_call:\n", 1)[0]
+        call = self.source.split("  workflow_call:\n", 1)[1].split("\npermissions:", 1)[0]
+        for scope in (dispatch, call):
+            field = scope.split("      build_play_bundle:\n", 1)[1]
+            self.assertIn("type: boolean", field)
+            self.assertIn("default: false", field)
 
     def test_every_signing_secret_is_in_a_guarded_step(self):
         steps = self.source.split("      - ")
-        secret_steps = [step for step in steps if "secrets.SEALI_UPLOAD_" in step]
-        self.assertEqual(len(secret_steps), 4)
-        for step in secret_steps:
+        github_secret_steps = [
+            step for step in steps
+            if "secrets.SEALI_UPLOAD_" in step and "secrets.SEALI_PLAY_UPLOAD_" not in step
+        ]
+        self.assertEqual(len(github_secret_steps), 3)
+        for step in github_secret_steps:
             self.assertTrue(
                 "if: " + SIGNING in step or "if: steps.signing.outputs.available == 'true'" in step
             )
+        play_secret_steps = [step for step in steps if "secrets.SEALI_PLAY_UPLOAD_" in step]
+        self.assertEqual(len(play_secret_steps), 3)
+        for step in play_secret_steps:
+            self.assertTrue(
+                "if: " + SIGNING_PLAY in step
+                or "if: steps.signing_play.outputs.available == 'true'" in step
+            )
 
     def test_release_builds_depend_on_successful_signing(self):
-        for name in ["Build generic release APK variants", "Build Google Play App Bundle"]:
-            section = self.source.split("      - name: " + name + "\n", 1)[1]
-            self.assertTrue(section.startswith("        if: steps.signing.outputs.available == 'true'\n"))
+        section = self.source.split("      - name: Build generic release APK variants\n", 1)[1]
+        self.assertTrue(section.startswith("        if: steps.signing.outputs.available == 'true'\n"))
+        play = self.source.split("      - name: Build Google Play App Bundle\n", 1)[1]
+        self.assertTrue(play.startswith("        if: steps.signing_play.outputs.available == 'true'\n"))
 
     def test_private_key_cleanup_is_scoped_and_unconditional_after_opt_in(self):
         section = self.source.split("      - name: Remove private signing material\n", 1)[1]

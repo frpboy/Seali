@@ -28,8 +28,10 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun AppUpdater() {
-    // Google Play distribution must be updated through Play Store, never by sideloading APKs.
-    if (BuildConfig.APPLICATION_ID == "com.frpboy.seali") return
+    // Sideload self-update exists only in the GitHub-distributed variants.
+    // Google Play (com.frpboy.seali.google) and F-Droid builds update through
+    // their own stores; the two packages never update each other.
+    if (BuildConfig.FLAVOR != "generic" && BuildConfig.FLAVOR != "githubPreview") return
 
     val context = LocalContext.current
 

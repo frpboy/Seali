@@ -11,6 +11,11 @@ on:
         type: boolean
         required: false
         default: false
+      build_play_bundle:
+        description: 'Also build the com.frpboy.seali.google Play App Bundle signed with the separate Play upload key (no Play upload)'
+        type: boolean
+        required: false
+        default: false
 
 # contents:write is required so the called android_ci.yml build job can stage
 # the signed outputs on a private draft release (collaborator-only retention,
@@ -25,4 +30,5 @@ jobs:
     with:
       build_release: true
       publish_apk_artifacts: ${{ inputs.publish_apk_artifacts }}
+      build_play_bundle: ${{ inputs.build_play_bundle }}
     secrets: inherit

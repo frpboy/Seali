@@ -43,6 +43,28 @@ if (hasAnySigningValue && !signingConfigured) {
     )
 }
 
+// Play variant (com.frpboy.seali.google) signing is fully separate from the
+// GitHub upload key above (owner decision 2026-11-15: separate package,
+// separate keys, no cross-updates). The two keystores never substitute for
+// each other; a channel without its own complete configuration fails closed
+// in the release task guards below.
+val playUploadKeyAlias = signingValue("SEALI_PLAY_UPLOAD_KEY_ALIAS", "playKeyAlias")
+val playUploadKeyPassword = signingValue("SEALI_PLAY_UPLOAD_KEY_PASSWORD", "playKeyPassword")
+val playUploadStorePassword = signingValue("SEALI_PLAY_UPLOAD_STORE_PASSWORD", "playStorePassword")
+val playUploadStoreFilePath = signingValue("SEALI_PLAY_UPLOAD_KEYSTORE_FILE", "playStoreFile")
+val playUploadStoreType = signingValue("SEALI_PLAY_UPLOAD_KEYSTORE_TYPE", "playStoreType") ?: "JKS"
+val playSigningValues =
+    listOf(playUploadKeyAlias, playUploadKeyPassword, playUploadStorePassword, playUploadStoreFilePath)
+val hasAnyPlaySigningValue = playSigningValues.any { !it.isNullOrBlank() }
+val playSigningConfigured = playSigningValues.all { !it.isNullOrBlank() }
+val playUploadKeystoreFile = playUploadStoreFilePath?.let { rootProject.file(it) }
+
+if (hasAnyPlaySigningValue && !playSigningConfigured) {
+    throw GradleException(
+        "Seali Play upload signing configuration is incomplete. Provide the Play alias, key password, store password, and keystore file."
+    )
+}
+
 // Alpha7 ships only the reviewed source-built ARM64 payload set. Source compilation
 // and unit tests are payload-free; APK packaging verifies staged input custody.
 val splitApks = project.hasProperty("splitApks")
@@ -92,6 +114,18 @@ android {
                 storeFile = uploadKeystoreFile!!
                 storePassword = uploadStorePassword!!
                 storeType = uploadStoreType
+            }
+        }
+    }
+
+    if (playSigningConfigured) {
+        signingConfigs {
+            create("playPublish") {
+                keyAlias = playUploadKeyAlias!!
+                keyPassword = playUploadKeyPassword!!
+                storeFile = playUploadKeystoreFile!!
+                storePassword = playUploadStorePassword!!
+                storeType = playUploadStoreType
             }
         }
     }
@@ -158,9 +192,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            if (signingConfigured) {
-                signingConfig = signingConfigs.getByName("githubPublish")
-            }
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -175,23 +206,39 @@ android {
         create("generic") {
             dimension = "publishChannel"
             isDefault = true
+            if (signingConfigured) {
+                signingConfig = signingConfigs.getByName("githubPublish")
+            }
         }
 
         create("githubPreview") {
             dimension = "publishChannel"
             applicationIdSuffix = ".preview"
             resValue("string", "app_name", "Seali Preview")
+            if (signingConfigured) {
+                signingConfig = signingConfigs.getByName("githubPublish")
+            }
         }
 
         create("fdroid") {
             dimension = "publishChannel"
             versionName = "$baseVersionName-(F-Droid)"
+            if (signingConfigured) {
+                signingConfig = signingConfigs.getByName("githubPublish")
+            }
         }
 
         create("play") {
             dimension = "publishChannel"
-            // Google Play build: no sideload updater, no runtime yt-dlp
-            // downloads, no all-files-access permission.
+            // Google Play build: separate package so the Play and GitHub
+            // variants coexist and never update each other. No sideload
+            // updater, no runtime yt-dlp downloads, no all-files-access
+            // permission. Signed only with the dedicated Play upload key;
+            // the GitHub release key is never applied to this flavor.
+            applicationId = "com.frpboy.seali.google"
+            if (playSigningConfigured) {
+                signingConfig = signingConfigs.getByName("playPublish")
+            }
         }
     }
 
@@ -217,26 +264,24 @@ android {
 }
 
 tasks.configureEach {
-    if (
-            name in
-                setOf(
-                    "packageGenericRelease",
-                    "signGenericReleaseBundle",
-                    "bundleGenericRelease",
-                    "packagePlayRelease",
-                    "signPlayReleaseBundle",
-                    "bundlePlayRelease",
-                )
-        ) {
+    val isGenericReleaseTask =
+        name in setOf("packageGenericRelease", "signGenericReleaseBundle", "bundleGenericRelease")
+    val isPlayReleaseTask =
+        name in setOf("packagePlayRelease", "signPlayReleaseBundle", "bundlePlayRelease")
+    if (isGenericReleaseTask || isPlayReleaseTask) {
         // Capture the signing preconditions as lambda-local values. A task
         // action that references build-script members captures the Gradle
         // script object, which the configuration cache cannot serialize.
-        val releaseSigningConfigured = signingConfigured
-        val releaseKeystorePresent = uploadKeystoreFile?.isFile == true
+        val channelName = if (isPlayReleaseTask) "Play" else "Generic"
+        val releaseSigningConfigured =
+            if (isPlayReleaseTask) playSigningConfigured else signingConfigured
+        val releaseKeystorePresent =
+            if (isPlayReleaseTask) playUploadKeystoreFile?.isFile == true
+            else uploadKeystoreFile?.isFile == true
         doFirst {
             if (!releaseSigningConfigured || !releaseKeystorePresent) {
                 throw GradleException(
-                    "Generic release artifacts must be signed. Configure a valid Seali upload keystore before building."
+                    "$channelName release artifacts must be signed with the dedicated $channelName upload key. Configure a valid Seali $channelName upload keystore before building."
                 )
             }
         }
