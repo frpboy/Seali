@@ -103,7 +103,7 @@ fun UpdateDialogImpl(
             ) {
                 Text(
                     when (downloadStatus) {
-                        is UpdateUtil.DownloadStatus.Progress -> "${downloadStatus.percent} %"
+                        is UpdateUtil.DownloadStatus.Progress -> downloadStatus.percent?.let { "${it} %" } ?: stringResource(R.string.status_downloading)
                         else -> stringResource(R.string.update)
                     },
                     modifier = Modifier.animateContentSize(),
