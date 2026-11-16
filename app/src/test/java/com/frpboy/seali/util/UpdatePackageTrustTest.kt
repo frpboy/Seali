@@ -4,6 +4,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType
+import okhttp3.ResponseBody
+import okio.Buffer
+import okio.BufferedSource
 
 class UpdatePackageTrustTest {
 
@@ -77,6 +84,86 @@ class UpdatePackageTrustTest {
         // empty histories never qualify
         assertFalse(UpdateUtil.isSignerLineageContinuous(emptySet(), setOf(certA)))
         assertFalse(UpdateUtil.isSignerLineageContinuous(setOf(certA), emptySet()))
+    }
+
+    @Test
+    fun `published checksum entry is parsed exactly`() {
+        val hash = "a".repeat(64)
+        assertEquals(
+            hash,
+            UpdateUtil.parseExpectedSha256(
+                "$hash  Seali-main-arm64-v8a.apk\n",
+                "Seali-main-arm64-v8a.apk",
+            ),
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `missing published checksum entry fails closed`() {
+        UpdateUtil.parseExpectedSha256(
+            "${"a".repeat(64)}  another.apk\n",
+            "Seali-main-arm64-v8a.apk",
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `malformed published checksum fails closed`() {
+        UpdateUtil.parseExpectedSha256(
+            "not-a-sha256  Seali-main-arm64-v8a.apk\n",
+            "Seali-main-arm64-v8a.apk",
+        )
+    }
+
+    @Test
+    fun `unknown content length is downloaded without inventing a percentage`() = runBlocking {
+        val bytes = "complete-apk-payload".toByteArray()
+        val body =
+            object : ResponseBody() {
+                override fun contentType(): MediaType? = null
+
+                override fun contentLength(): Long = -1L
+
+                override fun source(): BufferedSource = Buffer().write(bytes)
+            }
+        val dir = java.nio.file.Files.createTempDirectory("unknown-length").toFile()
+        val file = File(dir, "update.apk")
+
+        val statuses = UpdateUtil.run { body.downloadFileWithProgress(file) }.toList()
+
+        assertEquals(bytes.toList(), file.readBytes().toList())
+        assertTrue(
+            statuses.any {
+                it is UpdateUtil.DownloadStatus.Progress && it.percent == null
+            }
+        )
+        assertTrue(statuses.last() is UpdateUtil.DownloadStatus.Finished)
+        file.delete()
+        dir.delete()
+    }
+
+    @Test
+    fun `empty unknown length response is rejected and its partial file is removed`() = runBlocking {
+        val body =
+            object : ResponseBody() {
+                override fun contentType(): MediaType? = null
+
+                override fun contentLength(): Long = -1L
+
+                override fun source(): BufferedSource = Buffer()
+            }
+        val dir = java.nio.file.Files.createTempDirectory("empty-download").toFile()
+        val file = File(dir, "update.apk")
+        var failed = false
+
+        try {
+            UpdateUtil.run { body.downloadFileWithProgress(file) }.toList()
+        } catch (_: Exception) {
+            failed = true
+        }
+
+        assertTrue(failed)
+        assertFalse(file.exists())
+        dir.delete()
     }
 
     @Test
