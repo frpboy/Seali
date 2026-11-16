@@ -641,9 +641,9 @@ jobs:
       # tag and draft state. Draft releases create no git refs, so tag
       # uniqueness is NOT enforced by git: run_id + run_attempt keeps each
       # attempt distinct, and the post-upload check requires the exact
-      # asset set this run produced (arm64-v8a APK and SHA256SUMS, plus the
-      # Play AAB when build_play_bundle=true). An AAB, when built, is private
-      # retention only; nothing is uploaded to Play from this workflow.
+      # two-asset set (arm64-v8a APK and SHA256SUMS). The Play AAB, when
+      # build_play_bundle=true, is verified and then discarded with the
+      # ephemeral runner: Play artifacts are never retained on GitHub.
       - name: Stage private draft release assets
         if: steps.signing.outputs.available == 'true' && (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.build_release == true && github.ref == 'refs/heads/main'
         env:
@@ -653,24 +653,23 @@ jobs:
           set -euo pipefail
           repo="${{ github.repository }}"
           ref_slug="${GITHUB_REF_NAME//\//-}"
-          bundle_dir="app/build/outputs/bundle/playRelease"
-          # The Play AAB exists only when this run explicitly opted into
-          # build_play_bundle; the GitHub APK lane never requires it.
-          mapfile -t bundles < <(find "$bundle_dir" -maxdepth 1 -type f -name '*.aab' 2>/dev/null | sort)
-          if [ "${#bundles[@]}" -gt 1 ]; then
-            echo "::error::Expected at most one Play AAB in $bundle_dir; found ${#bundles[@]}"
+          # HARD BOUNDARY: the Play AAB is built and signature-verified in this
+          # job but is NEVER staged on GitHub - not in draft assets, not in
+          # SHA256SUMS, not in Actions artifacts. The Play variant is
+          # distributed only through Google Play (owner rule 2026-11-06/15);
+          # Play upload is a separately approved process that rebuilds from
+          # source at that time.
+          staged_aab_count="$(find release-assets -maxdepth 1 -type f -name '*.aab' | wc -l)"
+          if [ "$staged_aab_count" -ne 0 ]; then
+            echo "::error::A Play AAB must never be staged to GitHub; found $staged_aab_count in release-assets."
             exit 1
           fi
-          expected_count=2
-          if [ "${#bundles[@]}" -eq 1 ]; then
-            aab_name="Seali-${ref_slug}-arm64-play.aab"
-            cp "${bundles[0]}" "release-assets/$aab_name"
-            # Extend the checksum manifest to cover the AAB (the previous step
-            # asserted exactly 1 APK line; require exactly 2 with the AAB).
-            (cd release-assets && sha256sum -- "$aab_name" >> SHA256SUMS)
-            expected_count=3
+          if grep -q '\.aab' release-assets/SHA256SUMS; then
+            echo "::error::SHA256SUMS must never list a Play AAB."
+            exit 1
           fi
-          test "$(wc -l < release-assets/SHA256SUMS)" -eq $((expected_count - 1))
+          test "$(wc -l < release-assets/SHA256SUMS)" -eq 1
+          expected_count=2
 
           short_sha="${GITHUB_SHA:0:8}"
           tag="release-qualification/run-${{ github.run_id }}-${{ github.run_attempt }}"
@@ -710,7 +709,7 @@ jobs:
           fi
 
           upload_base="https://uploads.github.com/repos/$repo/releases/$release_id/assets"
-          for asset in release-assets/*.apk release-assets/*.aab release-assets/SHA256SUMS; do
+          for asset in release-assets/*.apk release-assets/SHA256SUMS; do
             name="$(basename "$asset")"
             curl -fsS -X POST \
               -H "Authorization: Bearer $GH_TOKEN" \
@@ -720,7 +719,7 @@ jobs:
           done
 
           # Require the exact expected asset set; a partial draft is not ready.
-          mapfile -t expected < <(printf '%s\n' "Seali-${ref_slug}-arm64-v8a.apk" "SHA256SUMS" ${aab_name:+"$aab_name"} | sort)
+          mapfile -t expected < <(printf '%s\n' "Seali-${ref_slug}-arm64-v8a.apk" "SHA256SUMS" | sort)
           mapfile -t actual < <(gh api "repos/$repo/releases/$release_id" --jq '.assets[].name' | sort)
           if [ "${#expected[@]}" -ne "$expected_count" ] || ! diff <(printf '%s\n' "${expected[@]}") <(printf '%s\n' "${actual[@]}") >/dev/null; then
             echo "::error::Draft asset mismatch for $tag (id $release_id). Expected:"; printf '%s\n' "${expected[@]}"
@@ -764,6 +763,7 @@ jobs:
         run: |
           rm -f app/seali-upload-key.jks "$RUNNER_TEMP/seali-upload-key.base64" "$RUNNER_TEMP/seali-keystore-check.log" "$RUNNER_TEMP/seali-upload-key-check.csr" "$RUNNER_TEMP/seali-upload-key-nested.base64" "$RUNNER_TEMP/seali-upload-key-nested.bin"
           rm -f app/seali-play-upload-key.jks "$RUNNER_TEMP/seali-play-upload-key.base64" "$RUNNER_TEMP/seali-play-keystore-check.log" "$RUNNER_TEMP/seali-play-upload-key-check.csr" "$RUNNER_TEMP/seali-play-upload-key-nested.base64" "$RUNNER_TEMP/seali-play-upload-key-nested.bin"
+          find app/build/outputs/bundle -type f -name '*.aab' -delete 2>/dev/null || true
 
   history-ui:
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.run_history_ui == true && inputs.qualify_maven_consumer != true

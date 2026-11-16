@@ -79,6 +79,22 @@ class PlayVariantSeparationTests(unittest.TestCase):
         self.assertIn('BuildConfig.FLAVOR != "generic"', text)
         self.assertIn('BuildConfig.FLAVOR != "githubPreview"', text)
 
+    def test_play_aab_is_never_retained_on_github(self):
+        text = ANDROID_CI.read_text()
+        stage = text.split('      - name: Stage private draft release assets\n', 1)[1]
+        stage = stage.split('      - name: ', 1)[0]
+        # No AAB copy, checksum append or asset upload in the GitHub staging step.
+        self.assertNotIn('.aab', stage.replace("find release-assets -maxdepth 1 -type f -name '*.aab'", '').replace("grep -q '\\.aab' release-assets/SHA256SUMS", ''))
+        self.assertIn('test "$(wc -l < release-assets/SHA256SUMS)" -eq 1', stage)
+        # No artifact upload of bundles anywhere in the workflow.
+        for section in text.split('      - name: '):
+            if 'uses: actions/upload-artifact@v4' in section:
+                self.assertNotIn('aab', section)
+        # Built AABs are removed with signing material at job end.
+        cleanup_pos = text.index('      - name: Remove private signing material')
+        delete_pos = text.index("find app/build/outputs/bundle -type f -name '*.aab' -delete")
+        self.assertGreater(delete_pos, cleanup_pos)
+
     def test_ci_play_bundle_uses_only_play_secrets(self):
         text = ANDROID_CI.read_text()
         section = text.split('      - name: Build Google Play App Bundle\n', 1)[1]
