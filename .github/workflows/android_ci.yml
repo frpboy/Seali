@@ -140,6 +140,44 @@ jobs:
           # payload zip lives in private custody and is never available to CI.
           python3 scripts/packaging/test_license_bundle_fixtures.py
 
+      # Empirical per-channel signing resolution with dummy values for both
+      # channels: a build-type signingConfig resolves over a flavor one, so
+      # this guards against the Play flavor silently falling back to the
+      # GitHub upload key (regressed once, fixed at flavor level).
+      - name: Verify per-channel release signing resolution
+        shell: bash
+        env:
+          SEALI_UPLOAD_KEY_ALIAS: gh-alias
+          SEALI_UPLOAD_KEY_PASSWORD: dummy
+          SEALI_UPLOAD_STORE_PASSWORD: dummy
+          SEALI_UPLOAD_KEYSTORE_FILE: /tmp/gh-release.jks
+          SEALI_PLAY_UPLOAD_KEY_ALIAS: play-alias
+          SEALI_PLAY_UPLOAD_KEY_PASSWORD: dummy
+          SEALI_PLAY_UPLOAD_STORE_PASSWORD: dummy
+          SEALI_PLAY_UPLOAD_KEYSTORE_FILE: /tmp/play-release.jks
+        run: |
+          set -euo pipefail
+          cp app/build.gradle.kts /tmp/seali-build.gradle.kts.bak
+          trap 'mv -f /tmp/seali-build.gradle.kts.bak app/build.gradle.kts' EXIT
+          cat >> app/build.gradle.kts <<'GRADLE'
+
+          afterEvaluate {
+              extensions.getByType<com.android.build.gradle.AppExtension>().applicationVariants.all {
+                  val v = this
+                  println("VARIANT_SIGNING " + v.name + ": " + ((v.signingConfig?.storeFile?.name ?: "none") + " alias=" + (v.signingConfig?.keyAlias ?: "none")))
+              }
+          }
+          GRADLE
+          if ! ./gradlew --no-daemon :app:help -q > /tmp/signing-resolution.txt 2>&1; then
+            cat /tmp/signing-resolution.txt
+            exit 1
+          fi
+          grep -q 'VARIANT_SIGNING playRelease: play-release.jks alias=play-alias' /tmp/signing-resolution.txt
+          for variant in genericRelease githubPreviewRelease fdroidRelease; do
+            grep -q "VARIANT_SIGNING ${variant}: gh-release.jks alias=gh-alias" /tmp/signing-resolution.txt
+          done
+          echo "Per-channel signing resolution verified: Play -> Play key, GitHub channels -> GitHub key."
+
       # Source verification needs no native payload and never produces an APK.
       # The candidate property admits this isolated source tree; it does not
       # admit release packaging, runtime qualification or public distribution.

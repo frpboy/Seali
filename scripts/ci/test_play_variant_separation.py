@@ -108,6 +108,19 @@ class PlayVariantSeparationTests(unittest.TestCase):
         delete_pos = text.index("find app/build/outputs/bundle -type f -name '*.aab' -delete")
         self.assertGreater(delete_pos, cleanup_pos)
 
+    def test_ci_verifies_signing_resolution_empirically(self):
+        text = ANDROID_CI.read_text()
+        section = text.split('      - name: Verify per-channel release signing resolution\n', 1)[1]
+        step = section.split('      - name: ', 1)[0]
+        # Dummy values for both channels; no real secrets are referenced.
+        self.assertNotIn('secrets.', step)
+        self.assertIn('SEALI_PLAY_UPLOAD_KEYSTORE_FILE: /tmp/play-release.jks', step)
+        self.assertIn('SEALI_UPLOAD_KEYSTORE_FILE: /tmp/gh-release.jks', step)
+        self.assertIn(
+            "grep -q 'VARIANT_SIGNING playRelease: play-release.jks alias=play-alias'", step)
+        for variant in ('genericRelease', 'githubPreviewRelease', 'fdroidRelease'):
+            self.assertIn(variant, step)
+
     def test_ci_play_bundle_uses_only_play_secrets(self):
         text = ANDROID_CI.read_text()
         section = text.split('      - name: Build Google Play App Bundle\n', 1)[1]
