@@ -63,6 +63,19 @@ class PlayVariantSeparationTests(unittest.TestCase):
         self.assertIn(
             'if (isPlayReleaseTask) playUploadKeystoreFile?.isFile == true', self.gradle)
 
+    def test_release_build_type_does_not_override_flavor_signing(self):
+        # AGP resolves a build-type signingConfig over a flavor signingConfig
+        # (verified against variant resolution on 2026-11-16: with githubPublish
+        # on the shared release build type, playRelease signed with the GitHub
+        # key despite the play flavor assigning playPublish). GitHub signing
+        # must live on the GitHub-channel flavors only.
+        build_types = self.gradle.split('buildTypes {', 1)[1].split('flavorDimensions', 1)[0]
+        self.assertNotIn('signingConfig', build_types)
+        for flavor in ('generic', 'githubPreview', 'fdroid'):
+            block = flavor_block(self.gradle, flavor)
+            self.assertIn(
+                'signingConfig = signingConfigs.getByName("githubPublish")', block)
+
     def test_play_manifest_removes_sideload_and_all_files_permissions(self):
         root = ET.fromstring(PLAY_MANIFEST.read_text())
         removed = {

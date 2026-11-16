@@ -192,9 +192,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            if (signingConfigured) {
-                signingConfig = signingConfigs.getByName("githubPublish")
-            }
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -209,17 +206,26 @@ android {
         create("generic") {
             dimension = "publishChannel"
             isDefault = true
+            if (signingConfigured) {
+                signingConfig = signingConfigs.getByName("githubPublish")
+            }
         }
 
         create("githubPreview") {
             dimension = "publishChannel"
             applicationIdSuffix = ".preview"
             resValue("string", "app_name", "Seali Preview")
+            if (signingConfigured) {
+                signingConfig = signingConfigs.getByName("githubPublish")
+            }
         }
 
         create("fdroid") {
             dimension = "publishChannel"
             versionName = "$baseVersionName-(F-Droid)"
+            if (signingConfigured) {
+                signingConfig = signingConfigs.getByName("githubPublish")
+            }
         }
 
         create("play") {
