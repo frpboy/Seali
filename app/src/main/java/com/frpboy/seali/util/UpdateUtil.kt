@@ -22,7 +22,6 @@ import java.util.regex.Pattern
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
@@ -102,7 +101,10 @@ object UpdateUtil {
     internal fun selectLatestRelease(releases: List<Release>, stableOnly: Boolean): Release? =
         releases
             .filter { it.draft != true }
-            .filter { if (stableOnly) it.name.toVersion() is Version.Stable else true }
+            .filter {
+                if (stableOnly) it.preRelease != true && it.name.toVersion() is Version.Stable
+                else true
+            }
             .maxByOrNull { it.name.toVersion() }
 
     fun checkForUpdate(context: Context = App.context): Release? {
@@ -209,55 +211,45 @@ object UpdateUtil {
                 BuildConfig.FLAVOR,
                 BuildConfig.DEBUG,
             )
-            val abiList = Build.SUPPORTED_ABIS
-            val preferredArch = abiList.firstOrNull() ?: return@withContext emptyFlow()
-
+            val preferredArch =
+                Build.SUPPORTED_ABIS.firstOrNull()
+                    ?: throw Exception("device ABI unavailable")
             val targetAsset =
                 release.assets?.find { assetMatchesAbi(it.name, preferredArch) }
-                    ?: return@withContext flow {
-                        throw Exception("no update package matches this device ABI")
-                    }
+                    ?: throw Exception("no update package matches this device ABI")
             val targetUrl =
                 targetAsset.browserDownloadUrl?.takeIf { isTrustedDownloadUrl(it) }
-                    ?: return@withContext flow {
-                        throw Exception("update package URL is missing or untrusted")
-                    }
+                    ?: throw Exception("update package URL is missing or untrusted")
+            // A published checksum file is mandatory to verify when present. Only
+            // releases that publish no checksum asset fall back to APK signer lineage.
             val expectedSha256 = expectedSha256(release = release, assetName = targetAsset.name)
-            // The download goes to a private, per-operation file; it is verified and
-            // handed to the installer as this exact file, so a later or overlapping
-            // download can never substitute another package for the one the user
-            // confirmed.
             val tempApk = newApkDownloadFile(context.getApkDownloadDir().apply { mkdirs() })
-            try {
-                val response =
-                    executeFollowingTrustedRedirects(Request.Builder().url(targetUrl).build())
-                if (!response.isSuccessful) {
-                    response.close()
-                    throw Exception("update download failed: HTTP ${response.code}")
-                }
-                val responseBody = response.body
-                return@withContext flow {
-                        responseBody.downloadFileWithProgress(tempApk).collect { status ->
-                            if (status is DownloadStatus.Finished) {
-                                if (expectedSha256 != null) {
-                                    val actual = sha256FileHex(status.file)
-                                    if (!actual.equals(expectedSha256, ignoreCase = true)) {
-                                        status.file.delete()
-                                        throw Exception("update package checksum mismatch")
-                                    }
+
+            flow {
+                try {
+                    executeFollowingTrustedRedirects(
+                        Request.Builder().url(targetUrl).build()
+                    ).use { response ->
+                        if (!response.isSuccessful) {
+                            throw Exception("update download failed: HTTP ${response.code}")
+                        }
+                        response.body.downloadFileWithProgress(tempApk).collect { status ->
+                            if (status is DownloadStatus.Finished && expectedSha256 != null) {
+                                val actual = sha256FileHex(status.file)
+                                if (!actual.equals(expectedSha256, ignoreCase = true)) {
+                                    throw Exception("update package checksum mismatch")
                                 }
-                                emit(DownloadStatus.Finished(status.file))
-                            } else {
-                                emit(status)
                             }
+                            emit(status)
                         }
                     }
-                    .flowOn(Dispatchers.IO)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                tempApk.delete()
-            }
-            emptyFlow()
+                } catch (e: Exception) {
+                    tempApk.delete()
+                    // Let AppUpdater's failure handler surface the error. Returning an
+                    // empty flow would look like a successful, zero-byte completion.
+                    throw e
+                }
+            }.flowOn(Dispatchers.IO)
         }
 
     private const val MAX_REDIRECTS = 5
@@ -309,20 +301,35 @@ object UpdateUtil {
             release.assets?.firstOrNull {
                 it.name == "SHA256SUMS" || it.name == "SHA256SUMS.txt"
             } ?: return null
-        val sumsUrl = sumsAsset.browserDownloadUrl?.takeIf { isTrustedDownloadUrl(it) }
-            sumsUrl ?: return null
-        return runCatching {
-                executeFollowingTrustedRedirects(Request.Builder().url(sumsUrl).build()).body.use {
-                    body ->
-                    body.string().lineSequence().firstNotNullOfOrNull { line ->
-                        val parts = line.trim().split(Regex("\\s+"))
-                        if (parts.size == 2 && parts[1].trimStart('*') == assetName) parts[0]
-                        else null
-                    }
-                }
+        val sumsUrl =
+            sumsAsset.browserDownloadUrl?.takeIf { isTrustedDownloadUrl(it) }
+                ?: throw IllegalStateException("published checksum asset URL is missing or untrusted")
+
+        return executeFollowingTrustedRedirects(Request.Builder().url(sumsUrl).build()).use {
+            response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException("checksum download failed: HTTP ${response.code}")
             }
-            .getOrNull()
+            parseExpectedSha256(response.body.string(), assetName)
+        }
     }
+
+    /** Parse a published SHA-256 manifest and fail closed when its asset entry is absent. */
+    internal fun parseExpectedSha256(sums: String, assetName: String): String {
+        val hash =
+            sums.lineSequence().firstNotNullOfOrNull { line ->
+                val parts = line.trim().split(Regex("\\s+"))
+                if (parts.size == 2 && parts[1].trimStart('*') == assetName) parts[0]
+                else null
+            } ?: throw IllegalArgumentException("checksum entry missing for asset: $assetName")
+
+        require(Regex("(?i)^[0-9a-f]{64}$").matches(hash)) {
+            "invalid SHA-256 checksum for asset: $assetName"
+        }
+        return hash.lowercase()
+    }
+
+
 
     /** Outcome of the pre-install trust checks on the downloaded update package. */
     sealed class ApkValidation {
@@ -461,56 +468,60 @@ object UpdateUtil {
             .containsMatchIn(assetName)
     }
 
-    private fun ResponseBody.downloadFileWithProgress(saveFile: File): Flow<DownloadStatus> =
+    internal fun ResponseBody.downloadFileWithProgress(saveFile: File): Flow<DownloadStatus> =
         flow {
-                emit(DownloadStatus.Progress(0))
+            var deleteFile = true
+            try {
+                byteStream().use { inputStream ->
+                    saveFile.outputStream().use { outputStream ->
+                        val totalBytes = contentLength()
+                        val hasKnownLength = totalBytes > 0L
+                        emit(DownloadStatus.Progress(if (hasKnownLength) 0 else null))
 
-                var deleteFile = true
+                        val data = ByteArray(8_192)
+                        var progressBytes = 0L
+                        while (true) {
+                            val bytes = inputStream.read(data)
+                            if (bytes == -1) break
 
-                try {
-                    byteStream().use { inputStream ->
-                        saveFile.outputStream().use { outputStream ->
-                            val totalBytes = contentLength()
-                            if (totalBytes <= 0L) {
-                                throw Exception("update package size unknown")
-                            }
-                            val data = ByteArray(8_192)
-                            var progressBytes = 0L
-
-                            while (true) {
-                                val bytes = inputStream.read(data)
-
-                                if (bytes == -1) {
-                                    break
-                                }
-
-                                outputStream.channel
-                                outputStream.write(data, 0, bytes)
-                                progressBytes += bytes
+                            outputStream.write(data, 0, bytes)
+                            progressBytes += bytes
+                            if (hasKnownLength) {
                                 emit(
                                     DownloadStatus.Progress(
-                                        percent = ((progressBytes * 100) / totalBytes).toInt()
+                                        percent = ((progressBytes * 100) / totalBytes)
+                                            .toInt()
+                                            .coerceIn(0, 100)
                                     )
                                 )
                             }
+                        }
 
+                        if (progressBytes == 0L) {
+                            throw Exception("empty update package")
+                        }
+                        if (hasKnownLength) {
                             when {
                                 progressBytes < totalBytes -> throw Exception("missing bytes")
                                 progressBytes > totalBytes -> throw Exception("too many bytes")
-                                else -> deleteFile = false
                             }
                         }
-                    }
-
-                    emit(DownloadStatus.Finished(saveFile))
-                } finally {
-                    if (deleteFile) {
-                        saveFile.delete()
+                        // Without Content-Length, EOF plus the checksum (when
+                        // published) and APK signature/package validation are the
+                        // integrity checks; do not reject a complete response.
+                        deleteFile = false
                     }
                 }
+
+                emit(DownloadStatus.Finished(saveFile))
+            } finally {
+                if (deleteFile) saveFile.delete()
             }
+        }
             .flowOn(Dispatchers.IO)
             .distinctUntilChanged()
+
+
 
     @Serializable
     data class Release(
@@ -539,7 +550,7 @@ object UpdateUtil {
     sealed class DownloadStatus {
         object NotYet : DownloadStatus()
 
-        data class Progress(val percent: Int) : DownloadStatus()
+        data class Progress(val percent: Int?) : DownloadStatus()
 
         data class Finished(val file: File) : DownloadStatus()
     }
