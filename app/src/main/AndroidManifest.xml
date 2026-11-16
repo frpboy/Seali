@@ -40,6 +40,16 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         tools:targetApi="tiramisu">
+        <!-- The sentry-android-core SentryInitProvider auto-initializes the SDK
+             before Application.onCreate and crashes the process when no
+             io.sentry.dsn meta-data is present (verified: Firebase Test Lab
+             robo run matrix-2wkcs6zz3bjp5, API 26, FATAL "DSN is required").
+             Initialization is explicit in CrashReporting.init, which is a
+             no-op without a configured DSN, so the SDK's auto-init is
+             disabled here. Startup must never depend on a DSN. -->
+        <meta-data
+            android:name="io.sentry.auto-init"
+            android:value="false" />
         <activity
             android:name=".CrashReportActivity"
             android:exported="false"
