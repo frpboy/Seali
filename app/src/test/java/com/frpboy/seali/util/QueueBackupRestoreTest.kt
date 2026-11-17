@@ -250,4 +250,32 @@ class QueueBackupRestoreTest {
         assertTrue(t !in plan.restored)
         assertEquals(mapOf(t to "/o.mp4"), plan.recoveredCompletions)
     }
+
+    @Test
+    fun rolloverExpiresOnlyKnownEndedOutcomesFromEarlierDays() {
+        val doneYesterday = task(27)
+        val failedYesterday = task(28)
+        val doneToday = task(29)
+        val undatedCanceled = task(30)
+        val runningNow = task(31)
+        val map =
+            mapOf(
+                doneYesterday to withEnd(Completed("/a"), yesterdayLate),
+                failedYesterday to withEnd(Task.DownloadState.Error(action = Download), yesterdayLate),
+                doneToday to withEnd(Completed("/b"), todayEarly),
+                undatedCanceled to withEnd(Canceled(action = Download), null),
+                runningNow to state(Running(taskId = runningNow.id)).copy(startedAtMs = yesterdayLate),
+            )
+        val expired = expiredOutcomeTasks(map, now, zone).toSet()
+        assertEquals(setOf(doneYesterday, failedYesterday), expired)
+    }
+
+    @Test
+    fun appOpenAcrossMidnightExpiresATodayOutcomeOnceTheDayChanges() {
+        val t = task(32)
+        val s = withEnd(Completed("/c"), now)
+        assertTrue(expiredOutcomeTasks(mapOf(t to s), now + 3_600_000L, zone).isEmpty())
+        val nextDay = now + 24L * 3_600_000L
+        assertEquals(listOf(t), expiredOutcomeTasks(mapOf(t to s), nextDay, zone))
+    }
 }

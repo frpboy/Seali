@@ -80,6 +80,24 @@ internal fun isSameLocalDay(aMs: Long, bMs: Long, zone: ZoneId): Boolean =
     Instant.ofEpochMilli(aMs).atZone(zone).toLocalDate() ==
         Instant.ofEpochMilli(bMs).atZone(zone).toLocalDate()
 
+/**
+ * A known-ended outcome (this app recorded the end time) from an earlier local day.
+ * Used by the live queue at day rollover and by restore. Tasks that are active,
+ * unresolved, or have no recorded end time are never expired by this rule.
+ */
+internal fun isExpiredOutcome(state: Task.State, nowMs: Long, zone: ZoneId): Boolean {
+    val ds = state.downloadState
+    val ended = state.endedAtMs ?: return false
+    return (ds is Completed || ds is Error || ds is Canceled) && !isSameLocalDay(ended, nowMs, zone)
+}
+
+/** Tasks to drop from the in-memory queue view at rollover. Files and Room are not touched. */
+internal fun expiredOutcomeTasks(
+    map: Map<Task, Task.State>,
+    nowMs: Long,
+    zone: ZoneId,
+): List<Task> = map.filter { (_, state) -> isExpiredOutcome(state, nowMs, zone) }.keys.toList()
+
 internal fun planQueueBackupRestore(
     saved: Map<Task, Task.State>,
     nowMs: Long = System.currentTimeMillis(),
@@ -130,12 +148,8 @@ internal fun planQueueBackupRestore(
         mapped.filter { (_, state) ->
             val ds = state.downloadState
             val ended = state.endedAtMs
-            when {
-                ds is Completed -> ended != null && isSameLocalDay(ended, nowMs, zone)
-                (ds is Error || ds is Canceled) && ended != null ->
-                    isSameLocalDay(ended, nowMs, zone)
-                else -> true
-            }
+            !isExpiredOutcome(state, nowMs, zone) &&
+                !(ds is Completed && ended == null)
         }
     return QueueBackupRestorePlan(restored, stale, recovered)
 }

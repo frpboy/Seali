@@ -24,6 +24,7 @@ import com.frpboy.seali.util.DownloadUtil
 import com.frpboy.seali.util.FileUtil
 import com.frpboy.seali.util.NotificationUtil
 import com.frpboy.seali.util.TaskCompletionJournal
+import com.frpboy.seali.util.expiredOutcomeTasks
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.VideoInfo
 import com.frpboy.seali.util.planHistoryMerge
@@ -39,6 +40,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import java.io.File
+import java.time.ZoneId
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -51,6 +54,7 @@ import org.koin.core.component.KoinComponent
 private const val TAG = "DownloaderV2"
 
 private const val MAX_CONCURRENCY = 3
+private const val ROLLOVER_CHECK_INTERVAL_MS = 5L * 60L * 1000L
 
 interface DownloaderV2 {
     fun getTaskStateMap(): SnapshotStateMap<Task, Task.State>
@@ -130,6 +134,15 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     private val hiddenHistoryPaths = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     init {
+        // Known-ended outcomes belong to the day they ended. Check periodically so an app that
+        // stays open across midnight drops yesterday's finished/failed/canceled cards from the
+        // queue view. Active and unresolved tasks, files and Room history are never touched.
+        scope.launch(Dispatchers.Default) {
+            while (true) {
+                delay(ROLLOVER_CHECK_INTERVAL_MS)
+                pruneExpiredOutcomes()
+            }
+        }
         scope.launch(Dispatchers.Default) {
             snapshotFlow
                 .onEach { doYourWork() }
@@ -175,6 +188,11 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                     PreferenceUtil.encodeTaskListBackup(it)
                 }
         }
+    }
+
+    private fun pruneExpiredOutcomes() {
+        expiredOutcomeTasks(taskStateMap.toMap(), System.currentTimeMillis(), ZoneId.systemDefault())
+            .forEach { taskStateMap.remove(it) }
     }
 
     private fun enqueueFromBackup() {
