@@ -25,6 +25,7 @@ import com.frpboy.seali.util.FileUtil
 import com.frpboy.seali.util.NotificationUtil
 import com.frpboy.seali.util.TaskCompletionJournal
 import com.frpboy.seali.util.expiredOutcomeTasks
+import com.frpboy.seali.util.backupToPersist
 import com.frpboy.seali.util.journalIdsToKeep
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.VideoInfo
@@ -37,6 +38,7 @@ import kotlin.collections.component1
 import kotlin.collections.component2
 import kotlin.collections.set
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
@@ -119,7 +121,9 @@ internal object FakeDownloaderV2 : DownloaderV2 {
 @OptIn(FlowPreview::class)
 class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComponent {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val historyPendingIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    /** Recovered completions awaiting their history row: task to its original saved entry. */
+    private val pendingRecovered = java.util.concurrent.ConcurrentHashMap<Task, Task.State>()
+    private val persistLock = Any()
     private val journal = TaskCompletionJournal(File(appContext.filesDir, "task-journal"))
     private val taskStateMap = mutableStateMapOf<Task, Task.State>()
     private val snapshotFlow = snapshotFlow { taskStateMap.toMap() }
@@ -188,14 +192,25 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                 .distinctUntilChanged()
                 .collect {
                     it.forEach { Log.d(TAG, it.value.viewState.title) }
-                    // Delete journal records only after this state was durably written (a
-                    // failed or guarded write returns failure and sweeps nothing).
-                    if (PreferenceUtil.encodeTaskListBackup(it).isSuccess) {
-                        journal.sweepExcept(
-                            journalIdsToKeep(it, taskStateMap.toMap(), historyPendingIds.toSet())
-                        )
-                    }
+                    persistBackup(it)
                 }
+        }
+    }
+
+    /**
+     * Writes the queue backup, then (only on a successful guarded write) sweeps journal
+     * records that the persisted and live states no longer need.
+     */
+    private fun persistBackup(selected: Map<Task, Task.State>) {
+        synchronized(persistLock) {
+            val sweepCutoff = System.currentTimeMillis()
+            val toWrite = backupToPersist(selected, pendingRecovered.toMap())
+            if (PreferenceUtil.encodeTaskListBackup(toWrite).isSuccess) {
+                journal.sweepExcept(
+                    journalIdsToKeep(toWrite, taskStateMap.toMap(), emptySet()),
+                    sweepCutoff,
+                )
+            }
         }
     }
 
@@ -222,15 +237,19 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
         // A recovered completion is a finished download whose history row the dead process
         // never wrote; add it (the DAO ignores a path that is already recorded).
         plan.recoveredCompletions.forEach { (task, path) ->
-            val info = saved[task]?.videoInfo
+            val original = saved[task] ?: return@forEach
+            val info = original.videoInfo
             if (info == null || task.preferences.privateMode) return@forEach
-            historyPendingIds += task.id
+            // Persist the original interrupted entry until the history row exists.
+            pendingRecovered[task] = original
             scope.launch {
                 try {
                     DownloadUtil.recordRecoveredDownload(info, task.preferences, path)
-                    historyPendingIds -= task.id
+                    pendingRecovered.remove(task)
+                    persistBackup(selectTaskBackupEntries(taskStateMap.toMap()))
                 } catch (e: Exception) {
-                    Log.e(TAG, "recovered history insert failed; journal kept", e)
+                    // The entry stays persisted as interrupted, so the next restore retries.
+                    Log.e(TAG, "recovered history insert failed; will retry at next restore", e)
                 }
             }
         }
@@ -378,7 +397,7 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
             return
         }
         scope
-            .launch(Dispatchers.Default) {
+            .launch(Dispatchers.Default, start = CoroutineStart.LAZY) {
                 DownloadUtil.downloadVideo(
                         videoInfo = info,
                         taskId = id,
@@ -439,7 +458,11 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                         )
                     }
             }
-            .also { job -> downloadState = Running(job = job, taskId = id) }
+            .also { job ->
+                // Running is visible (and protects the journal) before the job can start.
+                downloadState = Running(job = job, taskId = id)
+                job.start()
+            }
     }
 
     private fun Task.cancelImpl(): Boolean {

@@ -94,4 +94,16 @@ class TaskCompletionJournalTest {
         assertEquals(File(root, "b.mp4").path, j.read("b")?.path)
         assertNotEquals(j.fileFor("a"), j.fileFor("b"))
     }
+
+    @Test
+    fun aRecordWrittenAfterTheSweepDecisionIsNeverDeleted() {
+        val j = journal()
+        finished(j, "rerun", File(root, "r.mp4").path)
+        val decidedAt = j.fileFor("rerun").lastModified() - 5_000L
+        // The keep list was computed before this rerun's journal was prepared.
+        j.sweepExcept(emptySet(), decidedAt)
+        assertEquals(File(root, "r.mp4").path, j.read("rerun")?.path)
+        j.sweepExcept(emptySet(), System.currentTimeMillis() + 1_000L)
+        assertNull(j.read("rerun"))
+    }
 }

@@ -35,9 +35,14 @@ internal class TaskCompletionJournal(private val dir: File) {
      * backup was durably written, so a record is never deleted before the persisted
      * state no longer needs it.
      */
-    fun sweepExcept(keepTaskIds: Set<String>) {
+    fun sweepExcept(keepTaskIds: Set<String>, notModifiedAfterMs: Long = Long.MAX_VALUE) {
         val keep = keepTaskIds.map { base(it) }.toSet()
-        dir.listFiles()?.forEach { if (it.isFile && it.name.substringBefore('.') !in keep) it.delete() }
+        // Records written after the sweep decision was taken belong to a run that started
+        // meanwhile and are never touched.
+        dir.listFiles()?.forEach {
+            if (it.isFile && it.name.substringBefore('.') !in keep && it.lastModified() <= notModifiedAfterMs)
+                it.delete()
+        }
     }
 
     fun prepare(taskId: String): File {

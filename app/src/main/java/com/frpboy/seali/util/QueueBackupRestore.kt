@@ -175,3 +175,15 @@ internal fun journalIdsToKeep(
         }.keys.map { it.id }
     return (open(persisted) + open(live) + historyPendingIds).toSet()
 }
+
+/**
+ * The map to persist: the live selection, except that a recovered completion whose history
+ * row is not yet written stays persisted as its original (interrupted) entry. It becomes
+ * persistable as Completed only after the history insert succeeded, so a crash or an
+ * insert failure leaves the next restore able to recover it again.
+ */
+internal fun backupToPersist(
+    selected: Map<Task, Task.State>,
+    pendingOriginals: Map<Task, Task.State>,
+): Map<Task, Task.State> =
+    selected.filterKeys { it !in pendingOriginals.keys } + pendingOriginals

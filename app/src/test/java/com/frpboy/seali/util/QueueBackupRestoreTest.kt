@@ -336,4 +336,29 @@ class QueueBackupRestoreTest {
         assertTrue(guard.restore("garbage").isFailure)
         assertTrue(guard.encodeForStorage("empty").isFailure)
     }
+
+    @Test
+    fun recoveredCompletionStaysPersistedAsInterruptedUntilItsHistoryRowExists() {
+        val t = task(50)
+        val original = withEnd(Running(taskId = t.id, progress = 0.9f), null)
+        val liveSelected = mapOf(t to withEnd(Completed("/f.mp4"), 9L))
+        // History insert pending (or failed): the durable backup keeps the Running entry,
+        // so a crash or insert failure lets the next restore recover it again.
+        val persisted = backupToPersist(liveSelected, mapOf(t to original))
+        assertEquals(original, persisted[t])
+        assertEquals(setOf(t.id), journalIdsToKeep(persisted, liveSelected, emptySet()))
+        // After the insert succeeded the live Completed entry is persisted.
+        assertEquals(liveSelected[t], backupToPersist(liveSelected, emptyMap())[t])
+    }
+
+    @Test
+    fun otherTasksAreStillPersistedWhileARecoveryIsPending() {
+        val a = task(51)
+        val b = task(52)
+        val orig = withEnd(Running(taskId = a.id, progress = 0.1f), null)
+        val live = mapOf(a to withEnd(Completed("/a"), 9L), b to withEnd(Idle, null))
+        val out = backupToPersist(live, mapOf(a to orig))
+        assertEquals(setOf(a, b), out.keys)
+        assertEquals(live[b], out[b])
+    }
 }
