@@ -82,14 +82,22 @@ internal fun planQueueBackupRestore(
     val stale = mutableSetOf<Int>()
     val restored =
         saved
-            // A Completed task the app itself finished stays in today's queue only. A
-            // Completed entry with no recorded end time has unknown age and is not shown
-            // here; the download and its history row are untouched. Unfinished tasks
-            // (Error/Canceled/etc.) are kept regardless of age.
+            // Retention for the queue view only (backups, files and Room history are not
+            // deleted by this filter):
+            //  - a task with a recorded end time (Completed, Error or Canceled by this app)
+            //    is a known outcome and stays for that local day only;
+            //  - Completed with no end time has unknown age and is not shown here;
+            //  - everything else (interrupted or in-progress work, or Error/Canceled with
+            //    no recorded end time) is unresolved and stays until the user resolves it.
             .filter { (_, state) ->
                 val ds = state.downloadState
-                ds !is Completed ||
-                    (state.endedAtMs?.let { isSameLocalDay(it, nowMs, zone) } == true)
+                val ended = state.endedAtMs
+                when {
+                    ds is Completed -> ended != null && isSameLocalDay(ended, nowMs, zone)
+                    (ds is Error || ds is Canceled) && ended != null ->
+                        isSameLocalDay(ended, nowMs, zone)
+                    else -> true
+                }
             }
             .mapValues { (task, state) ->
                 val pre = state.downloadState

@@ -136,11 +136,28 @@ class QueueBackupRestoreTest {
     }
 
     @Test
-    fun unfinishedTasksSurviveAcrossDaysAndKeepTheirDates() {
-        val old = task(14)
-        val oldCanceled = withEnd(Canceled(action = Download), yesterdayLate)
-        val plan = planQueueBackupRestore(mapOf(old to oldCanceled), nowMs = now, zone = zone)
-        assertEquals(oldCanceled, plan.restored[old])
+    fun knownEndedOutcomesFromEarlierDaysLeaveTheQueueViewButUndatedUnresolvedWorkStays() {
+        val oldCanceled = task(14)
+        val oldError = task(17)
+        val todayCanceled = task(18)
+        val undatedCanceled = task(19)
+        val idle = task(20)
+        val plan =
+            planQueueBackupRestore(
+                mapOf(
+                    oldCanceled to withEnd(Canceled(action = Download), yesterdayLate),
+                    oldError to withEnd(Task.DownloadState.Error(action = Download), yesterdayLate),
+                    todayCanceled to withEnd(Canceled(action = Download), todayEarly),
+                    undatedCanceled to withEnd(Canceled(action = Download), null),
+                    idle to state(Idle),
+                ),
+                nowMs = now,
+                zone = zone,
+            )
+        assertEquals(setOf(todayCanceled, undatedCanceled, idle), plan.restored.keys)
+        assertEquals(todayEarly, plan.restored[todayCanceled]?.endedAtMs)
+        assertNull(plan.restored[undatedCanceled]?.endedAtMs)
+        assertNull(plan.restored[idle]?.endedAtMs)
     }
 
     @Test
