@@ -1,0 +1,50 @@
+name: Test evidence (diagnostic, never merged)
+# Runs only on diag/** branches. Read-only unit tests, no signing, no packaging, no artifacts other
+# than JUnit XML. Not a release workflow.
+on:
+  push:
+    branches: [ "diag/**" ]
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
+      - uses: gradle/actions/setup-gradle@v3
+      - run: chmod +x gradlew
+      - name: Run selected unit test classes
+        run: ./gradlew -PfunctionalAlphaCandidate testGenericDebugUnitTest --tests '*QueueBackupRestoreTest' --tests '*QueueHistoryMergeTest' --tests '*TaskBackupMigrationTest' --tests '*TaskCompletionJournalTest' --tests '*QueueDisplayOrderTest' --continue
+      - name: Per-class results
+        if: always()
+        run: |
+          echo "SHA=$(git rev-parse HEAD)"
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          for f in sorted(glob.glob('app/build/test-results/testGenericDebugUnitTest/*.xml')):
+              r = ET.parse(f).getroot()
+              print(r.get('name'), 'tests=%s failures=%s errors=%s skipped=%s' % (r.get('tests'), r.get('failures'), r.get('errors'), r.get('skipped')))
+              for tc in r.findall('testcase'):
+                  bad = tc.find('failure') is not None or tc.find('error') is not None
+                  print('   ', 'FAIL' if bad else 'ok  ', tc.get('name'))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-xml
+          path: app/build/test-results/testGenericDebugUnitTest/*.xml
