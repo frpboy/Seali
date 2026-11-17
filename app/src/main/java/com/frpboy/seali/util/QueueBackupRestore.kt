@@ -31,6 +31,12 @@ import java.time.ZoneId
 internal data class QueueBackupRestorePlan(
     val restored: Map<Task, Task.State>,
     val staleNotificationIds: Set<Int>,
+    /**
+     * Tasks recovered as Completed from their own yt-dlp completion record: task to output
+     * path. Independent of queue-view retention, so the finished file still gets its
+     * history row even when an older outcome leaves today's queue.
+     */
+    val recoveredCompletions: Map<Task, String> = emptyMap(),
 )
 
 internal fun Task.progressNotificationId(): Int = id.hashCode()
@@ -78,42 +84,58 @@ internal fun planQueueBackupRestore(
     saved: Map<Task, Task.State>,
     nowMs: Long = System.currentTimeMillis(),
     zone: ZoneId = ZoneId.systemDefault(),
+    completionRecord: (Task) -> TaskCompletionJournal.Entry? = { null },
+    outputIsPresent: (String) -> Boolean = { false },
 ): QueueBackupRestorePlan {
     val stale = mutableSetOf<Int>()
-    val restored =
-        saved
-            // Retention for the queue view only (backups, files and Room history are not
-            // deleted by this filter):
-            //  - a task with a recorded end time (Completed, Error or Canceled by this app)
-            //    is a known outcome and stays for that local day only;
-            //  - Completed with no end time has unknown age and is not shown here;
-            //  - everything else (interrupted or in-progress work, or Error/Canceled with
-            //    no recorded end time) is unresolved and stays until the user resolves it.
-            .filter { (_, state) ->
-                val ds = state.downloadState
-                val ended = state.endedAtMs
-                when {
-                    ds is Completed -> ended != null && isSameLocalDay(ended, nowMs, zone)
-                    (ds is Error || ds is Canceled) && ended != null ->
-                        isSameLocalDay(ended, nowMs, zone)
-                    else -> true
-                }
-            }
-            .mapValues { (task, state) ->
-                val pre = state.downloadState
-                val next =
-                    when (pre) {
-                        is Completed -> pre
-                        is FetchingInfo,
-                        Idle -> Canceled(action = FetchInfo)
-                        is Running -> Canceled(action = Download, progress = pre.progress)
-                        ReadyWithInfo -> Canceled(action = Download, progress = null)
-                        else -> pre
+    val recovered = mutableMapOf<Task, String>()
+    val mapped =
+        saved.mapValues { (task, state) ->
+            val pre = state.downloadState
+            val next =
+                when (pre) {
+                    is Completed -> pre
+                    is Running -> {
+                        // yt-dlp's own after-move report for THIS task, with its output
+                        // still present, is the only evidence that the interrupted run
+                        // finished. Without it the task stays an interrupted Canceled.
+                        val record = completionRecord(task)
+                        if (record != null && outputIsPresent(record.path)) {
+                            recovered[task] = record.path
+                            Completed(record.path)
+                        } else Canceled(action = Download, progress = pre.progress)
                     }
-                if (pre is FetchingInfo || pre is Running || pre === Idle || pre === ReadyWithInfo) {
-                    stale += task.progressNotificationId()
+                    is FetchingInfo,
+                    Idle -> Canceled(action = FetchInfo)
+                    ReadyWithInfo -> Canceled(action = Download, progress = null)
+                    else -> pre
                 }
-                state.copy(downloadState = next)
+            if (pre is FetchingInfo || pre is Running || pre === Idle || pre === ReadyWithInfo) {
+                stale += task.progressNotificationId()
             }
-    return QueueBackupRestorePlan(restored, stale)
+            val ended =
+                if (task in recovered)
+                    completionRecord(task)?.writtenAtMs ?: state.endedAtMs
+                else state.endedAtMs
+            state.copy(downloadState = next, endedAtMs = ended)
+        }
+    // Retention for the queue view only (backups, files and Room history are not
+    // deleted by this filter):
+    //  - a task with a recorded end time (Completed, Error or Canceled) is a known
+    //    outcome and stays for that local day only;
+    //  - Completed with no end time has unknown age and is not shown here;
+    //  - everything else (interrupted or in-progress work, or Error/Canceled with no
+    //    recorded end time) is unresolved and stays until the user resolves it.
+    val restored =
+        mapped.filter { (_, state) ->
+            val ds = state.downloadState
+            val ended = state.endedAtMs
+            when {
+                ds is Completed -> ended != null && isSameLocalDay(ended, nowMs, zone)
+                (ds is Error || ds is Canceled) && ended != null ->
+                    isSameLocalDay(ended, nowMs, zone)
+                else -> true
+            }
+        }
+    return QueueBackupRestorePlan(restored, stale, recovered)
 }

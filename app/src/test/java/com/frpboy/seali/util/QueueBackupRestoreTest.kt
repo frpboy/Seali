@@ -179,4 +179,75 @@ class QueueBackupRestoreTest {
         val dated = TaskBackupCodec.decode(TaskBackupCodec.encode(mapOf(t to withEnd(Completed("/z"), 7L))))
         assertEquals(7L, dated.values.single().endedAtMs)
     }
+
+    @Test
+    fun interruptedTaskWithItsOwnCompletionRecordAndOutputBecomesCompleted() {
+        val t = task(21)
+        val running = state(Running(taskId = t.id))
+        val record = TaskCompletionJournal.Entry("/out/v.mp4", todayEarly)
+        val plan =
+            planQueueBackupRestore(
+                mapOf(t to running),
+                nowMs = now,
+                zone = zone,
+                completionRecord = { if (it == t) record else null },
+                outputIsPresent = { it == "/out/v.mp4" },
+            )
+        assertEquals(Completed("/out/v.mp4"), plan.restored[t]?.downloadState)
+        assertEquals(todayEarly, plan.restored[t]?.endedAtMs)
+        assertEquals(mapOf(t to "/out/v.mp4"), plan.recoveredCompletions)
+        assertTrue(t.progressNotificationId() in plan.staleNotificationIds)
+    }
+
+    @Test
+    fun completionRecordWithoutThePresentOutputStaysInterruptedCanceled() {
+        val t = task(22)
+        val plan =
+            planQueueBackupRestore(
+                mapOf(t to state(Running(taskId = t.id))),
+                nowMs = now,
+                zone = zone,
+                completionRecord = { TaskCompletionJournal.Entry("/gone.mp4", todayEarly) },
+                outputIsPresent = { false },
+            )
+        assertEquals(Canceled(action = Download, progress = Running(taskId = t.id).progress), plan.restored[t]?.downloadState)
+        assertNull(plan.restored[t]?.endedAtMs)
+        assertTrue(plan.recoveredCompletions.isEmpty())
+    }
+
+    @Test
+    fun onlyRunningTasksAreRecoveredAndAFileAloneNeverCompletesATask() {
+        val running = task(23)
+        val idle = task(24)
+        val canceled = task(25)
+        val plan =
+            planQueueBackupRestore(
+                mapOf(
+                    running to state(Running(taskId = running.id)),
+                    idle to state(Idle),
+                    canceled to state(Canceled(action = Download)),
+                ),
+                nowMs = now,
+                zone = zone,
+                completionRecord = { null },
+                outputIsPresent = { true },
+            )
+        assertTrue(plan.recoveredCompletions.isEmpty())
+        assertTrue(plan.restored.values.none { it.downloadState is Completed })
+    }
+
+    @Test
+    fun recoveredCompletionFromAnEarlierDayLeavesTheQueueViewButIsStillReportedForHistory() {
+        val t = task(26)
+        val plan =
+            planQueueBackupRestore(
+                mapOf(t to state(Running(taskId = t.id))),
+                nowMs = now,
+                zone = zone,
+                completionRecord = { TaskCompletionJournal.Entry("/o.mp4", yesterdayLate) },
+                outputIsPresent = { true },
+            )
+        assertTrue(t !in plan.restored)
+        assertEquals(mapOf(t to "/o.mp4"), plan.recoveredCompletions)
+    }
 }

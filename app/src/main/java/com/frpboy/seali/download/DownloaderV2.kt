@@ -23,6 +23,7 @@ import com.frpboy.seali.util.DatabaseUtil
 import com.frpboy.seali.util.DownloadUtil
 import com.frpboy.seali.util.FileUtil
 import com.frpboy.seali.util.NotificationUtil
+import com.frpboy.seali.util.TaskCompletionJournal
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.VideoInfo
 import com.frpboy.seali.util.planHistoryMerge
@@ -177,11 +178,23 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     }
 
     private fun enqueueFromBackup() {
-        val plan = planQueueBackupRestore(PreferenceUtil.decodeTaskListBackup())
+        val journal = TaskCompletionJournal(File(appContext.filesDir, "task-journal"))
+        val saved = PreferenceUtil.decodeTaskListBackup()
+        val plan =
+            planQueueBackupRestore(
+                saved,
+                completionRecord = { journal.read(it.id) },
+                outputIsPresent = { path -> File(path).let { it.isFile && it.length() > 0 } },
+            )
         // The previous process may have died while its ongoing progress notifications
         // were posted. Those tasks are now restartable Canceled entries, so clear them.
         plan.staleNotificationIds.forEach(NotificationUtil::cancelNotification)
         plan.restored.forEach(::enqueue)
+        // A recovered completion is a finished download whose history row the dead process
+        // never wrote; add it (the DAO ignores a path that is already recorded).
+        plan.recoveredCompletions.forEach { (task, path) ->
+            DownloadUtil.recordRecoveredDownload(saved[task]?.videoInfo, task.preferences, path)
+        }
     }
 
     private fun Map<Task, Task.State>.countRunning(): Int = count { (_, state) ->

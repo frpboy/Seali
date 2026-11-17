@@ -42,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.io.File
 import java.util.Locale
 
 object DownloadUtil {
@@ -624,6 +625,20 @@ object DownloadUtil {
             }
         }
 
+    /**
+     * Records a download that finished while the app process was gone. Same row shape
+     * and path-based de-duplication as a normal finish; skipped in private mode and when
+     * the task has no saved video info.
+     */
+    fun recordRecoveredDownload(
+        videoInfo: VideoInfo?,
+        preferences: DownloadPreferences,
+        path: String,
+    ) {
+        if (videoInfo == null || preferences.privateMode) return
+        DatabaseUtil.insertInfo(videoInfo.toDownloadedVideoInfo(videoPath = path))
+    }
+
     private fun insertInfoIntoDownloadHistory(
         videoInfo: VideoInfo,
         filePaths: List<String>,
@@ -685,10 +700,20 @@ object DownloadUtil {
             val request = YoutubeDLRequest(url)
             val pathBuilder = StringBuilder()
             val outputBuilder = StringBuilder()
+            // yt-dlp reports a finished output path to a task-owned file (see
+            // TaskCompletionJournal). Only single-file, non-SAF downloads use it.
+            val journal = TaskCompletionJournal(File(context.filesDir, "task-journal"))
+            val journalFile =
+                if (!sdcard && !splitByChapter) journal.prepare(taskId) else null
 
             request
                 .apply {
                     addOption("--no-mtime")
+                    journalFile?.let {
+                        addCommands(
+                            listOf("--print-to-file", "after_move:filepath", it.absolutePath)
+                        )
+                    }
                     //                addOption("-v")
                     if (cookies) {
                         enableCookies(userAgentString)
