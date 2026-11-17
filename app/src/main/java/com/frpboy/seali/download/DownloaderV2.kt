@@ -27,6 +27,8 @@ import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.VideoInfo
 import com.frpboy.seali.util.planHistoryMerge
 import com.frpboy.seali.util.planQueueBackupRestore
+import com.frpboy.seali.util.selectTaskBackupEntries
+import com.frpboy.seali.util.withDownloadState
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlin.collections.component1
 import kotlin.collections.component2
@@ -145,7 +147,14 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                     }
                     .collect { (session, history) ->
                         val plan =
-                            planHistoryMerge(session, history, hiddenHistoryPaths) { path ->
+                            planHistoryMerge(
+                                session,
+                                history,
+                                hiddenHistoryPaths,
+                                // The queue shows this app's own tasks and outcomes; the
+                                // Downloads page owns the full history.
+                                includeHistory = false,
+                            ) { path ->
                                 File(path).exists()
                             }
                         if (plan.toRemoveIds.isNotEmpty()) {
@@ -158,7 +167,7 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
             }
 
             snapshotFlow
-                .map { it.filter { it.value.downloadState !is Completed } }
+                .map { selectTaskBackupEntries(it) }
                 .distinctUntilChanged()
                 .collect {
                     it.forEach { Log.d(TAG, it.value.viewState.title) }
@@ -227,8 +236,7 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     private var Task.downloadState: DownloadState
         get() = state.downloadState
         set(value) {
-            val prevState = state
-            taskStateMap[this] = prevState.copy(downloadState = value)
+            taskStateMap[this] = state.withDownloadState(value, System.currentTimeMillis())
         }
 
     private var Task.info: VideoInfo?
