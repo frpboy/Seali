@@ -26,6 +26,7 @@ import com.frpboy.seali.util.NotificationUtil
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.VideoInfo
 import com.frpboy.seali.util.planHistoryMerge
+import com.frpboy.seali.util.planQueueBackupRestore
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlin.collections.component1
 import kotlin.collections.component2
@@ -167,31 +168,11 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     }
 
     private fun enqueueFromBackup() {
-        val taskList =
-            PreferenceUtil.decodeTaskListBackup()
-                .filter { it.value.downloadState !is Completed }
-                .mapValues { (_, state) ->
-                    val preState = state.downloadState
-                    val downloadState =
-                        when (preState) {
-                            is FetchingInfo,
-                            Idle -> {
-                                Canceled(action = FetchInfo)
-                            }
-                            is Running -> {
-                                Canceled(action = Download, progress = preState.progress)
-                            }
-
-                            ReadyWithInfo -> {
-                                Canceled(action = Download, progress = null)
-                            }
-                            else -> {
-                                preState
-                            }
-                        }
-                    state.copy(downloadState = downloadState)
-                }
-        taskList.forEach(::enqueue)
+        val plan = planQueueBackupRestore(PreferenceUtil.decodeTaskListBackup())
+        // The previous process may have died while its ongoing progress notifications
+        // were posted. Those tasks are now restartable Canceled entries, so clear them.
+        plan.staleNotificationIds.forEach(NotificationUtil::cancelNotification)
+        plan.restored.forEach(::enqueue)
     }
 
     private fun Map<Task, Task.State>.countRunning(): Int = count { (_, state) ->
