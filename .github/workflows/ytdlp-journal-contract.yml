@@ -1,0 +1,84 @@
+name: yt-dlp journal contract (diagnostic, never merged)
+# Diagnostic only. Runs the exact pinned yt-dlp source archive that Seali's source ledger
+# lists (2026.10.26, archive sha256 verified) on a hosted runner against a localhost
+# fixture. It checks the completion-journal contract used by TaskCompletionJournal:
+#   --print-to-file after_move:filepath <file>
+# (1) written once, after the file was moved into the destination, single path;
+# (2) NOT written when the process is killed mid-download.
+# This is desktop CPython, not the in-app interpreter or native engine. No signing, no
+# release, no Maven, no publication. Contents read only.
+on:
+  push:
+    branches: ['diag/**']
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch and verify the pinned yt-dlp archive
+        run: |
+          set -euo pipefail
+          curl -sSL -o /tmp/yt-dlp.tar.gz https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp.tar.gz
+          echo "21f942d258d25cc4e60b4982a25c423460f0bebb835f38e6dfd1fcb140087f95  /tmp/yt-dlp.tar.gz" | sha256sum -c -
+          mkdir -p /tmp/ytd && tar xzf /tmp/yt-dlp.tar.gz -C /tmp/ytd
+          PYTHONPATH=/tmp/ytd/yt-dlp python -c "import yt_dlp.version as v; print('yt-dlp', v.__version__)"
+      - name: Journal contract
+        run: |
+          set -euo pipefail
+          export PYTHONPATH=/tmp/ytd/yt-dlp
+          cp app/src/androidTest/assets/functional/video.mp4 /tmp/fixture.mp4
+          cat > /tmp/serve.py <<'PY'
+          import http.server, os, sys, time
+          data = open('/tmp/fixture.mp4','rb').read()
+          slow = sys.argv[2] == 'slow'
+          class H(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  self.send_response(200)
+                  self.send_header('Content-Type','video/mp4')
+                  self.send_header('Content-Length', str(len(data)*(40 if slow else 1)))
+                  self.end_headers()
+                  reps = 40 if slow else 1
+                  for _ in range(reps):
+                      for i in range(0, len(data), 16384):
+                          self.wfile.write(data[i:i+16384]); self.wfile.flush()
+                          if slow: time.sleep(0.05)
+              do_HEAD = do_GET
+              def log_message(self,*a): pass
+          http.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1])), H).serve_forever()
+          PY
+          # (1) normal completion
+          python /tmp/serve.py 8801 fast & S1=$!
+          sleep 1
+          rm -rf /tmp/dest1 /tmp/j1; mkdir -p /tmp/dest1
+          python -m yt_dlp -P /tmp/dest1 --print-to-file after_move:filepath /tmp/j1.txt -o 'clip.%(ext)s' http://127.0.0.1:8801/clip.mp4
+          kill $S1
+          echo "--- journal 1:"; cat /tmp/j1.txt
+          test "$(grep -c . /tmp/j1.txt)" = "1"
+          P=$(head -n1 /tmp/j1.txt)
+          case "$P" in /tmp/dest1/*) ;; *) echo "journal path outside destination: $P"; exit 1;; esac
+          test -s "$P"
+          cmp "$P" /tmp/fixture.mp4
+          test "$(stat -c %Y /tmp/j1.txt)" -ge "$(stat -c %Y "$P")" || { echo "journal older than final file"; exit 1; }
+          # (2) killed mid-download: no journal, only partial output
+          python /tmp/serve.py 8802 slow & S2=$!
+          sleep 1
+          rm -rf /tmp/dest2 /tmp/j2.txt; mkdir -p /tmp/dest2
+          python -m yt_dlp -P /tmp/dest2 --print-to-file after_move:filepath /tmp/j2.txt -o 'clip.%(ext)s' http://127.0.0.1:8802/clip.mp4 > /tmp/run2.log 2>&1 & Y=$!
+          for i in $(seq 1 60); do ls /tmp/dest2/*.part >/dev/null 2>&1 && break; sleep 0.5; done
+          ls /tmp/dest2/*.part
+          sleep 1
+          kill -9 $Y || true
+          sleep 1
+          kill $S2 || true
+          ls -la /tmp/dest2
+          if [ -e /tmp/j2.txt ]; then echo "journal exists after kill:"; cat /tmp/j2.txt; exit 1; fi
+          test ! -e /tmp/dest2/clip.mp4
+          echo "CONTRACT OK: journal written only after move; absent after mid-download kill (yt-dlp 2026.10.26, desktop CPython $(python -V 2>&1))"
