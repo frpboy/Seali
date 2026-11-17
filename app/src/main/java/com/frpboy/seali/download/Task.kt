@@ -60,6 +60,10 @@ data class Task(
         val downloadState: DownloadState,
         val videoInfo: VideoInfo?,
         val viewState: ViewState,
+        /** Wall-clock start of the latest run, set by this app when the task began running. Null when unknown. */
+        val startedAtMs: Long? = null,
+        /** Wall-clock time this task itself reached a terminal state. Null when unknown; never inferred. */
+        val endedAtMs: Long? = null,
     )
 
     @Serializable

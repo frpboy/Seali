@@ -23,19 +23,28 @@ import com.frpboy.seali.util.DatabaseUtil
 import com.frpboy.seali.util.DownloadUtil
 import com.frpboy.seali.util.FileUtil
 import com.frpboy.seali.util.NotificationUtil
+import com.frpboy.seali.util.TaskCompletionJournal
+import com.frpboy.seali.util.expiredOutcomeTasks
+import com.frpboy.seali.util.backupToPersist
+import com.frpboy.seali.util.journalIdsToKeep
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.VideoInfo
 import com.frpboy.seali.util.planHistoryMerge
 import com.frpboy.seali.util.planQueueBackupRestore
+import com.frpboy.seali.util.selectTaskBackupEntries
+import com.frpboy.seali.util.withDownloadState
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlin.collections.component1
 import kotlin.collections.component2
 import kotlin.collections.set
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import java.io.File
+import java.time.ZoneId
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -48,6 +57,7 @@ import org.koin.core.component.KoinComponent
 private const val TAG = "DownloaderV2"
 
 private const val MAX_CONCURRENCY = 3
+private const val ROLLOVER_CHECK_INTERVAL_MS = 5L * 60L * 1000L
 
 interface DownloaderV2 {
     fun getTaskStateMap(): SnapshotStateMap<Task, Task.State>
@@ -111,6 +121,10 @@ internal object FakeDownloaderV2 : DownloaderV2 {
 @OptIn(FlowPreview::class)
 class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComponent {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /** Recovered completions awaiting their history row: task to its original saved entry. */
+    private val pendingRecovered = java.util.concurrent.ConcurrentHashMap<Task, Task.State>()
+    private val persistLock = Any()
+    private val journal = TaskCompletionJournal(File(appContext.filesDir, "task-journal"))
     private val taskStateMap = mutableStateMapOf<Task, Task.State>()
     private val snapshotFlow = snapshotFlow { taskStateMap.toMap() }
     private val _missingHistoryFileIds = MutableStateFlow<Set<String>>(emptySet())
@@ -127,6 +141,15 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     private val hiddenHistoryPaths = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     init {
+        // Known-ended outcomes belong to the day they ended. Check periodically so an app that
+        // stays open across midnight drops yesterday's finished/failed/canceled cards from the
+        // queue view. Active and unresolved tasks, files and Room history are never touched.
+        scope.launch(Dispatchers.Default) {
+            while (true) {
+                delay(ROLLOVER_CHECK_INTERVAL_MS)
+                pruneExpiredOutcomes()
+            }
+        }
         scope.launch(Dispatchers.Default) {
             snapshotFlow
                 .onEach { doYourWork() }
@@ -145,7 +168,14 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                     }
                     .collect { (session, history) ->
                         val plan =
-                            planHistoryMerge(session, history, hiddenHistoryPaths) { path ->
+                            planHistoryMerge(
+                                session,
+                                history,
+                                hiddenHistoryPaths,
+                                // The queue shows this app's own tasks and outcomes; the
+                                // Downloads page owns the full history.
+                                includeHistory = false,
+                            ) { path ->
                                 File(path).exists()
                             }
                         if (plan.toRemoveIds.isNotEmpty()) {
@@ -158,21 +188,71 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
             }
 
             snapshotFlow
-                .map { it.filter { it.value.downloadState !is Completed } }
+                .map { selectTaskBackupEntries(it) }
                 .distinctUntilChanged()
                 .collect {
                     it.forEach { Log.d(TAG, it.value.viewState.title) }
-                    PreferenceUtil.encodeTaskListBackup(it)
+                    persistBackup(it)
                 }
         }
     }
 
+    /**
+     * Writes the queue backup, then (only on a successful guarded write) sweeps journal
+     * records that the persisted and live states no longer need.
+     */
+    private fun persistBackup(selected: Map<Task, Task.State>) {
+        synchronized(persistLock) {
+            val sweepCutoff = System.currentTimeMillis()
+            val toWrite = backupToPersist(selected, pendingRecovered.toMap())
+            if (PreferenceUtil.encodeTaskListBackup(toWrite).isSuccess) {
+                journal.sweepExcept(
+                    journalIdsToKeep(toWrite, taskStateMap.toMap(), emptySet()),
+                    sweepCutoff,
+                )
+            }
+        }
+    }
+
+    private fun pruneExpiredOutcomes() {
+        expiredOutcomeTasks(taskStateMap.toMap(), System.currentTimeMillis(), ZoneId.systemDefault())
+            .forEach { taskStateMap.remove(it) }
+    }
+
     private fun enqueueFromBackup() {
-        val plan = planQueueBackupRestore(PreferenceUtil.decodeTaskListBackup())
+        val saved = PreferenceUtil.decodeTaskListBackup()
+        val plan =
+            planQueueBackupRestore(
+                saved,
+                completionRecord = { journal.read(it.id) },
+                outputIsPresent = { path -> File(path).let { it.isFile && it.length() > 0 } },
+            )
         // The previous process may have died while its ongoing progress notifications
         // were posted. Those tasks are now restartable Canceled entries, so clear them.
+        // Completion records are NOT deleted here: they are swept only after the rewritten
+        // backup is durably persisted (see the backup collector), so a crash or a failed
+        // decode never loses recovery evidence.
         plan.staleNotificationIds.forEach(NotificationUtil::cancelNotification)
         plan.restored.forEach(::enqueue)
+        // A recovered completion is a finished download whose history row the dead process
+        // never wrote; add it (the DAO ignores a path that is already recorded).
+        plan.recoveredCompletions.forEach { (task, path) ->
+            val original = saved[task] ?: return@forEach
+            val info = original.videoInfo
+            if (info == null || task.preferences.privateMode) return@forEach
+            // Persist the original interrupted entry until the history row exists.
+            pendingRecovered[task] = original
+            scope.launch {
+                try {
+                    DownloadUtil.recordRecoveredDownload(info, task.preferences, path)
+                    pendingRecovered.remove(task)
+                    persistBackup(selectTaskBackupEntries(taskStateMap.toMap()))
+                } catch (e: Exception) {
+                    // The entry stays persisted as interrupted, so the next restore retries.
+                    Log.e(TAG, "recovered history insert failed; will retry at next restore", e)
+                }
+            }
+        }
     }
 
     private fun Map<Task, Task.State>.countRunning(): Int = count { (_, state) ->
@@ -227,8 +307,7 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     private var Task.downloadState: DownloadState
         get() = state.downloadState
         set(value) {
-            val prevState = state
-            taskStateMap[this] = prevState.copy(downloadState = value)
+            taskStateMap[this] = state.withDownloadState(value, System.currentTimeMillis())
         }
 
     private var Task.info: VideoInfo?
@@ -318,7 +397,7 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
             return
         }
         scope
-            .launch(Dispatchers.Default) {
+            .launch(Dispatchers.Default, start = CoroutineStart.LAZY) {
                 DownloadUtil.downloadVideo(
                         videoInfo = info,
                         taskId = id,
@@ -379,7 +458,11 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                         )
                     }
             }
-            .also { job -> downloadState = Running(job = job, taskId = id) }
+            .also { job ->
+                // Running is visible (and protects the journal) before the job can start.
+                downloadState = Running(job = job, taskId = id)
+                job.start()
+            }
     }
 
     private fun Task.cancelImpl(): Boolean {
