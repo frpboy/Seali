@@ -67,13 +67,16 @@ internal fun Task.State.withDownloadState(
 
 /**
  * Entries worth persisting in the queue backup: every live task, plus tasks that this
- * app itself completed (they carry endedAtMs). Synthetic history entries are never
- * persisted, and a Completed entry without its own end time is never invented.
+ * app itself completed (they carry endedAtMs), except private-mode ones. Synthetic
+ * history entries are never persisted, and a Completed entry without its own end time
+ * is never invented.
  */
 internal fun selectTaskBackupEntries(map: Map<Task, Task.State>): Map<Task, Task.State> =
     map.filter { (task, state) ->
         !task.isHistoryEntry() &&
-            (state.downloadState !is Completed || state.endedAtMs != null)
+            (state.downloadState !is Completed ||
+                // Private-mode results were never persisted before and still are not.
+                (state.endedAtMs != null && !task.preferences.privateMode))
     }
 
 internal fun isSameLocalDay(aMs: Long, bMs: Long, zone: ZoneId): Boolean =

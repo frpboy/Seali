@@ -701,10 +701,10 @@ object DownloadUtil {
             val pathBuilder = StringBuilder()
             val outputBuilder = StringBuilder()
             // yt-dlp reports a finished output path to a task-owned file (see
-            // TaskCompletionJournal). Only single-file, non-SAF downloads use it.
+            // TaskCompletionJournal). Only single-file, non-SAF, non-private downloads use it.
             val journal = TaskCompletionJournal(File(context.filesDir, "task-journal"))
             val journalFile =
-                if (!sdcard && !splitByChapter) journal.prepare(taskId) else null
+                if (!sdcard && !splitByChapter && !privateMode) journal.prepare(taskId) else null
 
             request
                 .apply {
@@ -823,6 +823,8 @@ object DownloadUtil {
                         }
 
                     addOption("-o", outputBuilder.append(output).toString())
+
+                    journalFile?.let { journal.recordDestination(taskId, pathBuilder.toString()) }
 
                     for (s in request.buildCommand()) Log.d(TAG, s)
                 }

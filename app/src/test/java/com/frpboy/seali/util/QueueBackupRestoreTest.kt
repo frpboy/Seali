@@ -278,4 +278,23 @@ class QueueBackupRestoreTest {
         val nextDay = now + 24L * 3_600_000L
         assertEquals(listOf(t), expiredOutcomeTasks(mapOf(t to s), nextDay, zone))
     }
+
+    @Test
+    fun privateModeCompletedResultsAreNeverPersistedInTheBackup() {
+        val priv =
+            Task(
+                url = "https://example.com/p",
+                preferences = DownloadUtil.DownloadPreferences.EMPTY.copy(privateMode = true),
+                id = "private1",
+            )
+        val normal = task(33)
+        val out =
+            selectTaskBackupEntries(
+                mapOf(
+                    priv to withEnd(Completed("/p"), 5L),
+                    normal to withEnd(Completed("/n"), 5L),
+                )
+            )
+        assertEquals(setOf(normal), out.keys)
+    }
 }

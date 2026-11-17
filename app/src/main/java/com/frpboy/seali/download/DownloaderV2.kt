@@ -118,6 +118,7 @@ internal object FakeDownloaderV2 : DownloaderV2 {
 @OptIn(FlowPreview::class)
 class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComponent {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val journal = TaskCompletionJournal(File(appContext.filesDir, "task-journal"))
     private val taskStateMap = mutableStateMapOf<Task, Task.State>()
     private val snapshotFlow = snapshotFlow { taskStateMap.toMap() }
     private val _missingHistoryFileIds = MutableStateFlow<Set<String>>(emptySet())
@@ -196,7 +197,6 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     }
 
     private fun enqueueFromBackup() {
-        val journal = TaskCompletionJournal(File(appContext.filesDir, "task-journal"))
         val saved = PreferenceUtil.decodeTaskListBackup()
         val plan =
             planQueueBackupRestore(
@@ -206,6 +206,8 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
             )
         // The previous process may have died while its ongoing progress notifications
         // were posted. Those tasks are now restartable Canceled entries, so clear them.
+        // Restore consumes the completion records once; none are kept afterwards.
+        journal.clearAll()
         plan.staleNotificationIds.forEach(NotificationUtil::cancelNotification)
         plan.restored.forEach(::enqueue)
         // A recovered completion is a finished download whose history row the dead process
@@ -267,6 +269,8 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     private var Task.downloadState: DownloadState
         get() = state.downloadState
         set(value) {
+            // A terminal state ends the run, so its completion record is no longer needed.
+            if (value is Completed || value is Error || value is Canceled) journal.clear(id)
             taskStateMap[this] = state.withDownloadState(value, System.currentTimeMillis())
         }
 

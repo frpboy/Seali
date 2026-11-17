@@ -18,11 +18,21 @@ import java.security.MessageDigest
 internal class TaskCompletionJournal(private val dir: File) {
     data class Entry(val path: String, val writtenAtMs: Long)
 
-    fun fileFor(taskId: String): File = File(dir, sha256(taskId) + ".txt")
+    private fun base(taskId: String) = sha256(taskId)
 
-    /** Called before each run of a task so a previous run's record is never reused. */
+    fun fileFor(taskId: String): File = File(dir, base(taskId) + ".txt")
+
+    private fun metaFor(taskId: String): File = File(dir, base(taskId) + ".meta")
+
+    /** Removes this task's records. Called before each run and at every terminal transition. */
     fun clear(taskId: String) {
         fileFor(taskId).delete()
+        metaFor(taskId).delete()
+    }
+
+    /** Deletes every record. Restore consumes the records once, then nothing is kept. */
+    fun clearAll() {
+        dir.listFiles()?.forEach { if (it.isFile) it.delete() }
     }
 
     fun prepare(taskId: String): File {
@@ -31,12 +41,34 @@ internal class TaskCompletionJournal(private val dir: File) {
         return fileFor(taskId)
     }
 
+    /**
+     * Binds the record to its task and to the destination folder the run was configured
+     * with. A recovered path must lie inside that folder and the meta record must name
+     * the same task id.
+     */
+    fun recordDestination(taskId: String, destinationRoot: String) {
+        dir.mkdirs()
+        metaFor(taskId).writeText(taskId + "\n" + destinationRoot + "\n")
+    }
+
     fun read(taskId: String): Entry? {
         val file = fileFor(taskId)
-        if (!file.isFile) return null
+        val meta = metaFor(taskId)
+        if (!file.isFile || !meta.isFile) return null
+        val metaLines = meta.readLines().map { it.trim() }.filter { it.isNotEmpty() }
+        if (metaLines.size != 2 || metaLines[0] != taskId) return null
+        val root = metaLines[1]
         val lines = file.readLines().map { it.trim() }.filter { it.isNotEmpty() }
         val path = lines.singleOrNull() ?: return null
+        if (!isInside(root, path)) return null
         return Entry(path = path, writtenAtMs = file.lastModified())
+    }
+
+    private fun isInside(root: String, path: String): Boolean {
+        if (root.isBlank()) return false
+        val canonRoot = runCatching { File(root).canonicalFile }.getOrNull() ?: return false
+        val canonPath = runCatching { File(path).canonicalFile }.getOrNull() ?: return false
+        return canonPath != canonRoot && canonPath.toPath().startsWith(canonRoot.toPath())
     }
 
     private fun sha256(s: String): String =
