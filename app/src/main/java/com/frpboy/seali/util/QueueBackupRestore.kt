@@ -156,3 +156,22 @@ internal fun planQueueBackupRestore(
         }
     return QueueBackupRestorePlan(restored, stale, recovered)
 }
+
+/**
+ * Task ids whose completion-journal records must be kept: every task that is not in a
+ * terminal state in the backup that was just persisted, or in the live queue, plus
+ * recovered completions whose history row is not yet written. Anything else is an
+ * orphan or consumed record and is safe to delete.
+ */
+internal fun journalIdsToKeep(
+    persisted: Map<Task, Task.State>,
+    live: Map<Task, Task.State>,
+    historyPendingIds: Set<String>,
+): Set<String> {
+    fun open(m: Map<Task, Task.State>) =
+        m.filter { (_, st) ->
+            val d = st.downloadState
+            !(d is Completed || d is Error || d is Canceled)
+        }.keys.map { it.id }
+    return (open(persisted) + open(live) + historyPendingIds).toSet()
+}

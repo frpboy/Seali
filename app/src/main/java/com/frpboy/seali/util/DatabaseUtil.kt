@@ -13,6 +13,7 @@ import com.frpboy.seali.database.objects.DownloadedVideoInfo
 import com.frpboy.seali.database.objects.OptionShortcut
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 internal fun templatesToImport(
     templates: List<CommandTemplate>,
@@ -23,6 +24,10 @@ object DatabaseUtil {
     private const val DATABASE_NAME = "app_database"
     private val db = Room.databaseBuilder(context, AppDatabase::class.java, DATABASE_NAME).build()
     private val dao = db.videoInfoDao()
+
+    /** Suspends until the rows are written (used where durable custody matters). */
+    suspend fun insertInfoNow(info: DownloadedVideoInfo) =
+        withContext(Dispatchers.IO) { dao.insertInfoDistinctByPath(info) }
 
     fun insertInfo(vararg infoList: DownloadedVideoInfo) {
         applicationScope.launch(Dispatchers.IO) {

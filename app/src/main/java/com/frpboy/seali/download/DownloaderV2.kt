@@ -25,6 +25,7 @@ import com.frpboy.seali.util.FileUtil
 import com.frpboy.seali.util.NotificationUtil
 import com.frpboy.seali.util.TaskCompletionJournal
 import com.frpboy.seali.util.expiredOutcomeTasks
+import com.frpboy.seali.util.journalIdsToKeep
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.VideoInfo
 import com.frpboy.seali.util.planHistoryMerge
@@ -118,6 +119,7 @@ internal object FakeDownloaderV2 : DownloaderV2 {
 @OptIn(FlowPreview::class)
 class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComponent {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val historyPendingIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private val journal = TaskCompletionJournal(File(appContext.filesDir, "task-journal"))
     private val taskStateMap = mutableStateMapOf<Task, Task.State>()
     private val snapshotFlow = snapshotFlow { taskStateMap.toMap() }
@@ -186,7 +188,13 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                 .distinctUntilChanged()
                 .collect {
                     it.forEach { Log.d(TAG, it.value.viewState.title) }
-                    PreferenceUtil.encodeTaskListBackup(it)
+                    // Delete journal records only after this state was durably written (a
+                    // failed or guarded write returns failure and sweeps nothing).
+                    if (PreferenceUtil.encodeTaskListBackup(it).isSuccess) {
+                        journal.sweepExcept(
+                            journalIdsToKeep(it, taskStateMap.toMap(), historyPendingIds.toSet())
+                        )
+                    }
                 }
         }
     }
@@ -206,14 +214,25 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
             )
         // The previous process may have died while its ongoing progress notifications
         // were posted. Those tasks are now restartable Canceled entries, so clear them.
-        // Restore consumes the completion records once; none are kept afterwards.
-        journal.clearAll()
+        // Completion records are NOT deleted here: they are swept only after the rewritten
+        // backup is durably persisted (see the backup collector), so a crash or a failed
+        // decode never loses recovery evidence.
         plan.staleNotificationIds.forEach(NotificationUtil::cancelNotification)
         plan.restored.forEach(::enqueue)
         // A recovered completion is a finished download whose history row the dead process
         // never wrote; add it (the DAO ignores a path that is already recorded).
         plan.recoveredCompletions.forEach { (task, path) ->
-            DownloadUtil.recordRecoveredDownload(saved[task]?.videoInfo, task.preferences, path)
+            val info = saved[task]?.videoInfo
+            if (info == null || task.preferences.privateMode) return@forEach
+            historyPendingIds += task.id
+            scope.launch {
+                try {
+                    DownloadUtil.recordRecoveredDownload(info, task.preferences, path)
+                    historyPendingIds -= task.id
+                } catch (e: Exception) {
+                    Log.e(TAG, "recovered history insert failed; journal kept", e)
+                }
+            }
         }
     }
 
@@ -269,8 +288,6 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
     private var Task.downloadState: DownloadState
         get() = state.downloadState
         set(value) {
-            // A terminal state ends the run, so its completion record is no longer needed.
-            if (value is Completed || value is Error || value is Canceled) journal.clear(id)
             taskStateMap[this] = state.withDownloadState(value, System.currentTimeMillis())
         }
 

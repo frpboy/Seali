@@ -297,4 +297,43 @@ class QueueBackupRestoreTest {
             )
         assertEquals(setOf(normal), out.keys)
     }
+
+    @Test
+    fun journalIsKeptWhilePersistedBackupStillHasTheTaskRunning() {
+        // Terminal-to-backup crash window: live state already Completed, but the durable
+        // backup still says Running, so recovery evidence must survive.
+        val t = task(40)
+        val persisted = mapOf(t to withEnd(Running(taskId = t.id, progress = 0.5f), null))
+        val live = mapOf(t to withEnd(Completed("/x"), 9L))
+        assertEquals(setOf(t.id), journalIdsToKeep(persisted, live, emptySet()))
+    }
+
+    @Test
+    fun journalIsDroppedOnlyOnceThePersistedStateIsTerminalOrAbsent() {
+        val done = task(41)
+        val failed = task(42)
+        val persisted =
+            mapOf(
+                done to withEnd(Completed("/x"), 9L),
+                failed to withEnd(Canceled(action = Download, progress = 0f), 9L),
+            )
+        assertEquals(emptySet<String>(), journalIdsToKeep(persisted, persisted, emptySet()))
+    }
+
+    @Test
+    fun journalOfALiveNonTerminalTaskAndOfRecoveredHistoryPendingIsKept() {
+        val fresh = task(43)
+        val live = mapOf(fresh to withEnd(Idle, null))
+        assertEquals(
+            setOf(fresh.id, "recovered"),
+            journalIdsToKeep(emptyMap(), live, setOf("recovered")),
+        )
+    }
+
+    @Test
+    fun afterAFailedDecodeNoBackupWriteSucceedsSoNothingIsEverSwept() {
+        val guard = TaskBackupWriteGuard<String>({ error("corrupt") }, { it })
+        assertTrue(guard.restore("garbage").isFailure)
+        assertTrue(guard.encodeForStorage("empty").isFailure)
+    }
 }

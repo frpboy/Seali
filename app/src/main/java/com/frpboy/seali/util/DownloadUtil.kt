@@ -630,13 +630,13 @@ object DownloadUtil {
      * and path-based de-duplication as a normal finish; skipped in private mode and when
      * the task has no saved video info.
      */
-    fun recordRecoveredDownload(
+    suspend fun recordRecoveredDownload(
         videoInfo: VideoInfo?,
         preferences: DownloadPreferences,
         path: String,
     ) {
         if (videoInfo == null || preferences.privateMode) return
-        DatabaseUtil.insertInfo(videoInfo.toDownloadedVideoInfo(videoPath = path))
+        DatabaseUtil.insertInfoNow(videoInfo.toDownloadedVideoInfo(videoPath = path))
     }
 
     private fun insertInfoIntoDownloadHistory(

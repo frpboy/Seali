@@ -69,15 +69,17 @@ class TaskCompletionJournalTest {
     }
 
     @Test
-    fun prepareClearsAPreviousRunsRecordAndClearAllRemovesEverything() {
+    fun prepareClearsAPreviousRunsRecordAndSweepKeepsOnlyListedTasks() {
         val j = journal()
         finished(j, "t", File(root, "old.mp4").path)
         j.prepare("t")
         assertNull(j.read("t"))
         finished(j, "a", File(root, "a.mp4").path)
         finished(j, "b", File(root, "b.mp4").path)
-        j.clearAll()
+        j.sweepExcept(setOf("b"))
         assertNull(j.read("a"))
+        assertEquals(File(root, "b.mp4").path, j.read("b")?.path)
+        j.sweepExcept(emptySet())
         assertNull(j.read("b"))
         assertFalse(File(base, "j").listFiles()!!.any { it.isFile })
     }

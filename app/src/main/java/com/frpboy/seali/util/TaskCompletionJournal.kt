@@ -24,15 +24,20 @@ internal class TaskCompletionJournal(private val dir: File) {
 
     private fun metaFor(taskId: String): File = File(dir, base(taskId) + ".meta")
 
-    /** Removes this task's records. Called before each run and at every terminal transition. */
+    /** Removes this task's records. Called before each run starts. */
     fun clear(taskId: String) {
         fileFor(taskId).delete()
         metaFor(taskId).delete()
     }
 
-    /** Deletes every record. Restore consumes the records once, then nothing is kept. */
-    fun clearAll() {
-        dir.listFiles()?.forEach { if (it.isFile) it.delete() }
+    /**
+     * Deletes every record except those of [keepTaskIds]. Only called after the queue
+     * backup was durably written, so a record is never deleted before the persisted
+     * state no longer needs it.
+     */
+    fun sweepExcept(keepTaskIds: Set<String>) {
+        val keep = keepTaskIds.map { base(it) }.toSet()
+        dir.listFiles()?.forEach { if (it.isFile && it.name.substringBefore('.') !in keep) it.delete() }
     }
 
     fun prepare(taskId: String): File {
