@@ -125,4 +125,45 @@ class QueueHistoryMergeTest {
             )
         assertEquals(setOf(historyTaskId(11)), plan.toRemoveIds)
     }
+
+    @Test
+    fun excludingHistoryRemovesSyntheticEntriesAndAddsNone() {
+        val first = planHistoryMerge(emptyMap(), listOf(row(1), row(2)), fileExists = allExist)
+        val session = first.toAdd.toMap()
+        val plan =
+            planHistoryMerge(
+                session,
+                listOf(row(1), row(2), row(3)),
+                includeHistory = false,
+                fileExists = allExist,
+            )
+        assertTrue(plan.toAdd.isEmpty())
+        assertEquals(setOf(historyTaskId(1), historyTaskId(2)), plan.toRemoveIds)
+        assertTrue(plan.missingFileIds.isEmpty())
+    }
+
+    @Test
+    fun excludingHistoryLeavesLiveSessionTasksAlone() {
+        val live =
+            Task(
+                url = "https://example.com/live",
+                preferences = DownloadUtil.DownloadPreferences.EMPTY,
+                id = "live1",
+            )
+        val state =
+            Task.State(
+                Task.DownloadState.Canceled(action = Task.RestartableAction.Download),
+                null,
+                Task.ViewState(url = "u", title = "t"),
+            )
+        val plan =
+            planHistoryMerge(
+                mapOf(live to state),
+                listOf(row(1, url = "https://example.com/live")),
+                includeHistory = false,
+                fileExists = allExist,
+            )
+        assertTrue(plan.toAdd.isEmpty())
+        assertTrue(plan.toRemoveIds.isEmpty())
+    }
 }

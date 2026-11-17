@@ -62,6 +62,7 @@ internal fun planHistoryMerge(
     session: Map<Task, Task.State>,
     history: List<DownloadedVideoInfo>,
     hiddenPaths: Set<String> = emptySet(),
+    includeHistory: Boolean = true,
     fileExists: (String) -> Boolean,
 ): HistoryMergePlan {
     val realCompletedPaths =
@@ -79,8 +80,10 @@ internal fun planHistoryMerge(
     // reappear as a synthesized entry for the same Room row.
     // The DAO dedupes by path only at insert time, so a restored database can
     // hold duplicate paths; keep the newest row per path.
+    // includeHistory=false keeps the queue to session/restored tasks: existing synthetic
+    // entries are removed from the in-memory view only; Room rows and files are untouched.
     val wanted =
-        history
+        (if (includeHistory) history else emptyList())
             .filter {
                 it.videoPath.isNotBlank() &&
                     it.videoPath !in realCompletedPaths &&
