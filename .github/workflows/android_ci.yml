@@ -716,9 +716,28 @@ jobs:
           aab="$(find app/build/outputs/bundle/playRelease -maxdepth 1 -type f -name '*.aab' | sort | head -n 1)"
           out="$RUNNER_TEMP/play-test-apks"
           rm -rf "$out"; mkdir -p "$out" play-handoff
+          # bundletool accepts only pass:/file: passwords, not env:. Use
+          # short-lived 0600 files in RUNNER_TEMP, removed on exit.
+          pwdir="$(mktemp -d "$RUNNER_TEMP/btpw.XXXXXX")"
+          trap 'rm -rf "$pwdir"' EXIT
+          umask 077
+          # bundletool reads only the first line of a file: password, so a
+          # value containing a line break cannot be passed exactly: fail
+          # explicitly instead of altering or truncating it.
+          write_pw() {
+            python3 - "$1" "$2" <<'PY'
+          import os, sys
+          v = os.environ[sys.argv[1]].encode()
+          if b"\n" in v or b"\r" in v:
+              sys.exit("::error::A Play upload password contains a line break; bundletool file: passwords cannot carry it exactly.")
+          open(sys.argv[2], "wb").write(v)
+          PY
+          }
+          write_pw SEALI_PLAY_UPLOAD_STORE_PASSWORD "$pwdir/store"
+          write_pw SEALI_PLAY_UPLOAD_KEY_PASSWORD "$pwdir/key"
           java -jar "$bt" build-apks --bundle="$aab" --output="$out/play.apks" --mode=universal \
             --ks=app/seali-play-upload-key.jks --ks-key-alias="$SEALI_PLAY_UPLOAD_KEY_ALIAS" \
-            --ks-pass=env:SEALI_PLAY_UPLOAD_STORE_PASSWORD --key-pass=env:SEALI_PLAY_UPLOAD_KEY_PASSWORD
+            --ks-pass="file:$pwdir/store" --key-pass="file:$pwdir/key"
           unzip -q -o "$out/play.apks" universal.apk -d "$out"
           apk="$out/universal.apk"
           apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
