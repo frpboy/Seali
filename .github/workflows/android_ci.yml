@@ -686,6 +686,66 @@ jobs:
             --expected-cert-sha256 "$expected_fingerprint" \
             --expected-version-code "$version_code"
 
+      # Sideload-only Play-flavour TEST APK derived from the exact qualified
+      # AAB (same bundletool pin, same Play upload key, no new input). It is
+      # for the owner's own device checks only: it carries the Play UPLOAD
+      # certificate, not Google's app-signing certificate, so it neither
+      # upgrades from nor equals a Play-delivered install. It is retained only
+      # in the same private draft as the AAB; never public, never an artifact.
+      - name: Build Play test APK from the qualified AAB
+        if: steps.signing_play.outputs.available == 'true' && inputs.retain_play_aab_privately == true
+        shell: bash
+        env:
+          SEALI_PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.SEALI_PLAY_UPLOAD_KEY_ALIAS }}
+          SEALI_PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.SEALI_PLAY_UPLOAD_KEY_PASSWORD }}
+          SEALI_PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.SEALI_PLAY_UPLOAD_STORE_PASSWORD }}
+          SEALI_PLAY_UPLOAD_KEYSTORE_TYPE: ${{ steps.signing_play.outputs.store_type }}
+        run: |
+          set -euo pipefail
+          bt="$RUNNER_TEMP/bundletool-all-1.18.3.jar"
+          echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  $bt" | sha256sum -c -
+          expected_fingerprint="$(
+            keytool -exportcert -alias "$SEALI_PLAY_UPLOAD_KEY_ALIAS" \
+              -keystore app/seali-play-upload-key.jks \
+              -storetype "$SEALI_PLAY_UPLOAD_KEYSTORE_TYPE" \
+              -storepass:env SEALI_PLAY_UPLOAD_STORE_PASSWORD \
+              | openssl dgst -sha256 | awk '{ print tolower($NF) }'
+          )"
+          version_code="$(python3 -c "import json;print(json.load(open('scripts/release-qualification/version-expectation.json'))['code'])")"
+          test -n "$version_code"
+          aab="$(find app/build/outputs/bundle/playRelease -maxdepth 1 -type f -name '*.aab' | sort | head -n 1)"
+          out="$RUNNER_TEMP/play-test-apks"
+          rm -rf "$out"; mkdir -p "$out" play-handoff
+          java -jar "$bt" build-apks --bundle="$aab" --output="$out/play.apks" --mode=universal \
+            --ks=app/seali-play-upload-key.jks --ks-key-alias="$SEALI_PLAY_UPLOAD_KEY_ALIAS" \
+            --ks-pass=env:SEALI_PLAY_UPLOAD_STORE_PASSWORD --key-pass=env:SEALI_PLAY_UPLOAD_KEY_PASSWORD
+          unzip -q -o "$out/play.apks" universal.apk -d "$out"
+          apk="$out/universal.apk"
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          aapt2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+          "$apksigner" verify --print-certs "$apk" > "$out/certs.txt"
+          test "$(grep -c 'certificate SHA-256 digest' "$out/certs.txt")" -eq 1
+          actual="$(sed -nE 's/^Signer #1 certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/p' "$out/certs.txt" | tr '[:upper:]' '[:lower:]')"
+          if [ -z "$actual" ] || [ "$actual" != "$expected_fingerprint" ]; then
+            echo "::error::The Play test APK is not signed by exactly the Play upload certificate."
+            exit 1
+          fi
+          "$aapt2" dump badging "$apk" > "$out/badging.txt"
+          grep -q "^package: name='com.frpboy.seali.google' versionCode='$version_code' " "$out/badging.txt"
+          if grep -q 'application-debuggable' "$out/badging.txt"; then
+            echo "::error::The Play test APK is debuggable."
+            exit 1
+          fi
+          # Single-ABI contract: only arm64-v8a native libraries.
+          if unzip -Z1 "$apk" | grep -E '^lib/' | grep -vq '^lib/arm64-v8a/'; then
+            echo "::error::The Play test APK contains native libraries for another ABI."
+            exit 1
+          fi
+          cp "$apk" play-handoff/Seali-play-test-arm64.apk
+          (cd play-handoff && sha256sum Seali-play-test-arm64.apk > Seali-play-test-arm64.apk.sha256)
+          echo "Play test APK qualified (package com.frpboy.seali.google, versionCode $version_code, Play upload cert $actual)."
+          cat play-handoff/Seali-play-test-arm64.apk.sha256
+
       # Private, owner-approved handoff only: ONE draft (unpublished,
       # collaborator-only) release holding just the qualified AAB and its
       # checksum. Never public, never an Actions artifact, never in the
@@ -712,13 +772,13 @@ jobs:
           release_id=$(printf '%s' "$create_response" | jq -r '.id')
           [ -n "$release_id" ] && [ "$release_id" != "null" ]
           printf '%s' "$create_response" | jq -e '.draft == true' >/dev/null
-          for f in play-handoff/Seali-play-handoff.aab play-handoff/Seali-play-handoff.aab.sha256; do
+          for f in play-handoff/Seali-play-handoff.aab play-handoff/Seali-play-handoff.aab.sha256 play-handoff/Seali-play-test-arm64.apk play-handoff/Seali-play-test-arm64.apk.sha256; do
             curl -fsS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/octet-stream" \
               --data-binary "@$f" "https://uploads.github.com/repos/$repo/releases/$release_id/assets?name=$(basename "$f")" >/dev/null
           done
           gh api "repos/$repo/releases/$release_id" --jq '.draft' | grep -qx true
           echo "Private Play handoff draft id $release_id tag $tag"
-          cat play-handoff/Seali-play-handoff.aab.sha256
+          cat play-handoff/Seali-play-handoff.aab.sha256 play-handoff/Seali-play-test-arm64.apk.sha256
 
       - name: Prepare individually named release APKs
         if: steps.signing.outputs.available == 'true'
