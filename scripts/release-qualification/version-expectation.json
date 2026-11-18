@@ -1,8 +1,8 @@
 {
   "package": "com.frpboy.seali",
-  "name": "2.0.0",
-  "code": 200000402,
-  "asset_prefix": "Seali-2.0.0",
+  "name": "2.0.1",
+  "code": 200010402,
+  "asset_prefix": "Seali-2.0.1",
   "min_sdk": "26",
   "target_sdk": "36"
 }

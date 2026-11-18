@@ -139,7 +139,7 @@ android {
         applicationId = "com.frpboy.seali"
         minSdk = 26
         targetSdk = 36
-        versionCode = 200_000_400
+        versionCode = 200_010_400
         check(versionCode == currentVersionCode)
 
         versionName = baseVersionName
