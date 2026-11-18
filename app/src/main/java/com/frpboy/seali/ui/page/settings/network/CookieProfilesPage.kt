@@ -91,8 +91,6 @@ import com.frpboy.seali.ui.theme.generateLabelColor
 import com.frpboy.seali.util.COOKIES
 import com.frpboy.seali.util.DownloadUtil
 import com.frpboy.seali.util.DownloadUtil.toCookiesFileContent
-import com.frpboy.seali.util.FileUtil
-import com.frpboy.seali.util.FileUtil.getCookiesFile
 import com.frpboy.seali.util.PreferenceUtil.getBoolean
 import com.frpboy.seali.util.PreferenceUtil.updateBoolean
 import com.frpboy.seali.util.USER_AGENT
@@ -136,7 +134,7 @@ fun CookieProfilePage(
         scope.launch(Dispatchers.IO) {
             DownloadUtil.getCookieListFromDatabase().getOrNull()?.let {
                 cookieList = it
-                FileUtil.writeContentToFile(it.toCookiesFileContent(), context.getCookiesFile())
+                DownloadUtil.writeCookiesFile(it.toCookiesFileContent())
             }
         }
         onDispose { shouldUpdateCookies = false }

@@ -359,7 +359,19 @@ object DownloadUtil {
         }
     }
 
-    private fun YoutubeDLRequest.enableCookies(userAgentString: String): YoutubeDLRequest =
+    private val cookieFileRefresher =
+        CookieFileRefresher { getCookiesContentFromDatabase().getOrNull() }
+
+    /** Explicit user-driven write (cookie dialog or cookie page); never overwritten by the lazy export. */
+    fun writeCookiesFile(content: String) =
+        cookieFileRefresher.writeExplicit(content, context.getCookiesFile())
+
+    private fun YoutubeDLRequest.enableCookies(userAgentString: String): YoutubeDLRequest {
+        cookieFileRefresher.ensureRefreshed(context.getCookiesFile())
+        return enableCookiesOption(userAgentString)
+    }
+
+    private fun YoutubeDLRequest.enableCookiesOption(userAgentString: String): YoutubeDLRequest =
         this.addOption("--cookies", context.getCookiesFile().absolutePath).apply {
             if (userAgentString.isNotEmpty()) {
                 addOption("--add-header", "User-Agent:$userAgentString")
