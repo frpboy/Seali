@@ -74,4 +74,20 @@ class DetailedErrorReportTest {
         assertTrue(out, out.contains("HTTP Error 403: Forbidden"))
         assertTrue(out, out.contains("[generic]"))
     }
+
+    @Test fun `bracketed ipv6 url is consumed whole including port path and query`() {
+        val out = DetailedErrorReport.sanitizeMessage("failed https://[2001:db8::1]:8443/watch?v=PRIVATEID again")
+        assertFalse(out, out.contains("PRIVATEID") || out.contains("watch") || out.contains("8443") || out.contains("2001"))
+    }
+
+    @Test fun `quoted paths with spaces are redacted whole`() {
+        val out = DetailedErrorReport.sanitizeMessage("cannot open '/storage/emulated/0/Download/Private medical appointment.mp4' now")
+        assertFalse(out, out.contains("medical") || out.contains("appointment") || out.contains("Private"))
+    }
+
+    @Test fun `literal ipv4 host in the url field is withheld`() {
+        val out = DetailedErrorReport.build("v", RuntimeException("x"), "https://10.1.2.3/private")
+        assertFalse(out, out.contains("10.1.2.3") || out.contains("private"))
+        assertTrue(out, out.contains("URL withheld"))
+    }
 }

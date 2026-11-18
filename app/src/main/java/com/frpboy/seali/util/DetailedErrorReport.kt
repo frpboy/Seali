@@ -23,7 +23,9 @@ object DetailedErrorReport {
         "com.yausername.", "com.frpboy.seali.",
     )
 
-    private val URL = Regex("""[A-Za-z][A-Za-z0-9+.\-]*://[^\s'"<>)\]]+""")
+    private val URL = Regex("""[A-Za-z][A-Za-z0-9+.\-]*://(?:\[[^\]\s]*\])?[^\s'"<>)\]]*""")
+    // A quoted absolute path may contain spaces; consume it whole before the whitespace-bounded PATH rule.
+    private val QUOTED_PATH = Regex("""(?<=['"])/(?:[^'"\n/]+/)+[^'"\n]*(?=['"])""")
     private val HEADER_LINE = Regex(
         """(?im)\b(authorization|proxy-authorization|cookie|set-cookie|x-[a-z0-9-]*(?:token|key|auth)[a-z0-9-]*)\s*[:=][^\n]*"""
     )
@@ -113,6 +115,7 @@ object DetailedErrorReport {
         if (raw.isNullOrBlank()) return "No error message was provided."
         var s = raw.filter { !it.isISOControl() || it == '\n' || it == '\t' }
         s = HEADER_LINE.replace(s) { "${it.groupValues[1]}: <redacted>" }
+        s = QUOTED_PATH.replace(s, "<path>")
         s = BEARER.replace(s) { "${it.groupValues[1]} <redacted>" }
         s = URL.replace(s) { m -> hostOnly(m.value) }
         s = SECRET_PAIR.replace(s) { "${it.groupValues[1]}=<redacted>" }
