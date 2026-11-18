@@ -88,8 +88,6 @@ import com.frpboy.seali.util.DownloadUtil.toFormatSorter
 import com.frpboy.seali.util.EXTRACT_AUDIO
 import com.frpboy.seali.util.FORMAT_SELECTION
 import com.frpboy.seali.util.FORMAT_SORTING
-import com.frpboy.seali.util.FileUtil
-import com.frpboy.seali.util.FileUtil.getCookiesFile
 import com.frpboy.seali.util.PLAYLIST
 import com.frpboy.seali.util.PreferenceStrings
 import com.frpboy.seali.util.PreferenceUtil
@@ -229,7 +227,7 @@ fun DownloadSettingDialog(
     LaunchedEffect(showCookiesDialog) {
         withContext(Dispatchers.IO) {
             DownloadUtil.getCookiesContentFromDatabase().getOrNull()?.let {
-                FileUtil.writeContentToFile(it, context.getCookiesFile())
+                DownloadUtil.writeCookiesFile(it)
             }
         }
     }
