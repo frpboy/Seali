@@ -55,8 +55,9 @@ class VerificationBoundaryTest(unittest.TestCase):
                 "if: " + SIGNING in step or "if: steps.signing.outputs.available == 'true'" in step
             )
         play_secret_steps = [step for step in steps if "secrets.SEALI_PLAY_UPLOAD_" in step]
-        # Key staging, AAB build, signature verify, and the opt-in qualification.
-        self.assertEqual(len(play_secret_steps), 4)
+        # Key staging, AAB build, signature verify, the opt-in qualification,
+        # and the opt-in test-APK derivation from the qualified AAB.
+        self.assertEqual(len(play_secret_steps), 5)
         for step in play_secret_steps:
             self.assertTrue(
                 "if: " + SIGNING_PLAY in step
@@ -65,6 +66,9 @@ class VerificationBoundaryTest(unittest.TestCase):
         qualify = [s for s in play_secret_steps if "name: Qualify Play AAB exact bytes" in s]
         self.assertEqual(len(qualify), 1)
         self.assertIn("inputs.retain_play_aab_privately == true", qualify[0])
+        derive = [s for s in play_secret_steps if "name: Build Play test APK from the qualified AAB" in s]
+        self.assertEqual(len(derive), 1)
+        self.assertIn("inputs.retain_play_aab_privately == true", derive[0])
         # Exactly one step consumes the Play keystore password for the AAB build.
         self.assertEqual(
             len([s for s in play_secret_steps if "bundlePlayRelease" in s]), 1

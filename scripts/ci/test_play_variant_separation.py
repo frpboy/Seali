@@ -135,6 +135,32 @@ class PlayVariantSeparationTests(unittest.TestCase):
         stage = text.split('      - name: Stage private draft release assets\n', 1)[1].split('      - name: ', 1)[0]
         self.assertNotIn('Seali-play', stage)
 
+    def test_play_test_apk_is_derived_from_qualified_aab_and_stays_private(self):
+        text = ANDROID_CI.read_text()
+        apk = text.split('      - name: Build Play test APK from the qualified AAB\n', 1)[1].split('      - name: ', 1)[0].split('      # Private, owner-approved', 1)[0]
+        keep = text.split('      - name: Retain qualified Play AAB in a private draft\n', 1)[1].split('      - name: ', 1)[0]
+        # Same opt-in, Play-key gate and pinned bundletool as the AAB qualification; after it, before retention.
+        self.assertLess(text.index('Qualify Play AAB exact bytes'), text.index('Build Play test APK from the qualified AAB'))
+        self.assertLess(text.index('Build Play test APK from the qualified AAB'), text.index('Retain qualified Play AAB in a private draft'))
+        self.assertIn("inputs.retain_play_aab_privately == true", apk)
+        self.assertIn("steps.signing_play.outputs.available == 'true'", apk)
+        self.assertIn('a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29', apk)
+        # Only the Play upload key signs it, and the signer must equal that certificate.
+        self.assertIn('secrets.SEALI_PLAY_UPLOAD_', apk)
+        self.assertNotIn('secrets.SEALI_UPLOAD_', apk)
+        self.assertIn('"$actual" != "$expected_fingerprint"', apk)
+        self.assertIn("package: name='com.frpboy.seali.google'", apk)
+        self.assertIn('application-debuggable', apk)
+        self.assertIn('lib/arm64-v8a/', apk)
+        # Never public, never an artifact, never in the GitHub APK release assets or sums.
+        for forbidden in ('upload-artifact', 'release-assets', 'SHA256SUMS', 'draft=false'):
+            self.assertNotIn(forbidden, apk)
+        self.assertIn('Seali-play-test-arm64.apk', keep)
+        stage = text.split('      - name: Stage private draft release assets\n', 1)[1].split('      - name: ', 1)[0]
+        self.assertNotIn('Seali-play', stage)
+        # No third retention path: the APK is only copied into play-handoff.
+        self.assertEqual(text.count('Seali-play-test-arm64.apk,'), 0)
+
     def test_ci_verifies_signing_resolution_empirically(self):
         text = ANDROID_CI.read_text()
         section = text.split('      - name: Verify per-channel release signing resolution\n', 1)[1]
