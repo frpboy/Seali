@@ -16,6 +16,8 @@ object SafeDiagnosticUrl {
         if (scheme !in setOf("https", "http") || host.isNullOrBlank() || uri.isOpaque || uri.port !in -1..65535 ||
             !host.matches(Regex("[a-z0-9.-]+")) || host.startsWith('.') || host.endsWith('.'))
             return "URL withheld: unsafe or unsupported URL."
+        if (host.matches(Regex("""\d{1,3}(?:\.\d{1,3}){3}""")))
+            return "URL withheld: literal IP address."
         val origin = "$scheme://$host" + if (uri.port in 1..65535) ":${uri.port}" else ""
         return "$origin/ [path, query and fragment withheld; origin may itself be sensitive: inspect before sharing; use existing Copy link locally for original]"
     }
