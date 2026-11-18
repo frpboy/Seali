@@ -98,4 +98,29 @@ class DetailedErrorReportTest {
         assertTrue("took $ms ms", ms < 2_000)
         assertTrue(out, out.length <= 420)
     }
+
+    @Test fun `urls with parentheses in the path are consumed whole`() {
+        val out = DetailedErrorReport.sanitizeMessage("Unable to open https://example.org/watch/(clip)?v=PRIVATEID now")
+        assertFalse(out, out.contains("PRIVATEID") || out.contains("clip") || out.contains("watch"))
+        assertTrue(out, out.contains("example.org"))
+    }
+
+    @Test fun `quoted credential fields in json and dict forms are redacted`() {
+        val inputs = listOf(
+            "bad response {\"token\": \"s3cr3t\"}",
+            "bad response {'password': 'pw1'}",
+            "bad response {\"api_key\":\"k9\", \"x\": 1}",
+        )
+        for (input in inputs) {
+            val out = DetailedErrorReport.sanitizeMessage(input)
+            assertFalse(out, out.contains("s3cr3t") || out.contains("pw1") || out.contains("k9"))
+            assertTrue(out, out.contains("bad response"))
+        }
+    }
+
+    @Test fun `unquoted paths with spaces are withheld including the filename`() {
+        val out = DetailedErrorReport.sanitizeMessage("cannot open /storage/emulated/0/Download/Private medical appointment.mp4")
+        assertFalse(out, out.contains("Private") || out.contains("medical") || out.contains("appointment"))
+        assertTrue(out, out.contains("cannot open"))
+    }
 }

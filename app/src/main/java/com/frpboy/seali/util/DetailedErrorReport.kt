@@ -25,14 +25,14 @@ object DetailedErrorReport {
         "com.yausername.", "com.frpboy.seali.",
     )
 
-    private val URL = Regex("""[A-Za-z][A-Za-z0-9+.\-]*://(?:\[[^\]\s]*\])?[^\s'"<>)\]]*""")
+    private val URL = Regex("""[A-Za-z][A-Za-z0-9+.\-]*://[^\s'"<>]*""")
     // A quoted absolute path may contain spaces; consume it whole before the whitespace-bounded PATH rule.
     private val QUOTED_PATH = Regex("""(?<=['"])/(?:[^'"\n/]+/)+[^'"\n]*(?=['"])""")
     private val HEADER_LINE = Regex(
-        """(?im)\b(authorization|proxy-authorization|cookie|set-cookie|x-[a-z0-9-]*(?:token|key|auth)[a-z0-9-]*)\s*[:=][^\n]*"""
+        """(?im)\b(authorization|proxy-authorization|cookie|set-cookie|x-[a-z0-9-]*(?:token|key|auth)[a-z0-9-]*)["']?\s*[:=][^\n]*"""
     )
     private val SECRET_PAIR = Regex(
-        """(?i)\b([a-z0-9_.-]*(?:token|secret|passw(?:or)?d|apikey|api_key|key|sig|signature|session|auth|cookie|sid|code|credential)[a-z0-9_.-]*)\s*[=:]\s*[^\s,;&]+"""
+        """(?i)\b([a-z0-9_.-]*(?:token|secret|passw(?:or)?d|apikey|api_key|key|sig|signature|session|auth|cookie|sid|code|credential)[a-z0-9_.-]*)["']?\s*[=:]\s*(?:"[^"\n]*"|'[^'\n]*'|[^\s,;&]+)"""
     )
     private val BEARER = Regex("""(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]+""")
     private val EMAIL = Regex("""[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}""")
@@ -41,7 +41,8 @@ object DetailedErrorReport {
         """(?<![A-Za-z0-9:])\[?(?:(?:[0-9A-Fa-f]{1,4}:){2,7}(?:[0-9A-Fa-f]{1,4}|:)|(?:[0-9A-Fa-f]{1,4}:){1,7}:|::(?:[0-9A-Fa-f]{1,4}:){0,6}[0-9A-Fa-f]{1,4}|[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})(?:\.\d{1,3}){0,3}(?:%[A-Za-z0-9_.\-]+)?\]?(?::\d{1,5})?(?![A-Za-z0-9:])"""
     )
     private val IPV4 = Regex("""\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b""")
-    private val PATH = Regex("""(?<![A-Za-z0-9])(?:/[^\s/:'"<>]+){2,}/?""")
+    // Segments may contain spaces (unquoted names): withhold through the end of the path-like run.
+    private val PATH = Regex("""(?<![A-Za-z0-9])(?:/[^/\n:'"<>]+){2,}/?""")
     private val LONG_TOKEN = Regex("""[A-Za-z0-9_\-+/=]{24,}""")
 
     fun build(versionReport: String, throwable: Throwable, url: String? = null): String {
