@@ -721,8 +721,8 @@ jobs:
           pwdir="$(mktemp -d "$RUNNER_TEMP/btpw.XXXXXX")"
           trap 'rm -rf "$pwdir"' EXIT
           umask 077
-          printf '%s' "$SEALI_PLAY_UPLOAD_STORE_PASSWORD" > "$pwdir/store"
-          printf '%s' "$SEALI_PLAY_UPLOAD_KEY_PASSWORD" > "$pwdir/key"
+          printenv SEALI_PLAY_UPLOAD_STORE_PASSWORD | tr -d '\n' > "$pwdir/store"
+          printenv SEALI_PLAY_UPLOAD_KEY_PASSWORD | tr -d '\n' > "$pwdir/key"
           java -jar "$bt" build-apks --bundle="$aab" --output="$out/play.apks" --mode=universal \
             --ks=app/seali-play-upload-key.jks --ks-key-alias="$SEALI_PLAY_UPLOAD_KEY_ALIAS" \
             --ks-pass="file:$pwdir/store" --key-pass="file:$pwdir/key"
