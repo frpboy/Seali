@@ -281,6 +281,11 @@ fun SheetContent(
                         onActionPost(task, UiAction.CopyErrorReport(downloadState.throwable))
                     }) { Text(stringResource(R.string.copy_error_report)) }
                 }
+                var showDetailed by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                androidx.compose.material3.TextButton(onClick = { showDetailed = true }) {
+                    Text(stringResource(R.string.detailed_report_button))
+                }
+                if (showDetailed) DetailedErrorReportDialog(downloadState.throwable, task.url) { showDetailed = false }
             }
         }
         item {
