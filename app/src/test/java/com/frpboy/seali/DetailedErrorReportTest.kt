@@ -90,4 +90,12 @@ class DetailedErrorReportTest {
         assertFalse(out, out.contains("10.1.2.3") || out.contains("private"))
         assertTrue(out, out.contains("URL withheld"))
     }
+
+    @Test fun `huge scheme-like input is bounded before redaction and finishes quickly`() {
+        val start = System.nanoTime()
+        val out = DetailedErrorReport.sanitizeMessage("a".repeat(500_000))
+        val ms = (System.nanoTime() - start) / 1_000_000
+        assertTrue("took $ms ms", ms < 2_000)
+        assertTrue(out, out.length <= 420)
+    }
 }

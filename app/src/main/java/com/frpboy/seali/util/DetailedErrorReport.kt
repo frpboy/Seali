@@ -16,6 +16,8 @@ object DetailedErrorReport {
     private const val MAX_CAUSES = 6
     private const val MAX_FRAMES = 12
     private const val MAX_MESSAGE = 400
+    // Bound the raw input before any regex runs: the report is built while the dialog composes.
+    private const val MAX_RAW = 4000
 
     // Class names are only printed for known code. App-defined or third-party names might carry data.
     private val SAFE_CLASS_PREFIXES = listOf(
@@ -113,7 +115,7 @@ object DetailedErrorReport {
 
     fun sanitizeMessage(raw: String?): String {
         if (raw.isNullOrBlank()) return "No error message was provided."
-        var s = raw.filter { !it.isISOControl() || it == '\n' || it == '\t' }
+        var s = raw.take(MAX_RAW).filter { !it.isISOControl() || it == '\n' || it == '\t' }
         s = HEADER_LINE.replace(s) { "${it.groupValues[1]}: <redacted>" }
         s = QUOTED_PATH.replace(s, "<path>")
         s = BEARER.replace(s) { "${it.groupValues[1]} <redacted>" }
