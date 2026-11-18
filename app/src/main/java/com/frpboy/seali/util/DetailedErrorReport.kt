@@ -32,6 +32,10 @@ object DetailedErrorReport {
     )
     private val BEARER = Regex("""(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]+""")
     private val EMAIL = Regex("""[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}""")
+    // Full, compressed ("::"), bracketed, zone-id and IPv4-mapped forms. Run before IPV4.
+    private val IPV6 = Regex(
+        """(?<![A-Za-z0-9:])\[?(?:(?:[0-9A-Fa-f]{1,4}:){2,7}(?:[0-9A-Fa-f]{1,4}|:)|(?:[0-9A-Fa-f]{1,4}:){1,7}:|::(?:[0-9A-Fa-f]{1,4}:){0,6}[0-9A-Fa-f]{1,4}|[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})(?:\.\d{1,3}){0,3}(?:%[A-Za-z0-9_.\-]+)?\]?(?::\d{1,5})?(?![A-Za-z0-9:])"""
+    )
     private val IPV4 = Regex("""\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b""")
     private val PATH = Regex("""(?<![A-Za-z0-9])(?:/[^\s/:'"<>]+){2,}/?""")
     private val LONG_TOKEN = Regex("""[A-Za-z0-9_\-+/=]{24,}""")
@@ -113,6 +117,7 @@ object DetailedErrorReport {
         s = URL.replace(s) { m -> hostOnly(m.value) }
         s = SECRET_PAIR.replace(s) { "${it.groupValues[1]}=<redacted>" }
         s = EMAIL.replace(s, "<email>")
+        s = IPV6.replace(s, "<ip>")
         s = IPV4.replace(s, "<ip>")
         s = PATH.replace(s, "<path>")
         s = LONG_TOKEN.replace(s, "<token>")
