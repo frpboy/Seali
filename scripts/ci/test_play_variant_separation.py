@@ -119,6 +119,9 @@ class PlayVariantSeparationTests(unittest.TestCase):
             self.assertIn("inputs.retain_play_aab_privately == true", section)
             self.assertIn("steps.signing_play.outputs.available == 'true'", section)
         self.assertIn('a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29', qual)
+        self.assertIn('[ "$GITHUB_REF" = "refs/heads/main" ]', qual)
+        self.assertIn('commits/main', qual)
+        self.assertIn('"$main_tip" != "$GITHUB_SHA"', qual)
         self.assertIn('sha256sum -c -', qual)
         self.assertIn('--expected-package com.frpboy.seali.google', qual)
         # Retention is a draft only, never public, never an artifact, never in APK sums.

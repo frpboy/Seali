@@ -651,8 +651,19 @@ jobs:
           SEALI_PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.SEALI_PLAY_UPLOAD_KEY_ALIAS }}
           SEALI_PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.SEALI_PLAY_UPLOAD_STORE_PASSWORD }}
           SEALI_PLAY_UPLOAD_KEYSTORE_TYPE: ${{ steps.signing_play.outputs.store_type }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          # Direct android_ci dispatch has no alpha7 expected_sha pin, so pin
+          # here: the built commit must be the current tip of main, and the
+          # run must be a main-ref run with both signing opt-ins.
+          [ "$GITHUB_REF" = "refs/heads/main" ]
+          main_tip="$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)"
+          if [ "$main_tip" != "$GITHUB_SHA" ]; then
+            echo "::error::Play handoff must be built from the current tip of main ($main_tip); this run built $GITHUB_SHA."
+            exit 1
+          fi
+          echo "Play handoff source commit: $GITHUB_SHA (current main tip)"
           bt="$RUNNER_TEMP/bundletool-all-1.18.3.jar"
           curl -fsSL -o "$bt" https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
           echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  $bt" | sha256sum -c -
