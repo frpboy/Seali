@@ -36,6 +36,22 @@ class DownloadService : Service() {
         return super.onUnbind(intent)
     }
 
+    /**
+     * Android 15+ limits a dataSync foreground service to a cumulative time
+     * budget. When the system reports the timeout, the service must stop
+     * itself promptly; downloads themselves are not owned by this service,
+     * so stopping the foreground state only drops the notification.
+     */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "onTimeout: fgsType=$fgsType")
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    override fun onTimeout(startId: Int) {
+        onTimeout(startId, 0)
+    }
+
     inner class DownloadServiceBinder : Binder() {
         fun getService(): DownloadService = this@DownloadService
     }
