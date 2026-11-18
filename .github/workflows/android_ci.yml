@@ -663,7 +663,9 @@ jobs:
               -storepass:env SEALI_PLAY_UPLOAD_STORE_PASSWORD \
               | openssl dgst -sha256 | awk '{ print tolower($NF) }'
           )"
-          version_code="$(sed -nE 's/^[[:space:]]*versionCode = ([0-9_]+).*/\1/p' app/build.gradle.kts | head -n 1 | tr -d '_')"
+          # Gradle sets the AAB versionCode to base (app/build.gradle.kts) plus the
+          # single-ABI offset (arm64-v8a = 2); the tracked expectation is that value.
+          version_code="$(python3 -c "import json;print(json.load(open('scripts/release-qualification/version-expectation.json'))['code'])")"
           test -n "$version_code"
           aab="$(find app/build/outputs/bundle/playRelease -maxdepth 1 -type f -name '*.aab' | sort | head -n 1)"
           python3 scripts/release-qualification/qualify_play_aab.py \
