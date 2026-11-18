@@ -113,6 +113,7 @@ import com.frpboy.seali.ui.page.downloadv2.configure.FormatPage
 import com.frpboy.seali.ui.page.downloadv2.configure.PlaylistSelectionPage
 import com.frpboy.seali.ui.page.downloadv2.configure.PreferencesMock
 import com.frpboy.seali.ui.theme.SealTheme
+import com.frpboy.seali.util.queueDisplayOrder
 import com.frpboy.seali.util.QUEUE_GRID_VIEW
 import com.frpboy.seali.util.PreferenceUtil.getBoolean
 import com.frpboy.seali.util.PreferenceUtil.updateBoolean
@@ -471,7 +472,7 @@ fun DownloadPageImplV2(
                     if (isGridView) {
                         items(
                             items =
-                                filteredMap.toList().sortedBy { (_, state) -> state.downloadState },
+                                queueDisplayOrder(filteredMap.toList()),
                             key = { (task, _) -> task.id },
                         ) { (task, state) ->
                             val displayViewState =
@@ -508,7 +509,7 @@ fun DownloadPageImplV2(
                     } else {
                         items(
                             items =
-                                filteredMap.toList().sortedBy { (_, state) -> state.downloadState },
+                                queueDisplayOrder(filteredMap.toList()),
                             key = { (task, _) -> task.id },
                             span = { GridItemSpan(maxLineSpan) },
                         ) { (task, state) ->
