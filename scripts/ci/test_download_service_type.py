@@ -24,6 +24,12 @@ class DownloadServiceTypeTest(unittest.TestCase):
         self.assertIn("override fun onTimeout(startId: Int, fgsType: Int)", SERVICE)
         self.assertIn("stopSelf()", SERVICE.split("override fun onTimeout(startId: Int, fgsType: Int)", 1)[1])
 
+    def test_timeout_and_refused_start_do_not_crash_or_wedge(self):
+        timeout = SERVICE.split("override fun onTimeout(startId: Int, fgsType: Int)", 1)[1].split("override fun onTimeout(startId: Int)", 1)[0]
+        self.assertIn("stopForeground(STOP_FOREGROUND_REMOVE)", timeout)
+        self.assertIn("App.stopService()", timeout)
+        self.assertIn("catch (e: IllegalStateException)", SERVICE)
+
 
 if __name__ == "__main__":
     unittest.main()
