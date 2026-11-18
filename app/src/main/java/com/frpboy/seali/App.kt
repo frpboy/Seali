@@ -29,7 +29,6 @@ import com.frpboy.seali.util.DownloadUtil
 import com.frpboy.seali.util.FileUtil
 import com.frpboy.seali.util.FunctionalEngine
 import com.frpboy.seali.util.FileUtil.createEmptyFile
-import com.frpboy.seali.util.FileUtil.getCookiesFile
 import com.frpboy.seali.util.FileUtil.getExternalDownloadDirectory
 import com.frpboy.seali.util.FileUtil.getExternalPrivateDownloadDirectory
 import com.frpboy.seali.util.NotificationUtil
@@ -101,9 +100,6 @@ class App : Application() {
                 YoutubeDL.init(this@App)
                 FunctionalEngine.verifyRecoveredEngine(this@App)
                 FFmpeg.init(this@App)
-                DownloadUtil.getCookiesContentFromDatabase().getOrNull()?.let {
-                    FileUtil.writeContentToFile(it, getCookiesFile())
-                }
                 UpdateUtil.deleteOutdatedApk()
                 runCatching {
                     File(filesDir, SEALI_INIT_STATUS_FILE)
