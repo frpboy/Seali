@@ -1,0 +1,31 @@
+name: CPython from-source Android build evidence (diagnostic, never merged)
+# Runs only on diag/cpython-** branches. Build-only evidence: no signing, no packaging, no publish,
+# no secrets. Nothing built here ships; target code is never executed.
+on:
+  push:
+    branches: [ "diag/cpython-**" ]
+permissions:
+  contents: read
+jobs:
+  cpython313-official:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Fetch pinned CPython source
+        run: |
+          curl -fsSL -o Python.tgz https://www.python.org/ftp/python/3.13.9/Python-3.13.9.tgz
+          echo "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c  Python.tgz" | sha256sum -c -
+          tar xzf Python.tgz
+      - name: Build aarch64 via upstream Android/android.py
+        working-directory: Python-3.13.9
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q build-essential libffi-dev zlib1g-dev
+          ./Android/android.py build aarch64-linux-android 2>&1 | tail -80
+      - name: ELF evidence
+        working-directory: Python-3.13.9
+        run: |
+          find cross-build/aarch64-linux-android -name '*.so*' -type f | head -200 > /tmp/so.txt
+          wc -l /tmp/so.txt
+          for f in $(grep -E 'libpython|_ssl|_hashlib|_ctypes|_sqlite3|libssl|libcrypto|libsqlite' /tmp/so.txt | head -20); do
+            echo "== $f"; sha256sum "$f" | cut -c1-64; readelf -d "$f" | grep NEEDED; readelf -lW "$f" | grep LOAD | awk '{print "align",$NF}'
+          done
