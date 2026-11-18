@@ -108,6 +108,30 @@ class PlayVariantSeparationTests(unittest.TestCase):
         delete_pos = text.index("find app/build/outputs/bundle -type f -name '*.aab' -delete")
         self.assertGreater(delete_pos, cleanup_pos)
 
+    def test_private_play_handoff_is_opt_in_qualified_and_draft_only(self):
+        text = ANDROID_CI.read_text()
+        self.assertEqual(text.count("retain_play_aab_privately:"), 2)
+        qual = text.split('      - name: Qualify Play AAB exact bytes\n', 1)[1].split('      - name: ', 1)[0]
+        keep = text.split('      - name: Retain qualified Play AAB in a private draft\n', 1)[1].split('      - name: ', 1)[0]
+        # Qualification precedes retention, both explicitly opt-in and Play-key gated.
+        self.assertLess(text.index('Qualify Play AAB exact bytes'), text.index('Retain qualified Play AAB in a private draft'))
+        for section in (qual, keep):
+            self.assertIn("inputs.retain_play_aab_privately == true", section)
+            self.assertIn("steps.signing_play.outputs.available == 'true'", section)
+        self.assertIn('a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29', qual)
+        self.assertIn('sha256sum -c -', qual)
+        self.assertIn('--expected-package com.frpboy.seali.google', qual)
+        # Retention is a draft only, never public, never an artifact, never in APK sums.
+        self.assertIn('-F draft=true', keep)
+        self.assertIn("'.draft == true'", keep)
+        self.assertNotIn('draft=false', keep)
+        self.assertNotIn('upload-artifact', keep)
+        self.assertNotIn('SHA256SUMS', keep)
+        self.assertNotIn('release-assets', keep)
+        # The GitHub APK staging step stays AAB-free.
+        stage = text.split('      - name: Stage private draft release assets\n', 1)[1].split('      - name: ', 1)[0]
+        self.assertNotIn('Seali-play', stage)
+
     def test_ci_verifies_signing_resolution_empirically(self):
         text = ANDROID_CI.read_text()
         section = text.split('      - name: Verify per-channel release signing resolution\n', 1)[1]

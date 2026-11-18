@@ -37,6 +37,11 @@ on:
         type: boolean
         required: false
         default: false
+      retain_play_aab_privately:
+        description: 'After exact-bytes qualification, keep the signed Play AAB ONLY in a private unpublished draft release for the owner-approved handoff to Google Play (requires build_play_bundle; never public)'
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       build_release:
@@ -56,6 +61,11 @@ on:
         default: false
       build_play_bundle:
         description: 'Also build the com.frpboy.seali.google Play App Bundle signed with the separate Play upload key'
+        type: boolean
+        required: false
+        default: false
+      retain_play_aab_privately:
+        description: 'Keep the qualified signed Play AAB only in a private unpublished draft release for the approved Play handoff'
         type: boolean
         required: false
         default: false
@@ -630,6 +640,72 @@ jobs:
 
           echo "Verified the Google Play AAB against the dedicated Play upload certificate."
 
+      # Exact-bytes qualification of the Play AAB (package, version, signer,
+      # manifest invariants) with a SHA-256 pinned bundletool. Runs only when
+      # the owner asked for private retention; any failure stops the job
+      # before anything is retained.
+      - name: Qualify Play AAB exact bytes
+        if: steps.signing_play.outputs.available == 'true' && inputs.retain_play_aab_privately == true
+        shell: bash
+        env:
+          SEALI_PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.SEALI_PLAY_UPLOAD_KEY_ALIAS }}
+          SEALI_PLAY_UPLOAD_STORE_PASSWORD: ${{ secrets.SEALI_PLAY_UPLOAD_STORE_PASSWORD }}
+          SEALI_PLAY_UPLOAD_KEYSTORE_TYPE: ${{ steps.signing_play.outputs.store_type }}
+        run: |
+          set -euo pipefail
+          bt="$RUNNER_TEMP/bundletool-all-1.18.3.jar"
+          curl -fsSL -o "$bt" https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+          echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  $bt" | sha256sum -c -
+          expected_fingerprint="$(
+            keytool -exportcert -alias "$SEALI_PLAY_UPLOAD_KEY_ALIAS" \
+              -keystore app/seali-play-upload-key.jks \
+              -storetype "$SEALI_PLAY_UPLOAD_KEYSTORE_TYPE" \
+              -storepass:env SEALI_PLAY_UPLOAD_STORE_PASSWORD \
+              | openssl dgst -sha256 | awk '{ print tolower($NF) }'
+          )"
+          version_code="$(sed -nE 's/^[[:space:]]*versionCode = ([0-9_]+).*/\1/p' app/build.gradle.kts | head -n 1 | tr -d '_')"
+          test -n "$version_code"
+          aab="$(find app/build/outputs/bundle/playRelease -maxdepth 1 -type f -name '*.aab' | sort | head -n 1)"
+          python3 scripts/release-qualification/qualify_play_aab.py \
+            --bundle "$aab" --bundletool "$bt" \
+            --expected-package com.frpboy.seali.google \
+            --expected-cert-sha256 "$expected_fingerprint" \
+            --expected-version-code "$version_code"
+
+      # Private, owner-approved handoff only: ONE draft (unpublished,
+      # collaborator-only) release holding just the qualified AAB and its
+      # checksum. Never public, never an Actions artifact, never in the
+      # APK release assets or SHA256SUMS. The release id is printed so the
+      # exact temporary draft can be deleted after the Play upload.
+      - name: Retain qualified Play AAB in a private draft
+        if: steps.signing_play.outputs.available == 'true' && inputs.retain_play_aab_privately == true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          aab="$(find app/build/outputs/bundle/playRelease -maxdepth 1 -type f -name '*.aab' | sort | head -n 1)"
+          mkdir -p play-handoff
+          cp "$aab" play-handoff/Seali-play-handoff.aab
+          (cd play-handoff && sha256sum Seali-play-handoff.aab > Seali-play-handoff.aab.sha256)
+          tag="play-handoff/run-${{ github.run_id }}-${{ github.run_attempt }}"
+          create_response=$(gh api "repos/$repo/releases" \
+            -f tag_name="$tag" -f target_commitish="$GITHUB_SHA" \
+            -f name="PRIVATE Play upload handoff run ${{ github.run_id }} (${GITHUB_SHA:0:8}) - delete after upload" \
+            -f body="Temporary private handoff of the qualified Play AAB for commit $GITHUB_SHA. Not a release. Delete after the Google Play upload." \
+            -F draft=true -F prerelease=true)
+          release_id=$(printf '%s' "$create_response" | jq -r '.id')
+          [ -n "$release_id" ] && [ "$release_id" != "null" ]
+          printf '%s' "$create_response" | jq -e '.draft == true' >/dev/null
+          for f in play-handoff/Seali-play-handoff.aab play-handoff/Seali-play-handoff.aab.sha256; do
+            curl -fsS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/octet-stream" \
+              --data-binary "@$f" "https://uploads.github.com/repos/$repo/releases/$release_id/assets?name=$(basename "$f")" >/dev/null
+          done
+          gh api "repos/$repo/releases/$release_id" --jq '.draft' | grep -qx true
+          echo "Private Play handoff draft id $release_id tag $tag"
+          cat play-handoff/Seali-play-handoff.aab.sha256
+
       - name: Prepare individually named release APKs
         if: steps.signing.outputs.available == 'true'
         shell: bash
@@ -681,7 +757,8 @@ jobs:
       # attempt distinct, and the post-upload check requires the exact
       # two-asset set (arm64-v8a APK and SHA256SUMS). The Play AAB, when
       # build_play_bundle=true, is verified and then discarded with the
-      # ephemeral runner: Play artifacts are never retained on GitHub.
+      # ephemeral runner unless the owner opts in to retain_play_aab_privately
+      # (separate private handoff draft, see the Play handoff step).
       - name: Stage private draft release assets
         if: steps.signing.outputs.available == 'true' && (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.build_release == true && github.ref == 'refs/heads/main'
         env:
