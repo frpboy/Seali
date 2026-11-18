@@ -97,6 +97,7 @@ jobs:
         run: |
           python3 scripts/ci/test_verification_boundary.py
           python3 scripts/ci/test_play_variant_separation.py
+          python3 scripts/ci/test_download_service_type.py
 
       - name: Validate explicit release publication request
         if: (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.publish_apk_artifacts == true && inputs.build_release != true
@@ -976,6 +977,7 @@ jobs:
           python3 scripts/build-contract/check-pinned-producer.py --root . --producer .qualification/producer
           python3 scripts/ci/test_verification_boundary.py
           python3 scripts/ci/test_play_variant_separation.py
+          python3 scripts/ci/test_download_service_type.py
           python3 scripts/release-qualification/test-compatible-release-verifier.py
           python3 scripts/release-qualification/test-version-expectation.py
           # License-bundle coverage contract against synthetic fixtures; the real

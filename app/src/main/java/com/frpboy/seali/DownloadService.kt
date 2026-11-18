@@ -21,7 +21,14 @@ class DownloadService : Service() {
                 PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
             }
         val notification = NotificationUtil.makeServiceNotification(pendingIntent)
-        startForeground(SERVICE_NOTIFICATION_ID, notification)
+        try {
+            startForeground(SERVICE_NOTIFICATION_ID, notification)
+        } catch (e: IllegalStateException) {
+            // Android 15+ refuses a new dataSync foreground start once its time
+            // budget is used up (until the app is visible again). Stay a plain
+            // bound service instead of crashing; downloads then run best-effort.
+            Log.w(TAG, "startForeground refused", e)
+        }
         return DownloadServiceBinder()
     }
 
@@ -34,6 +41,25 @@ class DownloadService : Service() {
         }
         stopSelf()
         return super.onUnbind(intent)
+    }
+
+    /**
+     * Android 15+ limits a dataSync foreground service to a cumulative time
+     * budget. When the system reports the timeout, the service must stop
+     * itself promptly; downloads themselves are not owned by this service,
+     * so stopping the foreground state only drops the notification.
+     */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "onTimeout: fgsType=$fgsType")
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        // Unbind so App.isServiceRunning resets and the service can be started
+        // again (with a fresh foreground budget) the next time downloads run.
+        App.stopService()
+        stopSelf()
+    }
+
+    override fun onTimeout(startId: Int) {
+        onTimeout(startId, 0)
     }
 
     inner class DownloadServiceBinder : Binder() {
