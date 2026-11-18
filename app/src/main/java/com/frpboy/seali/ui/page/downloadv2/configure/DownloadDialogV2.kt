@@ -277,6 +277,7 @@ fun DownloadDialog(
 private fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost: (Action) -> Unit) {
     val view = LocalView.current
     val clipboardManager = LocalClipboardManager.current
+    var showDetailed by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val url = when (val action = state.action) {
         is Action.FetchFormats -> action.url
         is Action.FetchPlaylist -> action.url
@@ -321,6 +322,12 @@ private fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost:
             ) {
                 Text(stringResource(R.string.copy_error_report))
             }
+        }
+        androidx.compose.material3.TextButton(onClick = { showDetailed = true }) {
+            Text(stringResource(R.string.detailed_report_button))
+        }
+        if (showDetailed) {
+            com.frpboy.seali.ui.page.downloadv2.DetailedErrorReportDialog(state.throwable, url) { showDetailed = false }
         }
     }
 }

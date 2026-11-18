@@ -162,6 +162,10 @@
     <string name="status_error">Error</string>
     <string name="copy_link">Copy link</string>
     <string name="copy_error_report">Copy report</string>
+    <string name="detailed_report_button">Preview detailed report</string>
+    <string name="detailed_report_title">Detailed report</string>
+    <string name="detailed_report_hint">Review this text before copying. Seali does not send it anywhere. Cookies, headers, full links and file paths are left out, but check it still looks safe to share.</string>
+    <string name="detailed_report_copy">Copy</string>
     <string name="video_resolution">Video resolution</string>
     <string name="video_file_size">Video file size</string>
     <string name="export_to_clipboard">Export to clipboard</string>
