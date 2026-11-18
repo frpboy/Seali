@@ -49,4 +49,29 @@ class DetailedErrorReportTest {
         assertTrue(DetailedErrorReport.build("v", a).lines().count { it.startsWith("Caused by:") } <= 1)
         assertTrue(DetailedErrorReport.sanitizeMessage("x ".repeat(1000)).endsWith("[truncated]"))
     }
+
+    @Test fun `ipv6 addresses in every common form are redacted`() {
+        val inputs = listOf(
+            "connect to 2001:db8:85a3:0:0:8a2e:370:7334 failed",
+            "connect to 2001:db8::1 failed",
+            "peer fe80::1%wlan0 reset",
+            "no route to [2001:db8:85a3::8a2e:370:7334]:443",
+            "mapped ::ffff:10.1.2.3 refused",
+            "loopback ::1 refused",
+            "bad https://[2001:db8::1]:8443/video?token=ZZZ and more",
+            "dest [::1]:8080 unreachable",
+        )
+        for (input in inputs) {
+            val out = DetailedErrorReport.sanitizeMessage(input)
+            for (leak in listOf("2001", "db8", "fe80", "wlan0", "10.1.2.3", "ffff", "::1", "ZZZ", "8a2e"))
+                assertFalse("$leak leaked from <$input> -> <$out>", out.contains(leak))
+        }
+        assertTrue(DetailedErrorReport.sanitizeMessage("Unable to connect to 2001:db8::1").contains("Unable to connect"))
+    }
+
+    @Test fun `ordinary text with colons keeps its meaning`() {
+        val out = DetailedErrorReport.sanitizeMessage("ERROR: [generic] Unable to download webpage: HTTP Error 403: Forbidden at 12:34")
+        assertTrue(out, out.contains("HTTP Error 403: Forbidden"))
+        assertTrue(out, out.contains("[generic]"))
+    }
 }
