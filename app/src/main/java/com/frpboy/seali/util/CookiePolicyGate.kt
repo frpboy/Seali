@@ -149,7 +149,7 @@ internal object CookiePolicyGate {
     }
 
     /** Runs every probe case through the exact launcher. Returns failure reasons, empty on pass. */
-    private fun runProbe(context: Context): List<String> {
+    internal fun runProbe(context: Context): List<String> {
         val cookieFile = File(context.cacheDir, "cookie-policy-probe.txt")
         val server = ProbeProxy()
         return try {
@@ -170,7 +170,14 @@ internal object CookiePolicyGate {
                     failures += "${case.name}: launcher failed (${e.javaClass.simpleName})"
                     continue
                 }
-                failures += CookieProbeSpec.evaluate(case, server.observations())
+                val observed = server.observations()
+                val caseFailures = CookieProbeSpec.evaluate(case, observed)
+                android.util.Log.i(
+                    "CookiePolicyProbe",
+                    "case=${case.name} result=${if (caseFailures.isEmpty()) "PASS" else "FAIL"} " +
+                        "observed=${observed.map { it.host + "[" + it.cookies.sorted().joinToString(",") + "]" }}",
+                )
+                failures += caseFailures
             }
             failures
         } catch (e: Exception) {
