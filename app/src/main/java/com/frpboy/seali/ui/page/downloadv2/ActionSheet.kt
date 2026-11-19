@@ -544,7 +544,7 @@ fun ActionSheetInfo(modifier: Modifier = Modifier, task: Task, viewState: ViewSt
                 val bitRateText = fmt.vbr.toBitrateText()
                 val codecText = fmt.vcodec?.substringBefore(delimiter = ".") ?: ""
 
-                val title = "${stringResource(R.string.video)} #$index: ${fmt.formatNote}"
+                val title = formatItemTitle(stringResource(R.string.video), index, fmt.formatNote)
                 val details =
                     listOf(codecText, fmt.resolution, bitRateText, fileSizeText)
                         .filterNot { it.isNullOrBlank() }
@@ -572,7 +572,7 @@ fun ActionSheetInfo(modifier: Modifier = Modifier, task: Task, viewState: ViewSt
                 val bitRateText = fmt.abr.toBitrateText()
                 val codecText = fmt.acodec?.substringBefore(delimiter = ".") ?: ""
 
-                val title = "${stringResource(R.string.audio)} #$index: ${fmt.formatNote}"
+                val title = formatItemTitle(stringResource(R.string.audio), index, fmt.formatNote)
                 val details =
                     listOf(codecText, bitRateText, fileSizeText)
                         .filterNot { it.isBlank() }
@@ -601,3 +601,6 @@ fun ActionSheetInfo(modifier: Modifier = Modifier, task: Task, viewState: ViewSt
         }
     }
 }
+
+internal fun formatItemTitle(label: String, index: Int, note: String?): String =
+    note?.takeIf { it.isNotBlank() }?.let { "$label #$index: $it" } ?: "$label #$index"
