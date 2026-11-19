@@ -88,7 +88,7 @@ internal class CookiePolicyGateCore(private val probe: () -> List<String>) {
 
     /** Throws [CookiePolicyException] unless cookies are safe to use for this request. */
     fun require(engineSha: String, pluginSha: String, command: List<String?>) {
-        val blocked = command.filterNotNull().filter { it in BLOCKED_FLAGS }
+        val blocked = command.filterNotNull().filter { isBlockedToken(it) }
         if (blocked.isNotEmpty()) {
             throw CookiePolicyException(
                 "Cookies were not used: this download carries options (${blocked.distinct().joinToString()}) " +
@@ -110,7 +110,19 @@ internal class CookiePolicyGateCore(private val probe: () -> List<String>) {
     }
 
     companion object {
-        val BLOCKED_FLAGS = setOf("--no-plugin-dirs", "--plugin-dirs", "--config-locations", "--config-location")
+        val BLOCKED_FLAGS = listOf("--no-plugin-dirs", "--plugin-dirs", "--config-locations", "--config-location")
+
+        /**
+         * yt-dlp's option parser accepts `--flag=value` and unique abbreviations of long options, so an
+         * exact-match list is bypassable. A token is blocked when its name part (before any `=`) is a
+         * prefix of a blocked flag. Only option-shaped tokens (`--` plus at least one character) are checked.
+         */
+        fun isBlockedToken(token: String): Boolean {
+            if (!token.startsWith("--")) return false
+            val name = token.substringBefore('=').lowercase()
+            if (name.length < 3) return false
+            return BLOCKED_FLAGS.any { it.startsWith(name) }
+        }
     }
 }
 

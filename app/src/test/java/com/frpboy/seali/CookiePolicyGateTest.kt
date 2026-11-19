@@ -62,6 +62,21 @@ class CookiePolicyGateTest {
             assertEquals(0, gate.probeRuns)
         }
     }
+    @Test fun equalsFormAndAbbreviatedOverridesAreRejected() {
+        val bypasses = listOf(
+            "--plugin-dirs=/tmp/evil", "--no-plugin-dirs=", "--config-locations=/tmp/c", "--config-location=/tmp/c",
+            "--PLUGIN-DIRS=/x", "--plugin-dir=/x", "--no-plugin", "--plugin-d", "--config-loc=/x",
+        )
+        for (flag in bypasses) {
+            val gate = CookiePolicyGateCore { emptyList() }
+            fails { gate.require("e1", "p1", cookieCommand + flag) }
+            assertEquals(flag, 0, gate.probeRuns)
+        }
+    }
+    @Test fun ordinaryOptionsAndValuesAreNotBlocked() {
+        val gate = CookiePolicyGateCore { emptyList() }
+        gate.require("e1", "p1", listOf("--cookies", "/x", "--no-playlist", "--output", "--plugin-dirs-note.mp4", "-f", "best", "--", "https://example.test/--plugin-dirs=x"))
+    }
     @Test fun errorMessageIsUserFacingAndNamesTheFallbackChoice() {
         val e = fails { CookiePolicyGateCore { listOf("no request reached the probe") }.require("e", "p", cookieCommand) }
         assertTrue(e.message!!.startsWith("Cookies were not used"))
