@@ -2,6 +2,7 @@
 
 package com.frpboy.seali.ui.page.videolist
 
+import com.frpboy.seali.ui.page.downloadv2.displayCreator
 import android.content.Intent
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
@@ -86,7 +87,7 @@ fun VideoDetailDrawer(
         VideoDetailDrawerImpl(
             sheetState = sheetState,
             title = videoTitle,
-            author = videoAuthor,
+            author = displayCreator(videoAuthor),
             url = videoUrl,
             isFileAvailable = isFileAvailable,
             onReDownload = onReDownload,

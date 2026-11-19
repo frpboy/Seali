@@ -1,5 +1,6 @@
 package com.frpboy.seali.ui.page.videolist
 
+import com.frpboy.seali.ui.page.downloadv2.displayCreator
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -477,7 +478,7 @@ fun VideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNavigateBac
                             MediaListItem(
                                 modifier = Modifier,
                                 title = videoTitle,
-                                author = videoAuthor,
+                                author = displayCreator(videoAuthor),
                                 thumbnailUrl = thumbnailUrl,
                                 videoPath = videoPath,
                                 videoFileSize = fileSizeMap.getOrElse(id) { 0L },
