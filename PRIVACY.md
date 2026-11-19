@@ -1,6 +1,8 @@
 # Seali Privacy Policy
 
-**Last updated: 15 November 2026**
+**Last updated: 19 November 2026**
+
+**Version note:** the cookie-copy and backup descriptions in this policy apply to Seali **2.0.1 (version code 200010402)** and later. Earlier versions write the plain-text cookie copy at app startup and exclude only the app database (not the built-in browser's data) from cloud backups and device-to-device transfer.
 
 This policy describes the Android application **Seali**, developed by Rahul ([@frpboy](https://github.com/frpboy)) and maintained in the [frpboy/Seali repository](https://github.com/frpboy/Seali).
 
