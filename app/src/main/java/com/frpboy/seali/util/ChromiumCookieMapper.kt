@@ -12,7 +12,7 @@ import com.frpboy.seali.ui.page.settings.network.Cookie
  *
  * Fail closed: a row that cannot be written as one well-formed line is skipped (null) instead of
  * being widened or written in a shape that shifts the tab-separated fields. That covers a blank
- * host, name or path, an empty value, and any tab, newline or carriage return in a field.
+ * host, name or path, an empty or whitespace-only value, and any tab, newline or carriage return in a field.
  */
 internal fun chromiumRowToCookie(
     hostKey: String?,
@@ -23,7 +23,7 @@ internal fun chromiumRowToCookie(
     secure: Boolean,
 ): Cookie? {
     if (hostKey.isNullOrBlank() || name.isNullOrBlank() || path.isNullOrBlank()) return null
-    if (value.isNullOrEmpty()) return null
+    if (value.isNullOrBlank()) return null
     if (hostKey.startsWith("#")) return null
     if (listOf(hostKey, name, path, value).any { field -> field.any { it == '\t' || it == '\n' || it == '\r' } }) {
         return null

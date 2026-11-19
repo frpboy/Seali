@@ -53,6 +53,8 @@ class ChromiumCookieMapperTest {
         assertNull(chromiumRowToCookie("a.test", 0, "/", "", "v", false))
         assertNull(chromiumRowToCookie("a.test", 0, "/", "n", null, false))
         assertNull(chromiumRowToCookie("a.test", 0, "/", "n", "", false))
+        assertNull(chromiumRowToCookie("a.test", 0, "/", "n", " ", false))
+        assertNull(chromiumRowToCookie("a.test", 0, "/", "n", "\t", false))
         assertNull(chromiumRowToCookie("#HttpOnly_a.test", 0, "/", "n", "v", false))
     }
 
