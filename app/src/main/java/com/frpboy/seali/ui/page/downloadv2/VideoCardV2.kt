@@ -352,7 +352,7 @@ private fun TitleText(
         )
         Text(
             modifier = Modifier.padding(top = 3.dp),
-            text = uploader,
+            text = displayCreator(uploader),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

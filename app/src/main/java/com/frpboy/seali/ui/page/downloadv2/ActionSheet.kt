@@ -258,7 +258,7 @@ fun SheetContent(
                 imageModel = viewState.thumbnailUrl,
                 title = queueTaskDisplayTitle(task.url, viewState.title)
                     ?: stringResource(R.string.queue_metadata_unavailable),
-                author = viewState.uploader,
+                author = displayCreator(viewState.uploader),
                 downloadState = downloadState,
             )
         }
@@ -604,3 +604,6 @@ fun ActionSheetInfo(modifier: Modifier = Modifier, task: Task, viewState: ViewSt
 
 internal fun formatItemTitle(label: String, index: Int, note: String?): String =
     note?.takeIf { it.isNotBlank() }?.let { "$label #$index: $it" } ?: "$label #$index"
+
+/** Tasks saved by earlier builds stored the text "null" for a missing creator. Display only; the stored value is untouched. */
+internal fun displayCreator(stored: String): String = if (stored == "null") "" else stored

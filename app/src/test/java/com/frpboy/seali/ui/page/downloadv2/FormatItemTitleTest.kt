@@ -14,4 +14,11 @@ class FormatItemTitleTest {
     fun noteIsShownWhenPresent() {
         assertEquals("Video #2: 1080p", formatItemTitle("Video", 2, "1080p"))
     }
+
+    @Test
+    fun legacyStoredNullCreatorIsHiddenOnlyForExactNull() {
+        assertEquals("", displayCreator("null"))
+        assertEquals("Blender", displayCreator("Blender"))
+        assertEquals("null pointer", displayCreator("null pointer"))
+    }
 }
