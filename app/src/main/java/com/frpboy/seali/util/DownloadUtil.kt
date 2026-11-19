@@ -118,7 +118,7 @@ object DownloadUtil {
                     }
                 }
             }
-            execute(request.enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads(), playlistURL).out.run {
+            execute(request.enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads().enforceCookiePolicy(context), playlistURL).out.run {
                 val playlistInfo = jsonFormat.decodeFromString<PlaylistResult>(this)
                 if (playlistInfo.type != "playlist") {
                     jsonFormat.decodeFromString<VideoInfo>(this)
@@ -133,7 +133,7 @@ object DownloadUtil {
     ): Result<VideoInfo> =
         request.runCatching {
             val response: YoutubeDLResponse =
-                YoutubeDL.getInstance().execute(request.enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads(), taskKey, null)
+                YoutubeDL.getInstance().execute(request.enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads().enforceCookiePolicy(context), taskKey, null)
             jsonFormat.decodeFromString(response.out)
         }
 
@@ -840,7 +840,7 @@ object DownloadUtil {
                 }
                 .runCatching {
                     YoutubeDL.getInstance()
-                        .execute(request = enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads(), processId = taskId, callback = progressCallback)
+                        .execute(request = enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads().enforceCookiePolicy(context), processId = taskId, callback = progressCallback)
                 }
                 .onFailure { th ->
                     return if (
