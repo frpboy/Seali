@@ -415,17 +415,15 @@ object DownloadUtil {
                         val secure = getLong(getColumnIndexOrThrow(CookieScheme.SECURE)) == 1L
                         val hostKey = getString(getColumnIndexOrThrow(CookieScheme.HOST))
 
-                        val host = if (hostKey[0] != '.') ".$hostKey" else hostKey
-                        cookieList.add(
-                            Cookie(
-                                domain = host,
+                        chromiumRowToCookie(
+                                hostKey = hostKey,
+                                expiry = expiry,
+                                path = path,
                                 name = name,
                                 value = value,
-                                path = path,
                                 secure = secure,
-                                expiry = expiry,
                             )
-                        )
+                            ?.let { cookieList.add(it) }
                     }
                     close()
                 }
