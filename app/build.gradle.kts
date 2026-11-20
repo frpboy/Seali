@@ -242,6 +242,15 @@ android {
         }
     }
 
+    // Real CrashReporting (Sentry) sources and their unit tests, for every
+    // flavor except fdroid, which has its own no-op in src/fdroid.
+    for (flavor in listOf("generic", "githubPreview", "play")) {
+        sourceSets.maybeCreate(flavor).java.srcDir("src/sentry/java")
+        sourceSets.maybeCreate("test${flavor.replaceFirstChar { it.uppercase() }}")
+            .java.srcDir("src/sentryTest/java")
+    }
+
+
     lint { disable.addAll(listOf("MissingTranslation", "ExtraTranslation", "MissingQuantity")) }
 
     applicationVariants.all {
@@ -304,7 +313,11 @@ dependencies {
     implementation(libs.bundles.accompanist)
 
     implementation(libs.coil.kt.compose)
-    implementation(libs.sentry.android.core)
+    // Crash reporting is compiled only into the non-F-Droid flavors; the
+    // fdroid flavor ships a no-op CrashReporting and no Sentry classes.
+    "genericImplementation"(libs.sentry.android.core)
+    "githubPreviewImplementation"(libs.sentry.android.core)
+    "playImplementation"(libs.sentry.android.core)
 
     implementation(libs.kotlinx.serialization.json)
 
