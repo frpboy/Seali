@@ -419,6 +419,8 @@
     <string name="all_languages">All languages</string>
     <string name="playlist">Playlist</string>
     <string name="proceed">Continue</string>
+    <!-- DRAFT wording, shown only in the Play edition; pending owner approval. -->
+    <string name="rights_confirmation">I own this content, it is in the public domain or under a licence that allows copying, or I have the owner\'s permission.</string>
     <string name="preset">Preset</string>
     <string name="prefer_placeholder">Prefer %1$s</string>
     <string name="custom_format_selection_desc">Choose from formats, subtitles, and customize further</string>
