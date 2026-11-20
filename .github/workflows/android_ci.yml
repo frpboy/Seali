@@ -210,6 +210,21 @@ jobs:
       - name: Compile app and instrumentation test sources
         run: ./gradlew -PfunctionalAlphaCandidate compileGenericDebugKotlin compileGenericDebugAndroidTestKotlin
 
+      # The fdroid flavor must compile without any crash-reporting SDK. Compile
+      # tasks and a dependency-graph check only: no packaging, signing or APK.
+      # The graph check proves io.sentry is not on the fdroid runtime
+      # classpath; it is not an APK-contents check.
+      - name: Compile fdroid flavor and verify no Sentry on its classpath
+        run: |
+          ./gradlew -PfunctionalAlphaCandidate compileFdroidDebugKotlin compileFdroidDebugUnitTestKotlin --console=plain
+          ./gradlew -PfunctionalAlphaCandidate :app:dependencies --configuration fdroidReleaseRuntimeClasspath --console=plain > /tmp/fdroid-runtime-deps.txt
+          grep -q 'androidx' /tmp/fdroid-runtime-deps.txt
+          if grep -qi 'io\.sentry' /tmp/fdroid-runtime-deps.txt; then
+            echo "io.sentry is on the fdroid runtime classpath"
+            exit 1
+          fi
+          grep -qi 'io\.sentry' <(./gradlew -PfunctionalAlphaCandidate :app:dependencies --configuration genericReleaseRuntimeClasspath --console=plain) || { echo "control check failed: generic must still carry io.sentry"; exit 1; }
+
       # Merged-manifest Sentry invariants on every push/PR (no signing, no
       # APK): the manifest-merger output must keep SDK auto-init disabled
       # and must never carry a baked io.sentry.dsn element. Catches a
