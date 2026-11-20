@@ -223,7 +223,8 @@ jobs:
             echo "io.sentry is on the fdroid runtime classpath"
             exit 1
           fi
-          grep -qi 'io\.sentry' <(./gradlew -PfunctionalAlphaCandidate :app:dependencies --configuration genericReleaseRuntimeClasspath --console=plain) || { echo "control check failed: generic must still carry io.sentry"; exit 1; }
+          ./gradlew -PfunctionalAlphaCandidate :app:dependencies --configuration genericReleaseRuntimeClasspath --console=plain > /tmp/generic-runtime-deps.txt
+          grep -qi 'io\.sentry' /tmp/generic-runtime-deps.txt || { echo "control check failed: generic must still carry io.sentry"; exit 1; }
 
       # Merged-manifest Sentry invariants on every push/PR (no signing, no
       # APK): the manifest-merger output must keep SDK auto-init disabled
