@@ -1141,7 +1141,7 @@ private fun ActionButton.Label() {
 }
 
 @Composable
-private fun ActionButtons(
+internal fun ActionButtons(
     modifier: Modifier = Modifier,
     canProceed: Boolean,
     selectedType: DownloadType?,
