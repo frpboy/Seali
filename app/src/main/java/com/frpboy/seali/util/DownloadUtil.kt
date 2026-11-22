@@ -368,10 +368,6 @@ object DownloadUtil {
     fun writeCookiesFile(content: String) =
         cookieFileRefresher.writeExplicit(content, context.getCookiesFile())
 
-    /** Play edition only: also exclude named platforms' extractors, so redirects cannot reach them. */
-    private fun YoutubeDLRequest.applySourcePolicy(): YoutubeDLRequest =
-        apply { SourcePolicy.extractorFilter?.let { addOption("--use-extractors", it) } }
-
     private fun YoutubeDLRequest.enableCookies(userAgentString: String): YoutubeDLRequest {
         cookieFileRefresher.ensureRefreshed(context.getCookiesFile())
         return enableCookiesOption(userAgentString)

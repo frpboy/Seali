@@ -1,6 +1,8 @@
 package com.frpboy.seali
 
 import com.frpboy.seali.util.SourcePolicy
+import com.frpboy.seali.util.applySourcePolicy
+import com.yausername.youtubedl_android.YoutubeDLRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -33,5 +35,13 @@ class SourcePolicyPlayTest {
         listOf("generic", "vimeo", "soundcloud", "twitter").forEach { name ->
             assertTrue(name, excluded.none { it.matches(name) })
         }
+    }
+
+    @Test fun applySourcePolicyAddsTheExtractorFilterToTheRequest() {
+        val command = YoutubeDLRequest("https://example.org/v").applySourcePolicy().buildCommand()
+        val at = command.indexOf("--use-extractors")
+        assertTrue(command.toString(), at >= 0)
+        assertEquals(SourcePolicy.extractorFilter, command[at + 1])
+        assertEquals("https://example.org/v", command.last())
     }
 }
