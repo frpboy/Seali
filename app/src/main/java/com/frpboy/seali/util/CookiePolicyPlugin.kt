@@ -63,6 +63,27 @@ internal object CookiePolicyPlugin {
         }
 
     /**
+     * The engine's Python writes a bytecode cache beside the plugin the first time it imports it
+     * (confirmed on desktop yt-dlp with this exact layout; the app never turns bytecode writing off).
+     * That cache is ours: delete it so only the verified source file is ever loaded. It is removed
+     * only when it is a real directory holding nothing but regular files named like this plugin's own
+     * compiled files. Anything else (a symlink, a nested directory, another module's file) still
+     * stops the install.
+     */
+    private fun removeOwnBytecodeCache(postDir: File, target: File) {
+        val cache = File(postDir, "__pycache__")
+        if (!cache.exists() && !Files.isSymbolicLink(cache.toPath())) return
+        check(!Files.isSymbolicLink(cache.toPath()) && cache.isDirectory) { "Unexpected plugin module entries" }
+        val stem = target.name.removeSuffix(".py")
+        val files = cache.listFiles().orEmpty()
+        check(files.all { f ->
+            !Files.isSymbolicLink(f.toPath()) && f.isFile && f.name.startsWith("$stem.") && f.name.endsWith(".pyc")
+        }) { "Unexpected plugin module entries" }
+        files.forEach { check(it.delete()) { "Cannot remove plugin bytecode cache" } }
+        check(cache.delete()) { "Cannot remove plugin bytecode cache" }
+    }
+
+    /**
      * Writes the plugin beside the engine. Atomic (temporary file, sync, rename), exact bytes,
      * and fail closed: symlinks, unexpected extra plugin entries or a non-regular target stop the
      * install. Returns the plugin file. Caller holds [CookiePolicyGate.engineLock].
@@ -88,6 +109,7 @@ internal object CookiePolicyPlugin {
         check(File(packageDir, "yt_dlp_plugins").list().orEmpty().toSet() == setOf("postprocessor")) { "Unexpected plugin namespace entries" }
         // A leftover temporary file of this installer (interrupted write) is ours to remove.
         File(postDir, target.name + ".new").takeIf { it.isFile && !Files.isSymbolicLink(it.toPath()) }?.delete()
+        removeOwnBytecodeCache(postDir, target)
         check(postDir.list().orEmpty().all { it == target.name }) { "Unexpected plugin module entries" }
         val bytes = SOURCE.toByteArray(Charsets.UTF_8)
         if (target.isFile && sha256(target) == SHA256) return target

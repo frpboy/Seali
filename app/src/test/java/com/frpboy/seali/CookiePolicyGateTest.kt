@@ -118,6 +118,30 @@ class CookiePolicyGateTest {
         assertEquals(f, again)
         assertEquals(listOf("strict_cookie_policy.py"), f.parentFile.list()!!.toList())
     }
+    @Test fun installerRemovesOwnBytecodeCacheButRefusesAnythingElse() {
+        val root = tmp.newFolder("engine")
+        val f = CookiePolicyPlugin.install(root)
+        val cache = File(f.parentFile, "__pycache__").apply { mkdirs() }
+        File(cache, "strict_cookie_policy.cpython-311.pyc").writeBytes(byteArrayOf(1, 2, 3))
+        CookiePolicyPlugin.install(root)
+        assertFalse(cache.exists())
+        assertEquals(listOf("strict_cookie_policy.py"), f.parentFile.list()!!.toList())
+        assertEquals(CookiePolicyPlugin.SHA256, CookiePolicyPlugin.sha256(f))
+        // a foreign file in the cache, a foreign module, a nested directory and a symlinked cache all fail closed
+        File(cache.apply { mkdirs() }, "other.cpython-311.pyc").writeBytes(byteArrayOf(1))
+        try { CookiePolicyPlugin.install(root); fail() } catch (e: IllegalStateException) {}
+        File(cache, "other.cpython-311.pyc").delete()
+        File(cache, "nested").mkdirs()
+        try { CookiePolicyPlugin.install(root); fail() } catch (e: IllegalStateException) {}
+        cache.deleteRecursively()
+        File(f.parentFile, "other.py").writeText("x = 1\n")
+        try { CookiePolicyPlugin.install(root); fail() } catch (e: IllegalStateException) {}
+        File(f.parentFile, "other.py").delete()
+        val elsewhere = tmp.newFolder("elsewhere-cache")
+        java.nio.file.Files.createSymbolicLink(File(f.parentFile, "__pycache__").toPath(), elsewhere.toPath())
+        try { CookiePolicyPlugin.install(root); fail() } catch (e: IllegalStateException) {}
+        assertTrue(elsewhere.exists())
+    }
     @Test fun installerRepairsTamperedPlugin() {
         val root = tmp.newFolder("engine")
         val f = CookiePolicyPlugin.install(root)
