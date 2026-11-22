@@ -1,6 +1,7 @@
 package com.frpboy.seali.util
 
 import android.content.Context
+import com.yausername.youtubedl_android.EngineGuard
 import java.io.File
 import java.security.MessageDigest
 
@@ -11,7 +12,7 @@ internal object FunctionalEngine {
 
     private var recoveredEngine = false
 
-    fun install(context: Context) = synchronized(CookiePolicyGate.engineLock) { installLocked(context) }
+    fun install(context: Context) = synchronized(CookiePolicyGate.engineLock) { EngineGuard.exclusive { installLocked(context) } }
 
     private fun installLocked(context: Context) {
         val owned = context.noBackupFilesDir.canonicalFile

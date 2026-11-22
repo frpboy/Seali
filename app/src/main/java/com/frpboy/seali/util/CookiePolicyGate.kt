@@ -1,8 +1,12 @@
 package com.frpboy.seali.util
 
 import android.content.Context
+import com.yausername.youtubedl_android.EngineChangedException
+import com.yausername.youtubedl_android.EngineExpectation
+import com.yausername.youtubedl_android.LaunchCancellation
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import com.yausername.youtubedl_android.YoutubeDLResponse
 import java.io.File
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -13,7 +17,6 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Cookie use was refused because the cookie safety check did not pass. Fail closed, never silent. */
@@ -135,22 +138,23 @@ internal class CookiePolicyGateCore(private val probe: () -> List<String>) {
 
 internal object CookiePolicyGate {
     /**
-     * Shared with [FunctionalEngine.install] so an engine install and a cookie gate/probe never overlap.
-     *
-     * Known limits, recorded from source (not a guarantee):
-     * - The lock is released when [require] returns, before the launcher starts. A write to the engine in that
-     *   window would change the bytes the launch uses compared with the bytes just probed.
-     * - [FunctionalEngine.install] writes only the bundled pinned bytes. The runtime updater
-     *   (UpdateUtil.updateYtDlp -> YoutubeDL.updateYoutubeDL) writes newly downloaded bytes and does not take this
-     *   lock. Play builds never run it (RuntimeUpdatePolicy.mayDownload); generic and F-Droid builds can, with
-     *   consent. The next gate call sees the new engine sha and probes again.
+     * Held while the gate reads the engine/plugin digests and while an engine or plugin install runs, so a
+     * probe never overlaps those writers. It is released before the launch. What a launch actually runs is
+     * bound separately: the library copies the engine and plugin files into the launch's private folder under
+     * its EngineGuard (the guard every engine writer takes, including the runtime updater and first install),
+     * and refuses to start unless that copy has exactly the digests the gate approved. A later swap of the
+     * installed files cannot reach a running child. Lock order: this lock, then the library's EngineGuard.
      */
     val engineLock = Any()
 
     private var core: CookiePolicyGateCore? = null
 
-    fun require(context: Context, command: List<String?>) {
-        synchronized(engineLock) {
+    /** The digests the running probe must be launched with; set under [engineLock] before the gate runs it. */
+    @Volatile private var probeExpectation: EngineExpectation? = null
+
+    /** Throws unless cookies are safe; returns the digests the launch must run with. */
+    fun require(context: Context, command: List<String?>): EngineExpectation {
+        return synchronized(engineLock) {
             val root = File(context.noBackupFilesDir.canonicalFile, "youtubedl-android/yt-dlp")
             val engine = File(root, "yt-dlp")
             if (!engine.isFile) throw CookiePolicyException("Cookies were not used: the download engine is missing.")
@@ -161,7 +165,12 @@ internal object CookiePolicyGate {
                     throw CookiePolicyException("Cookies were not used: the cookie safety rule could not be installed (${e.message}).")
                 }
             val gate = core ?: CookiePolicyGateCore { runProbe(context) }.also { core = it }
-            gate.require(CookiePolicyPlugin.sha256(engine), CookiePolicyPlugin.sha256(pluginFile), command)
+            val engineSha = CookiePolicyPlugin.sha256(engine)
+            val pluginSha = CookiePolicyPlugin.sha256(pluginFile)
+            val expectation = EngineExpectation(engineSha, mapOf(CookiePolicyPlugin.SNAPSHOT_KEY to pluginSha))
+            probeExpectation = expectation
+            gate.require(engineSha, pluginSha, command)
+            expectation
         }
     }
 
@@ -189,18 +198,18 @@ internal object CookiePolicyGate {
                     // a helper thread: if it has not finished in time the invocation is cancelled by id and this
                     // call returns anyway, so the gate denies cookies and releases the engine lock even when
                     // the cancel does not unblock the launcher.
-                    val abandoned = AtomicBoolean(false)
+                    // The token remembers a cancel that arrives before execute has registered or started,
+                    // so no retry loop is needed and a late launch cannot start.
+                    val token = LaunchCancellation()
                     runWithDeadline(
                         PROBE_CASE_DEADLINE_MS,
                         onTimeout = {
-                            abandoned.set(true)
-                            cancelUntilGone(processId)
+                            token.cancel()
+                            YoutubeDL.getInstance().destroyProcessById(processId)
                         },
                     ) {
-                        // The library registers the id only after some file setup, so a cancel that arrives
-                        // earlier finds nothing. cancelUntilGone keeps retrying, and this check stops a
-                        // helper that has not reached execute yet.
-                        if (!abandoned.get()) YoutubeDL.getInstance().execute(request, processId)
+                        // Launched with the digests the gate approved, so a swap since then fails closed.
+                        YoutubeDL.getInstance().execute(request, processId, null, probeExpectation, token)
                     }
                 } catch (e: TimeoutException) {
                     failures += "${case.name}: launcher did not finish in time"
@@ -308,11 +317,35 @@ internal class ProbeProxy : AutoCloseable {
     }
 }
 
-/** Refuses a request that uses cookies unless the cookie safety rule is proven active. */
-internal fun YoutubeDLRequest.enforceCookiePolicy(context: Context): YoutubeDLRequest {
-    if (!addCookieRequestOptions()) return this
-    CookiePolicyGate.require(context, buildCommand())
-    return this
+/**
+ * Refuses a request that uses cookies unless the cookie safety rule is proven active. Returns the digests the
+ * launch must run with, or null when the request does not use cookies.
+ */
+internal fun YoutubeDLRequest.cookiePolicyExpectation(context: Context): EngineExpectation? {
+    if (!addCookieRequestOptions()) return null
+    return CookiePolicyGate.require(context, buildCommand())
+}
+
+/**
+ * Runs [request] with the cookie gate. The launch is bound to the digests the gate approved; if the engine
+ * or plugin changed in between, the library refuses before starting and the gate runs once more. After a
+ * second change the request fails closed.
+ */
+internal fun YoutubeDL.executeWithCookiePolicy(
+    context: Context,
+    request: YoutubeDLRequest,
+    processId: String? = null,
+    callback: ((Float, Long, String) -> Unit)? = null,
+): YoutubeDLResponse {
+    repeat(2) {
+        val expectation = request.cookiePolicyExpectation(context)
+        try {
+            return execute(request, processId, callback, expectation, null)
+        } catch (e: EngineChangedException) {
+            if (expectation == null) throw e
+        }
+    }
+    throw CookiePolicyException("Cookies were not used: the download engine changed while the download was starting. Try again.")
 }
 
 internal const val IGNORE_CONFIG = "--ignore-config"
@@ -321,16 +354,6 @@ private val probeSequence = AtomicInteger(0)
 
 /** Longest one probe case may run. A healthy case takes tens of seconds on a slow phone. */
 internal const val PROBE_CASE_DEADLINE_MS = 120_000L
-
-/** Cancels [id] now and keeps retrying for a while, because the library only knows an id once execute registers it. */
-internal fun cancelUntilGone(id: String, attempts: Int = 20, pauseMs: Long = 500) {
-    Thread {
-        repeat(attempts) {
-            if (YoutubeDL.getInstance().destroyProcessById(id)) return@Thread
-            try { Thread.sleep(pauseMs) } catch (_: InterruptedException) { return@Thread }
-        }
-    }.apply { isDaemon = true; start() }
-}
 
 /**
  * Runs [block] on a helper thread and waits at most [timeoutMs]. On timeout it calls [onTimeout], interrupts the

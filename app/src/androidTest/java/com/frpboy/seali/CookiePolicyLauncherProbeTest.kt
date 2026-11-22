@@ -4,7 +4,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.frpboy.seali.util.CookiePolicyException
 import com.frpboy.seali.util.CookiePolicyGate
 import com.frpboy.seali.util.CookiePolicyPlugin
-import com.frpboy.seali.util.enforceCookiePolicy
+import com.frpboy.seali.util.cookiePolicyExpectation
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -36,7 +36,7 @@ class CookiePolicyLauncherProbeTest {
         synchronized(CookiePolicyGate.engineLock) { CookiePolicyPlugin.install(engineRoot) }
         val failures = CookiePolicyGate.runProbe(context)
         assertEquals("probe failures: $failures", emptyList<String>(), failures)
-        cookieRequest().enforceCookiePolicy(context)
+        cookieRequest().cookiePolicyExpectation(context)
     }
 
     @Test fun probeDetectsLeakWhenPluginIsMissing() {
@@ -71,7 +71,7 @@ class CookiePolicyLauncherProbeTest {
         waitForInit()
         val file = synchronized(CookiePolicyGate.engineLock) { CookiePolicyPlugin.install(engineRoot) }
         file.writeText("raise RuntimeError('broken')\n")
-        cookieRequest().enforceCookiePolicy(context)
+        cookieRequest().cookiePolicyExpectation(context)
         assertEquals(CookiePolicyPlugin.SHA256, CookiePolicyPlugin.sha256(file))
     }
 
@@ -79,7 +79,7 @@ class CookiePolicyLauncherProbeTest {
         waitForInit()
         for (flag in listOf("--no-plugin-dirs", "--plugin-dirs=/x", "--plugin-dir=/x")) {
             val request = cookieRequest().addCommands(listOf(flag))
-            try { request.enforceCookiePolicy(context); fail("must refuse $flag") } catch (e: CookiePolicyException) {}
+            try { request.cookiePolicyExpectation(context); fail("must refuse $flag") } catch (e: CookiePolicyException) {}
         }
     }
 }

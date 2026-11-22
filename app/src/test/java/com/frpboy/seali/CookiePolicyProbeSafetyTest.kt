@@ -1,5 +1,6 @@
 package com.frpboy.seali
 
+import com.frpboy.seali.util.CookiePolicyPlugin
 import com.frpboy.seali.util.IGNORE_CONFIG
 import com.frpboy.seali.util.ProbeProxy
 import com.frpboy.seali.util.addCookieRequestOptions
@@ -133,5 +134,13 @@ class CookiePolicyProbeSafetyTest {
         val request = YoutubeDLRequest("https://example.test/v").addOption("--no-playlist")
         assertFalse(request.addCookieRequestOptions())
         assertFalse(request.buildCommand().contains(IGNORE_CONFIG))
+    }
+
+    @Test
+    fun snapshotKeyIsThePluginPathRelativeToThePluginFolderAsTheLibraryReportsIt() {
+        assertEquals(
+            "strictcookie/yt_dlp_plugins/postprocessor/strict_cookie_policy.py",
+            CookiePolicyPlugin.SNAPSHOT_KEY,
+        )
     }
 }

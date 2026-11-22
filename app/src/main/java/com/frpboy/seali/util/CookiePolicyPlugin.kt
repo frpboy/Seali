@@ -1,5 +1,6 @@
 package com.frpboy.seali.util
 
+import com.yausername.youtubedl_android.EngineGuard
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Files
@@ -20,6 +21,9 @@ internal object CookiePolicyPlugin {
     const val PLUGIN_ROOT = "yt-dlp-plugins"
     const val PACKAGE = "strictcookie"
     val RELATIVE_FILE = "$PLUGIN_ROOT/$PACKAGE/yt_dlp_plugins/postprocessor/strict_cookie_policy.py"
+
+    /** The plugin file as the launch snapshot reports it: relative to the yt-dlp-plugins folder. */
+    val SNAPSHOT_KEY = RELATIVE_FILE.removePrefix("$PLUGIN_ROOT/")
 
     val SOURCE: String =
         """
@@ -88,7 +92,9 @@ internal object CookiePolicyPlugin {
      * and fail closed: symlinks, unexpected extra plugin entries or a non-regular target stop the
      * install. Returns the plugin file. Caller holds [CookiePolicyGate.engineLock].
      */
-    fun install(engineRoot: File): File {
+    fun install(engineRoot: File): File = EngineGuard.exclusive { installLocked(engineRoot) }
+
+    private fun installLocked(engineRoot: File): File {
         val root = engineRoot.canonicalFile
         check(root.isDirectory) { "Engine directory is missing" }
         val pluginsRoot = File(root, PLUGIN_ROOT)
