@@ -209,6 +209,8 @@ jobs:
       # intentionally cannot satisfy.
       - name: Compile app and instrumentation test sources
         run: ./gradlew -PfunctionalAlphaCandidate compileGenericDebugKotlin compileGenericDebugAndroidTestKotlin
+      - name: Compile isolated update presentation host and fixture test (no runtime)
+        run: ./gradlew -p ui-qualification compileDebugKotlin compileDebugAndroidTestKotlin
 
       # The fdroid flavor must compile without any crash-reporting SDK. Compile
       # tasks and a dependency-graph check only: no packaging, signing or APK.
@@ -997,6 +999,69 @@ jobs:
           rm -f app/seali-play-upload-key.jks "$RUNNER_TEMP/seali-play-upload-key.base64" "$RUNNER_TEMP/seali-play-keystore-check.log" "$RUNNER_TEMP/seali-play-upload-key-check.csr" "$RUNNER_TEMP/seali-play-upload-key-nested.base64" "$RUNNER_TEMP/seali-play-upload-key-nested.bin"
           find app/build/outputs/bundle -type f -name '*.aab' -delete 2>/dev/null || true
 
+  updater-ui:
+    # Independent of history-ui: a historical failure never hides the updater's result.
+    if: github.event_name == 'workflow_dispatch' && inputs.run_history_ui == true && inputs.qualify_maven_consumer != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Bind exact reviewed UI source; prohibit release flags
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_qualification_sha }}
+          BUILD_RELEASE: ${{ inputs.build_release }}
+          BUILD_PLAY: ${{ inputs.build_play_bundle }}
+          PUBLISH: ${{ inputs.publish_apk_artifacts }}
+          RETAIN: ${{ inputs.retain_play_aab_privately }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$BUILD_RELEASE" = false
+          test "$BUILD_PLAY" = false
+          test "$PUBLISH" = false
+          test "$RETAIN" = false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Check runner-provided KVM (no host permission changes)
+        run: test -c /dev/kvm && test -r /dev/kvm && test -w /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            chmod +x gradlew
+            ./gradlew -p ui-qualification assembleDebug assembleDebugAndroidTest
+            APP=$(find ui-qualification/build/outputs/apk/debug -maxdepth 1 -name '*.apk')
+            TEST=$(find ui-qualification/build/outputs/apk/androidTest/debug -maxdepth 1 -name '*.apk')
+            test "$(printf '%s\n' "$APP" | wc -l)" = 1
+            test "$(printf '%s\n' "$TEST" | wc -l)" = 1
+            adb install -r "$APP"
+            adb install -r "$TEST"
+            adb shell am instrument -w -r -e class com.frpboy.seali.UpdateProgressPageTest com.frpboy.seali.updaterfixture.test/androidx.test.runner.AndroidJUnitRunner | tee update-page-result.txt
+            grep -F 'OK (1 test)' update-page-result.txt
+            ! grep -E 'FAILURES|INSTRUMENTATION_FAILED|shortMsg=' update-page-result.txt
+            for s in available downloading verifying confirm refused; do adb exec-out run-as com.frpboy.seali.updaterfixture cat files/update-$s.png > update-$s.png; test -s update-$s.png; done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: update-page-presentation-evidence
+          path: |
+            update-*.png
+            update-page-result.txt
+            ui-qualification/build/outputs/androidTest-results/
+          retention-days: 3
+
   history-ui:
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.run_history_ui == true && inputs.qualify_maven_consumer != true
     runs-on: ubuntu-latest
@@ -1027,7 +1092,7 @@ jobs:
           disable-animations: true
           script: |
             chmod +x gradlew
-            ./gradlew -PfunctionalAlphaCandidate assembleGenericDebug assembleGenericDebugAndroidTest
+            ./gradlew assembleGenericDebug assembleGenericDebugAndroidTest
             find app/build/outputs/apk/generic/debug -name '*x86_64*.apk' -print -quit | xargs adb install -r
             find app/build/outputs/apk/androidTest/generic/debug -name '*.apk' -print -quit | xargs adb install -r
             adb shell am instrument -w -r -e class com.frpboy.seali.ClassicHomeHistoryTest com.frpboy.seali.debug.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation-result.txt
@@ -1035,18 +1100,12 @@ jobs:
             ! grep -E 'FAILURES|INSTRUMENTATION_FAILED|shortMsg=' instrumentation-result.txt
             adb exec-out run-as com.frpboy.seali.debug cat files/classic-history.png > classic-history.png
             test -s classic-history.png
-            adb shell am instrument -w -r -e class com.frpboy.seali.UpdateProgressPageTest com.frpboy.seali.debug.test/androidx.test.runner.AndroidJUnitRunner | tee update-page-result.txt
-            grep -F 'OK (1 test)' update-page-result.txt
-            ! grep -E 'FAILURES|INSTRUMENTATION_FAILED|shortMsg=' update-page-result.txt
-            for s in available downloading verifying confirm refused; do adb exec-out run-as com.frpboy.seali.debug cat files/update-$s.png > update-$s.png; test -s update-$s.png; done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: classic-history-ui-evidence
           path: |
             classic-history.png
-            update-*.png
-            update-page-result.txt
             instrumentation-result.txt
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/connected/

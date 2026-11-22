@@ -7,6 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.platform.app.InstrumentationRegistry
 import com.frpboy.seali.ui.page.UpdateProgressContent
@@ -32,6 +34,8 @@ class UpdateProgressPageTest {
 
     @Test fun everyStateRendersItsStatusAndTheFixtureFacts() {
         var state by mutableStateOf<UpdateUiState>(UpdateUiState.Available)
+        var updates = 0
+        var closes = 0
         compose.setContent {
             MaterialTheme {
                 UpdateProgressContent(
@@ -40,6 +44,8 @@ class UpdateProgressPageTest {
                     dateLabel = "2026-11-19",
                     changelog = "Fixes after 2.0.0\n- Fixture changelog line one\n- Fixture changelog line two",
                     state = state,
+                    onUpdate = { updates++ },
+                    onClose = { closes++ },
                 )
             }
         }
@@ -48,12 +54,15 @@ class UpdateProgressPageTest {
         compose.onNodeWithText("14.4 MB").assertIsDisplayed()
         compose.onNodeWithText("2026-11-19").assertIsDisplayed()
         compose.onNodeWithText("Changelog").assertIsDisplayed()
+        compose.onNodeWithText("Update").performClick()
+        compose.runOnIdle { org.junit.Assert.assertEquals(1, updates) }
         shot("available")
 
         compose.runOnIdle { state = UpdateUiState.Downloading(42) }
         compose.onNodeWithText("Installing the update").assertIsDisplayed()
         compose.onNodeWithTag(UpdateProgressTags.PROGRESS).assertIsDisplayed()
         compose.onNodeWithText("Downloading the update, 42%").assertIsDisplayed()
+        compose.onNodeWithText("Update").assertIsNotEnabled()
         shot("downloading")
 
         compose.runOnIdle { state = UpdateUiState.Verifying }
@@ -67,6 +76,12 @@ class UpdateProgressPageTest {
         compose.runOnIdle { state = UpdateUiState.Refused("it is not signed by the same key as the installed app") }
         compose.onNodeWithText("Update not installed").assertIsDisplayed()
         compose.onNodeWithTag(UpdateProgressTags.STATUS).assertIsDisplayed()
+        compose.onNodeWithText("Retry").performClick()
+        compose.onNodeWithText("Close").performClick()
+        compose.runOnIdle {
+            org.junit.Assert.assertEquals(2, updates)
+            org.junit.Assert.assertEquals(1, closes)
+        }
         shot("refused")
     }
 }

@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -35,7 +37,7 @@ object UpdateProgressTags {
 
 /**
  * "Installing the update" layout: status, progress, version / size / date cards, then the changelog.
- * Not wired into navigation: the app-update gate is off, so no user can reach this yet.
+ * Shared by both app update entry points and the isolated visual fixture host. The app-update gate stays off.
  */
 @Composable
 fun UpdateProgressContent(
@@ -45,6 +47,8 @@ fun UpdateProgressContent(
     changelog: String,
     state: UpdateUiState,
     modifier: Modifier = Modifier,
+    onUpdate: (() -> Unit)? = null,
+    onClose: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -81,6 +85,15 @@ fun UpdateProgressContent(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             InfoCard("Update size", sizeLabel ?: "Unknown", Modifier.weight(1f))
             InfoCard("Date", dateLabel ?: "Unknown", Modifier.weight(1f))
+        }
+        if (onUpdate != null || onClose != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (onUpdate != null) Button(
+                    onClick = onUpdate,
+                    enabled = state is UpdateUiState.Available || state is UpdateUiState.Refused,
+                ) { Text(if (state is UpdateUiState.Refused) "Retry" else "Update") }
+                if (onClose != null) TextButton(onClick = onClose) { Text("Close") }
+            }
         }
         Text("Changelog", style = MaterialTheme.typography.headlineMedium)
         Text(changelog.ifBlank { "No release notes were published." }, style = MaterialTheme.typography.bodyLarge)

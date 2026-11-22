@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -116,27 +116,21 @@ object UpdateUtil {
 
     private fun Context.getLatestApk() = File(getExternalFilesDir("apk"), "latest.apk")
 
-    fun installLatestApk(context: Context = App.context) =
-        context.run {
-            kotlin
-                .runCatching {
-                    CandidateFeaturePolicy.requireAppUpdatesAvailable()
-                    requireGitHubDistribution()
-                    val contentUri =
-                        FileProvider.getUriForFile(this, getFileProvider(), getLatestApk())
-                    val intent =
-                        Intent(Intent.ACTION_VIEW).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            setDataAndType(contentUri, "application/vnd.android.package-archive")
-                        }
-                    startActivity(intent)
-                }
-                .onFailure { throwable: Throwable ->
-                    throwable.printStackTrace()
-                    ToastUtil.makeToast(R.string.app_update_failed)
-                }
+    /** Caller owns displaying failure. Must run on IO because it re-checks the archive before every hand-off. */
+    fun installLatestApk(release: Release, context: Context = App.context) = context.run {
+        CandidateFeaturePolicy.requireAppUpdatesAvailable()
+        requireGitHubDistribution()
+        val asset = Build.SUPPORTED_ABIS.firstOrNull()?.let { selectAsset(release, it) }
+            ?: error("No APK for this device")
+        verifyOrDelete(this, asset, getLatestApk())
+        val contentUri = FileProvider.getUriForFile(this, getFileProvider(), getLatestApk())
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            setDataAndType(contentUri, "application/vnd.android.package-archive")
         }
+        startActivity(intent)
+    }
 
     suspend fun deleteOutdatedApk(context: Context = App.context) =
         context.runCatching {
@@ -197,22 +191,26 @@ object UpdateUtil {
             if (apkVersion >= release.name.toVersion()) {
                 return@withContext flow<DownloadStatus> {
                     val file = context.getLatestApk()
+                    emit(DownloadStatus.Verifying)
                     verifyOrDelete(context, asset, file)
                     emit(DownloadStatus.Finished(file))
-                }
+                }.flowOn(Dispatchers.IO)
             }
 
             val request = Request.Builder().url(targetUrl).build()
             try {
                 val response = client.newCall(request).execute()
                 val responseBody = response.body
-                return@withContext responseBody.downloadFileWithProgress(context.getLatestApk()).onEach {
-                    if (it is DownloadStatus.Finished) verifyOrDelete(context, asset, it.file)
-                }
+                return@withContext responseBody.downloadFileWithProgress(context.getLatestApk()).transform { status ->
+                    if (status is DownloadStatus.Finished) {
+                        emit(DownloadStatus.Verifying)
+                        verifyOrDelete(context, asset, status.file)
+                    }
+                    emit(status)
+                }.flowOn(Dispatchers.IO)
             } catch (e: Exception) {
-                e.printStackTrace()
+                throw e
             }
-            emptyFlow()
         }
 
     /** A downloaded update that failed an integrity check. Carries a reason the UI can show; the file is already deleted. */
@@ -301,7 +299,7 @@ object UpdateUtil {
         val sigs =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val si = info.signingInfo ?: return emptySet()
-                if (si.hasMultipleSigners()) si.apkContentsSigners else si.signingCertificateHistory.takeLast(1).toTypedArray()
+                si.apkContentsSigners
             } else info.signatures ?: return emptySet()
         return sigs.map { ApkUpdateVerifier.sha256(it.toByteArray()) }.toSet()
     }
@@ -382,6 +380,7 @@ object UpdateUtil {
 
     sealed class DownloadStatus {
         object NotYet : DownloadStatus()
+        object Verifying : DownloadStatus()
 
         data class Progress(val percent: Int) : DownloadStatus()
 
