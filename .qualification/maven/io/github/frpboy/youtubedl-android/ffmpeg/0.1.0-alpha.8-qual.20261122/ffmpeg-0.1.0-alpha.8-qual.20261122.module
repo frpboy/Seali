@@ -1,0 +1,124 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "io.github.frpboy.youtubedl-android",
+    "module": "ffmpeg",
+    "version": "0.1.0-alpha.8-qual.20261122",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.11.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "ffmpeg-0.1.0-alpha.8-qual.20261122.aar",
+          "url": "ffmpeg-0.1.0-alpha.8-qual.20261122.aar",
+          "size": 3500,
+          "sha512": "ee1b21805372ef15e5603ad2e024b735993014379fa83333ac2383859eceb1ce2c082d76cedb92bbf536abc92f1b4393032ba32651405a7af9a4edea9e4dab28",
+          "sha256": "6b0dacf677234c973b323aa348282d6ad3ca8ffbddbafb7b5cc14387707f4760",
+          "sha1": "342e01227f71c4b5b05bd8d48c6a2dab7d05c48d",
+          "md5": "a5330243a0501f4d9c6035c2a8f4d82d"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.core",
+          "module": "core-ktx",
+          "version": {
+            "requires": "1.15.0"
+          }
+        },
+        {
+          "group": "io.github.frpboy.youtubedl-android",
+          "module": "common",
+          "version": {
+            "requires": "0.1.0-alpha.8-qual.20261122"
+          }
+        },
+        {
+          "group": "io.github.frpboy.youtubedl-android",
+          "module": "library",
+          "version": {
+            "requires": "0.1.0-alpha.8-qual.20261122"
+          }
+        },
+        {
+          "group": "commons-io",
+          "module": "commons-io",
+          "version": {
+            "requires": "2.22.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.20"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "ffmpeg-0.1.0-alpha.8-qual.20261122.aar",
+          "url": "ffmpeg-0.1.0-alpha.8-qual.20261122.aar",
+          "size": 3500,
+          "sha512": "ee1b21805372ef15e5603ad2e024b735993014379fa83333ac2383859eceb1ce2c082d76cedb92bbf536abc92f1b4393032ba32651405a7af9a4edea9e4dab28",
+          "sha256": "6b0dacf677234c973b323aa348282d6ad3ca8ffbddbafb7b5cc14387707f4760",
+          "sha1": "342e01227f71c4b5b05bd8d48c6a2dab7d05c48d",
+          "md5": "a5330243a0501f4d9c6035c2a8f4d82d"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "ffmpeg-0.1.0-alpha.8-qual.20261122-sources.jar",
+          "url": "ffmpeg-0.1.0-alpha.8-qual.20261122-sources.jar",
+          "size": 1778,
+          "sha512": "14e16554f6a6d9e104688969bc3e167cc0e9ad6711e1bca552f3070f91e2a6aab1e728dfbf13894f05a94281463f83ea9117733c379ce2cb434bc174b8e762fb",
+          "sha256": "0e0d4bebf12e8198541fefb1aad771f6edff09bc95740e45abadb477472c1779",
+          "sha1": "911cc500551e7de9182b1555950497450dd8cc61",
+          "md5": "b4cd8844cb3c31438f4c47f4a3269949"
+        }
+      ]
+    }
+  ]
+}
