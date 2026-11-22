@@ -30,7 +30,7 @@ class Process:
 
 
 class FixtureTests(unittest.TestCase):
-    def exercise(self, revision="9", page_ok=True, extraction_ok=True, missing_shot=False, early_exit=False):
+    def exercise(self, revision="9", page_ok=True, extraction_ok=True, missing_shot=False, early_exit=False, control_exit=0, headless_exit=0):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             sdk = root / "sdk"
@@ -60,7 +60,11 @@ class FixtureTests(unittest.TestCase):
                         data = b"not a png" if missing_shot else b"\x89PNG\r\n\x1a\nfixture"
                     elif command[:3] == ["shell", "settings", "put"] or command[:2] == ["emu", "kill"]: data = b""
                     else: raise AssertionError("Unexpected adb call " + repr(command))
-                elif "-version" in args: data = b"Android emulator fixture-version\n"
+                elif "-version" in args:
+                    code = headless_exit if "-no-window" in args else control_exit
+                    if code == "timeout":
+                        raise subprocess.TimeoutExpired(args, 30, output=b"partial preflight diagnostic")
+                    return subprocess.CompletedProcess(args, code, b"fixture-version or loader error\n")
                 elif "create" in args and "avd" in args: data = b"Created fixture\n"
                 else: raise AssertionError("Unexpected process " + repr(args))
                 return subprocess.CompletedProcess(args, 0, data)
@@ -70,6 +74,8 @@ class FixtureTests(unittest.TestCase):
                  contextlib.redirect_stdout(io.StringIO()):
                 code = fixture.main(root)
             result = json.loads((root / "update-ui-evidence/result.json").read_text())
+            preflight = root / "update-ui-evidence/sdk-preflight.json"
+            if preflight.exists(): result["captured_preflight"] = json.loads(preflight.read_text())
             return code, result, calls
 
     def test_success_is_fixture_only_and_bounded(self):
@@ -108,6 +114,27 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertEqual("EMULATOR_EXITED_BEFORE_BOOT", result["error"])
         self.assertNotIn("page-result.txt", result["phases"])
+
+    def test_gui_control_failure_does_not_misclassify_headless_backend(self):
+        code, result, calls = self.exercise(control_exit=127)
+        self.assertEqual(0, code)
+        self.assertEqual(127, result["captured_preflight"][0]["exit"])
+        self.assertEqual(0, result["captured_preflight"][1]["exit"])
+
+    def test_headless_loader_failure_keeps_output_and_never_starts_tests(self):
+        code, result, calls = self.exercise(headless_exit=127)
+        self.assertEqual(1, code)
+        self.assertEqual("HEADLESS_EMULATOR_PREFLIGHT_FAILED", result["error"])
+        self.assertEqual(127, result["captured_preflight"][1]["exit"])
+        self.assertIn("loader error", result["captured_preflight"][1]["output"])
+        self.assertFalse(any("instrument" in c for c in calls))
+
+    def test_headless_timeout_keeps_partial_and_control_output(self):
+        code, result, calls = self.exercise(headless_exit="timeout")
+        self.assertEqual(1, code)
+        self.assertEqual("timeout", result["captured_preflight"][1]["exit"])
+        self.assertIn("partial preflight", result["captured_preflight"][1]["output"])
+        self.assertEqual(0, result["captured_preflight"][0]["exit"])
 
 
 if __name__ == "__main__":

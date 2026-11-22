@@ -1051,6 +1051,7 @@ jobs:
           name: update-page-software-fixture-evidence
           path: |
             update-ui-evidence/result.json
+            update-ui-evidence/sdk-preflight.json
             update-ui-evidence/update-*.png
             update-ui-evidence/page-result.txt
             update-ui-evidence/extraction-result.txt
