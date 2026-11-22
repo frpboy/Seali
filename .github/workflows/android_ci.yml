@@ -198,6 +198,28 @@ jobs:
       - name: Run generic debug unit tests
         run: ./gradlew -PfunctionalAlphaCandidate testGenericDebugUnitTest
 
+      # Makes unit-test execution visible in the log: counts per result file
+      # and a hard failure when no result file exists at all.
+      - name: Report generic debug unit test results
+        run: |
+          python3 - <<'PY'
+          import glob, sys
+          import xml.etree.ElementTree as ET
+          files = sorted(glob.glob('app/build/test-results/testGenericDebugUnitTest/*.xml'))
+          print('result files:', len(files))
+          if not files:
+              sys.exit('No unit test result files were produced.')
+          total = failed = skipped = 0
+          for f in files:
+              r = ET.parse(f).getroot()
+              t, fl, sk = int(r.get('tests', 0)), int(r.get('failures', 0)) + int(r.get('errors', 0)), int(r.get('skipped', 0))
+              total += t; failed += fl; skipped += sk
+              print(f"{r.get('name')}: tests={t} failed={fl} skipped={sk}")
+          print(f'TOTAL tests={total} failed={failed} skipped={skipped}')
+          if failed:
+              sys.exit(1)
+          PY
+
       - name: Run buildSrc unit tests
         run: ./gradlew -p buildSrc test --console=plain
 
