@@ -226,6 +226,13 @@ jobs:
           ./gradlew -PfunctionalAlphaCandidate :app:dependencies --configuration genericReleaseRuntimeClasspath --console=plain > /tmp/generic-runtime-deps.txt
           grep -qi 'io\.sentry' /tmp/generic-runtime-deps.txt || { echo "control check failed: generic must still carry io.sentry"; exit 1; }
 
+      # The Play flavor (com.frpboy.seali.google) must compile on every push/PR:
+      # main, unit-test and instrumentation sources, plus its JVM unit tests.
+      # Unsigned debug only: no packaging, no signing, no emulator, no upload.
+      # Compiling does not run the instrumentation tests; those stay manual.
+      - name: Compile Play flavor and run Play unit tests
+        run: ./gradlew -PfunctionalAlphaCandidate compilePlayDebugKotlin compilePlayDebugUnitTestKotlin compilePlayDebugAndroidTestKotlin testPlayDebugUnitTest --console=plain
+
       # Merged-manifest Sentry invariants on every push/PR (no signing, no
       # APK): the manifest-merger output must keep SDK auto-init disabled
       # and must never carry a baked io.sentry.dsn element. Catches a
