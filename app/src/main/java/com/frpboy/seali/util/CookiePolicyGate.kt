@@ -8,6 +8,10 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.Collections
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Cookie use was refused because the cookie safety check did not pass. Fail closed, never silent. */
 internal class CookiePolicyException(message: String) : Exception(message)
@@ -157,6 +161,7 @@ internal object CookiePolicyGate {
             val failures = mutableListOf<String>()
             for (case in CookieProbeSpec.CASES) {
                 server.reset()
+                val timedOut = AtomicBoolean(false)
                 try {
                     val request =
                         YoutubeDLRequest(case.url)
@@ -165,9 +170,26 @@ internal object CookiePolicyGate {
                             .addOption("--simulate")
                             .addOption("--socket-timeout", "10")
                             .addOption("-R", "0")
-                    YoutubeDL.getInstance().execute(request)
+                            .addOption(IGNORE_CONFIG)
+                    // A stalled child never opens a socket, so the socket timeout cannot stop it. The watchdog
+                    // cancels this one invocation by id; the gate then denies cookies.
+                    runWithWatchdog(
+                        PROBE_CASE_DEADLINE_MS,
+                        onTimeout = {
+                            timedOut.set(true)
+                            YoutubeDL.getInstance().destroyProcessById(PROBE_PROCESS_ID)
+                        },
+                    ) {
+                        YoutubeDL.getInstance().execute(request, PROBE_PROCESS_ID)
+                    }
                 } catch (e: Exception) {
-                    failures += "${case.name}: launcher failed (${e.javaClass.simpleName})"
+                    failures +=
+                        if (timedOut.get()) "${case.name}: launcher did not finish in time"
+                        else "${case.name}: launcher failed (${e.javaClass.simpleName})"
+                    continue
+                }
+                if (server.workerFailures() > 0) {
+                    failures += "${case.name}: probe connection failed"
                     continue
                 }
                 val observed = server.observations()
@@ -193,13 +215,22 @@ internal object CookiePolicyGate {
 internal class ProbeProxy : AutoCloseable {
     private val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
     private val seen = Collections.synchronizedList(mutableListOf<ProbeObservation>())
+    private val failures = AtomicInteger(0)
+
+    /** Read timeout for one connection. Tests shorten it. */
+    @Volatile internal var socketTimeoutMs: Int = 10000
     val port: Int = server.localPort
 
     private val acceptor =
         Thread {
                 while (!server.isClosed) {
                     val socket = try { server.accept() } catch (e: Exception) { break }
-                    Thread { handle(socket) }.apply { isDaemon = true }.start()
+                    Thread {
+                            // An exception escaping a raw thread ends the app process. Count it so the gate denies cookies.
+                            try { handle(socket) } catch (e: Exception) { failures.incrementAndGet() }
+                        }
+                        .apply { isDaemon = true }
+                        .start()
                 }
             }
             .apply {
@@ -207,13 +238,19 @@ internal class ProbeProxy : AutoCloseable {
                 start()
             }
 
-    fun reset() = seen.clear()
+    fun reset() {
+        seen.clear()
+        failures.set(0)
+    }
+
+    /** Connections whose handler threw since the last [reset]. */
+    fun workerFailures(): Int = failures.get()
 
     fun observations(): List<ProbeObservation> = synchronized(seen) { seen.toList() }
 
     private fun handle(socket: Socket) {
         socket.use { s ->
-            s.soTimeout = 10000
+            s.soTimeout = socketTimeoutMs
             val reader = s.getInputStream().bufferedReader(Charsets.ISO_8859_1)
             val requestLine = reader.readLine() ?: return
             var host = ""
@@ -252,8 +289,49 @@ internal class ProbeProxy : AutoCloseable {
 
 /** Refuses a request that uses cookies unless the cookie safety rule is proven active. */
 internal fun YoutubeDLRequest.enforceCookiePolicy(context: Context): YoutubeDLRequest {
-    val command = buildCommand()
-    if (!command.contains("--cookies")) return this
-    CookiePolicyGate.require(context, command)
+    if (!addCookieRequestOptions()) return this
+    CookiePolicyGate.require(context, buildCommand())
     return this
+}
+
+internal const val IGNORE_CONFIG = "--ignore-config"
+internal const val PROBE_PROCESS_ID = "cookie-policy-probe"
+
+/** Longest one probe case may run. A healthy case takes tens of seconds on a slow phone. */
+internal const val PROBE_CASE_DEADLINE_MS = 120_000L
+
+/**
+ * Runs [block]. If it has not finished after [timeoutMs], calls [onTimeout] once from a helper thread.
+ * The helper is stopped as soon as [block] returns or throws.
+ */
+internal fun <T> runWithWatchdog(timeoutMs: Long, onTimeout: () -> Unit, block: () -> T): T {
+    val done = CountDownLatch(1)
+    val watchdog =
+        Thread {
+                try {
+                    if (!done.await(timeoutMs, TimeUnit.MILLISECONDS)) onTimeout()
+                } catch (e: InterruptedException) {
+                }
+            }
+            .apply {
+                isDaemon = true
+                start()
+            }
+    try {
+        return block()
+    } finally {
+        done.countDown()
+        watchdog.interrupt()
+    }
+}
+
+/**
+ * For a request that sends cookies, adds [IGNORE_CONFIG] so yt-dlp does not read a yt-dlp.conf from the -P
+ * directory (a config line could switch the plugin off after the gate). Returns false and changes nothing
+ * for a request without cookies.
+ */
+internal fun YoutubeDLRequest.addCookieRequestOptions(): Boolean {
+    if (!buildCommand().contains("--cookies")) return false
+    if (!hasOption(IGNORE_CONFIG)) addOption(IGNORE_CONFIG)
+    return true
 }
