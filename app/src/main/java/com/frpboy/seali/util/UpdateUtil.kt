@@ -86,21 +86,30 @@ object UpdateUtil {
         }
 
     private fun getLatestRelease(): Release =
-        client.newCall(requestForReleases).execute().body.use {
-            val releaseList = jsonFormat.decodeFromString<List<Release>>(it.string())
-            val stable = UPDATE_CHANNEL.getInt() == STABLE
-            val latestRelease =
-                releaseList
-                    .filter { if (stable) it.name.toVersion() is Version.Stable else true }
-                    .maxByOrNull { it.name.toVersion() } ?: throw Exception("null response")
-            latestRelease
+        client.newCall(requestForReleases).execute().use { response ->
+            check(response.isSuccessful) { "Release listing is unavailable" }
+            val releaseList = jsonFormat.decodeFromString<List<Release>>(response.body.string())
+            selectLatestRelease(releaseList, UPDATE_CHANNEL.getInt() == STABLE)
+                ?: error("No eligible release for this update channel")
+        }
+
+    /** App release channel only. This does NOT change yt-dlp's separate explicit Nightly consent. */
+    fun selectLatestRelease(releases: List<Release>, stableOnly: Boolean): Release? =
+        releases.filter { release ->
+            release.draft != true && releaseVersionLabel(release) != null &&
+                (!stableOnly || (release.preRelease != true && releaseVersionLabel(release).toVersion() is Version.Stable))
+        }.maxByOrNull { releaseVersionLabel(it).toVersion() }
+
+    fun releaseVersionLabel(release: Release): String? =
+        listOfNotNull(release.tagName, release.name).firstOrNull {
+            Regex("""v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?""").matches(it)
         }
 
     fun checkForUpdate(context: Context = App.context): Release? {
         CandidateFeaturePolicy.requireAppUpdatesAvailable()
         val currentVersion = context.getCurrentVersion()
         val latestRelease = getLatestRelease()
-        val latestVersion = latestRelease.name.toVersion()
+        val latestVersion = releaseVersionLabel(latestRelease).toVersion()
         return if (currentVersion < latestVersion) latestRelease else null
     }
 
@@ -149,7 +158,10 @@ object UpdateUtil {
 
     /** The asset for this device's preferred ABI, or null. */
     fun selectAsset(release: Release, preferredArch: String): AssetsItem? =
-        release.assets?.find { it.name?.contains(preferredArch) == true && it.name.orEmpty().endsWith(".apk") }
+        release.assets?.filter { asset ->
+            val name = asset.name.orEmpty()
+            name.endsWith("-$preferredArch.apk") || name.endsWith("_$preferredArch.apk")
+        }?.singleOrNull()
 
     /** "14.4 MB" style size of the asset this device would download, or null. */
     fun updateSizeLabel(release: Release): String? =
@@ -188,7 +200,7 @@ object UpdateUtil {
             Log.d(TAG, apkVersion.toString())
 
             // A previously downloaded file is trusted no more than a new one: it goes through the same checks.
-            if (apkVersion >= release.name.toVersion()) {
+            if (apkVersion >= releaseVersionLabel(release).toVersion()) {
                 return@withContext flow<DownloadStatus> {
                     val file = context.getLatestApk()
                     emit(DownloadStatus.Verifying)

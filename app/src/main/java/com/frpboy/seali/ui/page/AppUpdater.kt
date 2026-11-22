@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import com.frpboy.seali.BuildConfig
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.UpdateUtil
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -17,7 +18,11 @@ fun AppUpdater() {
     var release by remember { mutableStateOf<UpdateUtil.Release?>(null) }
     LaunchedEffect(Unit) {
         if (!PreferenceUtil.isNetworkAvailableForDownload() || !PreferenceUtil.isAutoUpdateEnabled()) return@LaunchedEffect
-        release = withContext(Dispatchers.IO) { runCatching { UpdateUtil.checkForUpdate() }.getOrNull() }
+        release = withContext(Dispatchers.IO) {
+            try { UpdateUtil.checkForUpdate() }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { null }
+        }
     }
     release?.let { candidate -> UpdateDialog(onDismissRequest = { release = null }, release = candidate) }
 }

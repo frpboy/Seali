@@ -23,4 +23,21 @@ class UpdateAssetSelectionTest {
         assertNull(UpdateUtil.releaseDateLabel(release("a.apk", published = "garbage")))
         assertNull(UpdateUtil.releaseDateLabel(Release()))
     }
+
+    @Test fun `x86 never selects x86_64 and ambiguous assets are refused`() {
+        assertNull(UpdateUtil.selectAsset(release("Seali-x86_64.apk"), "x86"))
+        assertNull(UpdateUtil.selectAsset(release("Seali-a-arm64-v8a.apk", "Seali-b-arm64-v8a.apk"), "arm64-v8a"))
+    }
+    @Test fun `stable app channel excludes drafts prereleases and unversioned previews`() {
+        val stable = Release(tagName = "v2.0.1", name = "Seali stable", preRelease = false)
+        val alpha = Release(tagName = "v2.1.0-alpha.1", preRelease = true)
+        val draft = Release(tagName = "v9.0.0", draft = true)
+        val preview = Release(name = "Seali UI Preview - 2026-11-10", preRelease = false)
+        val disguisedPrerelease = Release(tagName = "v8.0.0", preRelease = true)
+        val all = listOf(stable, alpha, draft, preview, disguisedPrerelease)
+        assertEquals(stable, UpdateUtil.selectLatestRelease(all, stableOnly = true))
+        assertEquals(disguisedPrerelease, UpdateUtil.selectLatestRelease(all, stableOnly = false))
+        assertNull(UpdateUtil.selectLatestRelease(listOf(alpha, draft, preview), stableOnly = true))
+        assertNull(UpdateUtil.releaseVersionLabel(Release(tagName = "nightly", name = "New nightly")))
+    }
 }
