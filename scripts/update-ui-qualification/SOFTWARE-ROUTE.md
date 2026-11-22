@@ -45,6 +45,6 @@ but cannot alone disqualify a working headless backend.
 A historic analogous report supports a hypothesis, NOT this run's diagnosis:
 https://github.com/wix/Detox/issues/3613 (GUI version command with headless config, missing libpulse).
 We have not verified which runtime dependency, if any, was missing on this runner's Ubuntu26 image.
-No SDK executable or emulator has been run locally for this follow-up. Eight offline mocked tests pass;
+No SDK executable or emulator has been run locally for this follow-up. Nine offline mocked tests pass;
 they prove orchestration/diagnostic behavior only. A new dispatch needs separate scope, independent review
 and new exact-head instructions; the previous approval was consumed and cannot authorize a retry.

@@ -89,13 +89,21 @@ def main(root=None):
         # Keep the control output, but qualify only the exact no-window/no-audio backend we intend to boot.
         # These SDK-tool version/loader commands run before any emulator console or user app exists.
         preflight = []
+        def record_preflight(item):
+            preflight.append(item)
+            (out / "sdk-preflight.json").write_text(json.dumps(preflight, indent=2) + "\n")
         for label, flags in (("version_control", ["-version"]),
                              ("version_headless", ["-no-window", "-no-audio", "-version"])):
-            result = run([str(sdk / "emulator/emulator"), *flags], seconds=30,
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            output = result.stdout.decode("utf-8", "replace")[:8192]
-            preflight.append({"phase": label, "exit": result.returncode, "output": output})
-            state["phases"][label] = {"exit": result.returncode}
+            try:
+                result = run([str(sdk / "emulator/emulator"), *flags], seconds=30,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                output = result.stdout.decode("utf-8", "replace")[:8192]
+                code = result.returncode
+            except subprocess.TimeoutExpired as exc:
+                output = (exc.stdout or b"").decode("utf-8", "replace")[:8192]
+                code = "timeout"
+            record_preflight({"phase": label, "exit": code, "output": output})
+            state["phases"][label] = {"exit": code}
             persist()
         loader = shutil.which("ldd")
         if loader:
@@ -105,9 +113,8 @@ def main(root=None):
                 if binary.is_file():
                     result = run([loader, str(binary)], seconds=15,
                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                    preflight.append({"phase": "loader:" + relative, "exit": result.returncode,
+                    record_preflight({"phase": "loader:" + relative, "exit": result.returncode,
                                       "output": result.stdout.decode("utf-8", "replace")[:8192]})
-        (out / "sdk-preflight.json").write_text(json.dumps(preflight, indent=2) + "\n")
         if state["phases"]["version_headless"]["exit"]:
             raise RuntimeError("HEADLESS_EMULATOR_PREFLIGHT_FAILED")
         state["emulator_version"] = preflight[1]["output"][:1000]

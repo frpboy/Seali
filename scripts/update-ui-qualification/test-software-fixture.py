@@ -62,6 +62,8 @@ class FixtureTests(unittest.TestCase):
                     else: raise AssertionError("Unexpected adb call " + repr(command))
                 elif "-version" in args:
                     code = headless_exit if "-no-window" in args else control_exit
+                    if code == "timeout":
+                        raise subprocess.TimeoutExpired(args, 30, output=b"partial preflight diagnostic")
                     return subprocess.CompletedProcess(args, code, b"fixture-version or loader error\n")
                 elif "create" in args and "avd" in args: data = b"Created fixture\n"
                 else: raise AssertionError("Unexpected process " + repr(args))
@@ -126,6 +128,13 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(127, result["captured_preflight"][1]["exit"])
         self.assertIn("loader error", result["captured_preflight"][1]["output"])
         self.assertFalse(any("instrument" in c for c in calls))
+
+    def test_headless_timeout_keeps_partial_and_control_output(self):
+        code, result, calls = self.exercise(headless_exit="timeout")
+        self.assertEqual(1, code)
+        self.assertEqual("timeout", result["captured_preflight"][1]["exit"])
+        self.assertIn("partial preflight", result["captured_preflight"][1]["output"])
+        self.assertEqual(0, result["captured_preflight"][0]["exit"])
 
 
 if __name__ == "__main__":
