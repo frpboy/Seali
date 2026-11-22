@@ -226,7 +226,8 @@ jobs:
           ./gradlew -PfunctionalAlphaCandidate :app:dependencies --configuration genericReleaseRuntimeClasspath --console=plain > /tmp/generic-runtime-deps.txt
           grep -qi 'io\.sentry' /tmp/generic-runtime-deps.txt || { echo "control check failed: generic must still carry io.sentry"; exit 1; }
 
-      # The Play flavor (com.frpboy.seali.google) must compile on every push/PR:
+      # The Play flavor (com.frpboy.seali.google) must compile on every pull request to main
+      # and every push to main or v* tag (the triggers configured above):
       # main, unit-test and instrumentation sources, plus its JVM unit tests.
       # Unsigned debug only: no packaging, no signing, no emulator, no upload.
       # Compiling does not run the instrumentation tests; those stay manual.
