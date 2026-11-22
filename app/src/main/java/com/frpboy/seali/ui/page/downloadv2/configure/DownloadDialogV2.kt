@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.ModalBottomSheetValue
@@ -80,6 +81,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -116,6 +118,7 @@ import com.frpboy.seali.ui.page.settings.format.VideoQuickSettingsDialog
 import com.frpboy.seali.ui.page.settings.network.CookiesQuickSettingsDialog
 import com.frpboy.seali.ui.theme.SealTheme
 import com.frpboy.seali.util.SafeErrorReport
+import com.frpboy.seali.util.SourcePolicy
 import com.frpboy.seali.util.AUDIO_CONVERSION_FORMAT
 import com.frpboy.seali.util.AUDIO_CONVERT
 import com.frpboy.seali.util.AUDIO_FORMAT
@@ -1138,7 +1141,7 @@ private fun ActionButton.Label() {
 }
 
 @Composable
-private fun ActionButtons(
+internal fun ActionButtons(
     modifier: Modifier = Modifier,
     canProceed: Boolean,
     selectedType: DownloadType?,
@@ -1157,9 +1160,33 @@ private fun ActionButtons(
             Download
         }
 
+    // Play edition: the user confirms copying rights for this download before it can start.
+    var rightsConfirmed by remember { mutableStateOf(!SourcePolicy.REQUIRES_RIGHTS_CONFIRMATION) }
     val state = rememberLazyListState()
+    Column(modifier = modifier.fillMaxWidth()) {
+    if (SourcePolicy.REQUIRES_RIGHTS_CONFIRMATION) {
+        // One toggleable row: TalkBack reads the confirmation text as this checkbox's label.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp)
+                .toggleable(
+                    value = rightsConfirmed,
+                    role = Role.Checkbox,
+                    onValueChange = { rightsConfirmed = it },
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            androidx.compose.material3.Checkbox(checked = rightsConfirmed, onCheckedChange = null)
+            Text(
+                text = stringResource(R.string.rights_confirmation),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+    }
     LazyRow(
-        modifier = modifier.fillMaxWidth().padding(top = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         horizontalArrangement = Arrangement.End,
         state = state,
         verticalAlignment = Alignment.CenterVertically,
@@ -1183,7 +1210,7 @@ private fun ActionButtons(
                     }
                 },
                 contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
-                enabled = canProceed,
+                enabled = canProceed && rightsConfirmed,
             ) {
                 AnimatedContent(
                     targetState = action,
@@ -1201,5 +1228,6 @@ private fun ActionButtons(
                 }
             }
         }
+    }
     }
 }

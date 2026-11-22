@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.platform.app.InstrumentationRegistry
 import com.frpboy.seali.database.objects.DownloadedVideoInfo
 import com.frpboy.seali.download.Task
@@ -57,7 +58,8 @@ class QueueFinishedHistoryUiTest {
             }
         }
         compose.onNodeWithText("All (2)").assertIsDisplayed()
-        compose.onNodeWithText("Finished (2)").assertIsDisplayed().performClick()
+        // The filter chips scroll horizontally; on a narrow phone the Finished chip starts off-screen.
+        compose.onNodeWithText("Finished (2)").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithText("First saved download").assertIsDisplayed()
         compose.onNodeWithText("Second saved download").assertIsDisplayed()
         capture("queue-history-restart.png")

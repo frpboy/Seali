@@ -250,6 +250,12 @@ android {
             .java.srcDir("src/sentryTest/java")
     }
 
+    // Source boundary: only the Play flavor restricts sources (src/play); the others
+    // share an unrestricted no-op policy.
+    for (flavor in listOf("generic", "githubPreview", "fdroid")) {
+        sourceSets.maybeCreate(flavor).java.srcDir("src/unrestricted/java")
+    }
+
 
     lint { disable.addAll(listOf("MissingTranslation", "ExtraTranslation", "MissingQuantity")) }
 
@@ -330,9 +336,9 @@ dependencies {
 
     implementation(libs.okhttp)
 
-    implementation("io.github.frpboy.youtubedl-android:library:0.1.0-alpha.7")
-    implementation("io.github.frpboy.youtubedl-android:ffmpeg:0.1.0-alpha.7")
-    implementation("io.github.frpboy.youtubedl-android:common:0.1.0-alpha.7")
+    implementation("io.github.frpboy.youtubedl-android:library:0.1.0-alpha.8-qual.20261122")
+    implementation("io.github.frpboy.youtubedl-android:ffmpeg:0.1.0-alpha.8-qual.20261122")
+    implementation("io.github.frpboy.youtubedl-android:common:0.1.0-alpha.8-qual.20261122")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.21.8")
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.21")
     implementation("commons-io:commons-io:2.22.0")
