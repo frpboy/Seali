@@ -138,6 +138,7 @@
         "module:co.touchlab:stately-concurrent-collections:2.1.0",
         "module:co.touchlab:stately-strict-jvm:2.1.0",
         "module:co.touchlab:stately-strict:2.1.0",
+        "module:com.abovevacant:epitaph:0.2.0",
         "module:com.fasterxml.jackson.core:jackson-annotations:2.21",
         "module:com.fasterxml.jackson.core:jackson-core:2.21.8",
         "module:com.fasterxml.jackson.core:jackson-databind:2.21.8",
@@ -172,6 +173,9 @@
         "module:io.insert-koin:koin-core-viewmodel-jvm:4.0.0",
         "module:io.insert-koin:koin-core-viewmodel:4.0.0",
         "module:io.insert-koin:koin-core:4.0.0",
+        "module:io.sentry:sentry-android-core:8.64.0",
+        "module:io.sentry:sentry-bom:8.64.0",
+        "module:io.sentry:sentry:8.64.0",
         "module:org.apache.commons:commons-compress:1.28.0",
         "module:org.apache.commons:commons-lang3:3.18.0",
         "module:org.jetbrains.androidx.core:core-bundle-android-debug:1.0.0",
@@ -1026,6 +1030,14 @@
             "bytes": 1607
         },
         {
+            "group": "com.abovevacant",
+            "name": "epitaph",
+            "version": "0.2.0",
+            "file": "epitaph-0.2.0.jar",
+            "sha256": "83c73b7b47813eb846ee6396c519f651c1678c5586200b4c09e0d36f55164f81",
+            "bytes": 32362
+        },
+        {
             "group": "com.fasterxml.jackson.core",
             "name": "jackson-annotations",
             "version": "2.21",
@@ -1248,6 +1260,22 @@
             "file": "koin-core-viewmodel-jvm-4.0.0.jar",
             "sha256": "714fec71c4eb4d935a6576c80e6c98fd11582aa165de9937028ceabe9010085a",
             "bytes": 123466
+        },
+        {
+            "group": "io.sentry",
+            "name": "sentry",
+            "version": "8.64.0",
+            "file": "sentry-8.64.0.jar",
+            "sha256": "3fa99cd4218f05f3926398a2721a4a126b83a47182b6096440cc27f3817d34d5",
+            "bytes": 1297182
+        },
+        {
+            "group": "io.sentry",
+            "name": "sentry-android-core",
+            "version": "8.64.0",
+            "file": "sentry-android-core-8.64.0.aar",
+            "sha256": "6625a6aa6eb4c41030a3cb1b94dba6332e145e43dc17c5cd3d2ff53f0a7cf8cc",
+            "bytes": 517099
         },
         {
             "group": "org.apache.commons",

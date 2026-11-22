@@ -1,4 +1,6 @@
 name: Alpha7 integrated API26 runtime qualification
+# QUALIFICATION BRANCH VARIANT: builds the PLAY debug pair (com.frpboy.seali.google.debug) from this ref.
+# Play graph lock is the reviewed generic lock relabelled; the fail-closed gate proves or rejects it.
 
 # REVIEW DRAFT - manual qualification only. No signing, no APK publication, no
 # release, no public Maven effects. Static lane only: rebuilds the pinned
@@ -94,6 +96,8 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon --no-configuration-cache -I scripts/build-contract/resolved-graph.init.gradle -PfunctionalAlphaCandidate :app:writeGenericDebugRuntimeClasspathGraph
           python3 scripts/build-contract/verify-runtime-graph.py --lock scripts/build-contract/alpha7-runtime-graph-lock.json --report app/build/reports/resolved-graph/genericDebugRuntimeClasspath.json
+          ./gradlew --no-daemon --no-configuration-cache -I scripts/build-contract/resolved-graph-play.init.gradle -PfunctionalAlphaCandidate :app:writePlayDebugRuntimeClasspathGraph
+          python3 scripts/build-contract/verify-runtime-graph.py --lock scripts/build-contract/alpha7-runtime-graph-play-lock.json --report app/build/reports/resolved-graph/playDebugRuntimeClasspath.json
       # Locked reviewed ARM64 custody inputs are never in git (.gitignore by
       # design); a fresh checkout lacks all 9. Stage through the repo's own
       # fail-closed chain (identical calls to alpha7-candidate.yml) before any
@@ -143,12 +147,12 @@ jobs:
       - name: Assemble ARM64 app and instrumentation APKs
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon assembleGenericDebug assembleGenericDebugAndroidTest
+          ./gradlew --no-daemon :app:testPlayDebugUnitTest assemblePlayDebug assemblePlayDebugAndroidTest
       - name: Require exactly one app APK and one androidTest APK with hash manifest
         run: |
           set -euo pipefail
-          mapfile -t app_apk < <(find app/build/outputs/apk/generic/debug -maxdepth 1 -name '*.apk' | sort)
-          mapfile -t test_apk < <(find app/build/outputs/apk/androidTest/generic/debug -maxdepth 1 -name '*.apk' | sort)
+          mapfile -t app_apk < <(find app/build/outputs/apk/play/debug -maxdepth 1 -name '*.apk' | sort)
+          mapfile -t test_apk < <(find app/build/outputs/apk/androidTest/play/debug -maxdepth 1 -name '*.apk' | sort)
           if [ "${#app_apk[@]}" -ne 1 ] || [ "${#test_apk[@]}" -ne 1 ]; then
             echo "::error::Expected exactly one app APK and one androidTest APK, got ${#app_apk[@]} and ${#test_apk[@]}"
             find app/build/outputs/apk -name '*.apk' -printf '%f\n'

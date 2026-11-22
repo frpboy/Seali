@@ -20,7 +20,7 @@ def manifest_pairs(path):
         if not re.fullmatch('[0-9a-f]{64}',digest) or not name:raise ValueError('malformed manifest line')
         rows.append((digest,pathlib.PurePosixPath(name)))
     if len(rows)!=2:raise ValueError('manifest must name exactly the app and test APK')
-    prefixes=('app/build/outputs/apk/generic/debug/','app/build/outputs/apk/androidTest/generic/debug/')
+    prefixes=('app/build/outputs/apk/generic/debug/','app/build/outputs/apk/androidTest/generic/debug/','app/build/outputs/apk/play/debug/','app/build/outputs/apk/androidTest/play/debug/')
     seen=set()
     for digest,name in rows:
         if name.is_absolute() or '..' in name.parts:raise ValueError('unsafe manifest path')
