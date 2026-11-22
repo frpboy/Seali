@@ -158,16 +158,25 @@ internal object CookiePolicyGate {
             val root = File(context.noBackupFilesDir.canonicalFile, "youtubedl-android/yt-dlp")
             val engine = File(root, "yt-dlp")
             if (!engine.isFile) throw CookiePolicyException("Cookies were not used: the download engine is missing.")
-            val pluginFile =
-                try {
-                    CookiePolicyPlugin.install(root)
-                } catch (e: IllegalStateException) {
+            try {
+                CookiePolicyPlugin.install(root)
+            } catch (e: IllegalStateException) {
                     throw CookiePolicyException("Cookies were not used: the cookie safety rule could not be installed (${e.message}).")
                 }
             val gate = core ?: CookiePolicyGateCore { runProbe(context) }.also { core = it }
-            val engineSha = CookiePolicyPlugin.sha256(engine)
-            val pluginSha = CookiePolicyPlugin.sha256(pluginFile)
-            val expectation = EngineExpectation(engineSha, mapOf(CookiePolicyPlugin.SNAPSHOT_KEY to pluginSha))
+            // Measured by the library with the same rules a launch snapshot uses; the app keeps no copy of them.
+            val measured =
+                try {
+                    YoutubeDL.getInstance().measureInstalledEngine()
+                } catch (e: Exception) {
+                    throw CookiePolicyException("Cookies were not used: the download engine could not be checked (${e.javaClass.simpleName}).")
+                }
+            if (measured.pluginFiles != mapOf(CookiePolicyPlugin.SNAPSHOT_KEY to CookiePolicyPlugin.SHA256)) {
+                throw CookiePolicyException("Cookies were not used: the engine plugin folder is not exactly the cookie safety rule.")
+            }
+            val engineSha = measured.engineSha256
+            val pluginSha = CookiePolicyPlugin.SHA256
+            val expectation = measured
             probeExpectation = expectation
             gate.require(engineSha, pluginSha, command)
             expectation
