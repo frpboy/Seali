@@ -91,7 +91,8 @@ object DownloadUtil {
     ): Result<YoutubeDLInfo> =
         YoutubeDL.runCatching {
             ToastUtil.makeToastSuspend(context.getString(R.string.fetching_playlist_info))
-            val request = YoutubeDLRequest(playlistURL)
+            SourcePolicy.blockedReason(playlistURL)?.let { throw YoutubeDLException(it) }
+            val request = YoutubeDLRequest(playlistURL).applySourcePolicy()
             with(request) {
                 //            addOption("--compat-options", "no-youtube-unavailable-videos")
                 addOption("--flat-playlist")
@@ -144,9 +145,10 @@ object DownloadUtil {
         taskKey: String? = null,
         preferences: DownloadPreferences = DownloadPreferences.createFromPreferences(),
     ): Result<VideoInfo> {
+        SourcePolicy.blockedReason(url)?.let { return Result.failure(YoutubeDLException(it)) }
         with(preferences) {
             val request =
-                YoutubeDLRequest(url).apply {
+                YoutubeDLRequest(url).applySourcePolicy().apply {
                     addOption("-o", BASENAME)
                     if (restrictFilenames) {
                         addOption("--restrict-filenames")
@@ -707,7 +709,8 @@ object DownloadUtil {
                             Throwable(context.getString(R.string.fetch_info_error_msg))
                         )
                 }
-            val request = YoutubeDLRequest(url)
+            SourcePolicy.blockedReason(url)?.let { return Result.failure(YoutubeDLException(it)) }
+            val request = YoutubeDLRequest(url).applySourcePolicy()
             val pathBuilder = StringBuilder()
             val outputBuilder = StringBuilder()
             // yt-dlp reports a finished output path to a task-owned file (see
