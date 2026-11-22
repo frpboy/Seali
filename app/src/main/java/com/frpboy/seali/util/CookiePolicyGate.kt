@@ -13,6 +13,7 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Cookie use was refused because the cookie safety check did not pass. Fail closed, never silent. */
@@ -188,11 +189,18 @@ internal object CookiePolicyGate {
                     // a helper thread: if it has not finished in time the invocation is cancelled by id and this
                     // call returns anyway, so the gate denies cookies and releases the engine lock even when
                     // the cancel does not unblock the launcher.
+                    val abandoned = AtomicBoolean(false)
                     runWithDeadline(
                         PROBE_CASE_DEADLINE_MS,
-                        onTimeout = { YoutubeDL.getInstance().destroyProcessById(processId) },
+                        onTimeout = {
+                            abandoned.set(true)
+                            cancelUntilGone(processId)
+                        },
                     ) {
-                        YoutubeDL.getInstance().execute(request, processId)
+                        // The library registers the id only after some file setup, so a cancel that arrives
+                        // earlier finds nothing. cancelUntilGone keeps retrying, and this check stops a
+                        // helper that has not reached execute yet.
+                        if (!abandoned.get()) YoutubeDL.getInstance().execute(request, processId)
                     }
                 } catch (e: TimeoutException) {
                     failures += "${case.name}: launcher did not finish in time"
@@ -313,6 +321,16 @@ private val probeSequence = AtomicInteger(0)
 
 /** Longest one probe case may run. A healthy case takes tens of seconds on a slow phone. */
 internal const val PROBE_CASE_DEADLINE_MS = 120_000L
+
+/** Cancels [id] now and keeps retrying for a while, because the library only knows an id once execute registers it. */
+internal fun cancelUntilGone(id: String, attempts: Int = 20, pauseMs: Long = 500) {
+    Thread {
+        repeat(attempts) {
+            if (YoutubeDL.getInstance().destroyProcessById(id)) return@Thread
+            try { Thread.sleep(pauseMs) } catch (_: InterruptedException) { return@Thread }
+        }
+    }.apply { isDaemon = true; start() }
+}
 
 /**
  * Runs [block] on a helper thread and waits at most [timeoutMs]. On timeout it calls [onTimeout], interrupts the
