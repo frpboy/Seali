@@ -8,9 +8,11 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.Collections
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Cookie use was refused because the cookie safety check did not pass. Fail closed, never silent. */
@@ -131,7 +133,17 @@ internal class CookiePolicyGateCore(private val probe: () -> List<String>) {
 }
 
 internal object CookiePolicyGate {
-    /** Shared with [FunctionalEngine.install] so an engine install and a cookie launch never overlap. */
+    /**
+     * Shared with [FunctionalEngine.install] so an engine install and a cookie gate/probe never overlap.
+     *
+     * Known limits, recorded from source (not a guarantee):
+     * - The lock is released when [require] returns, before the launcher starts. A write to the engine in that
+     *   window would change the bytes the launch uses compared with the bytes just probed.
+     * - [FunctionalEngine.install] writes only the bundled pinned bytes. The runtime updater
+     *   (UpdateUtil.updateYtDlp -> YoutubeDL.updateYoutubeDL) writes newly downloaded bytes and does not take this
+     *   lock. Play builds never run it (RuntimeUpdatePolicy.mayDownload); generic and F-Droid builds can, with
+     *   consent. The next gate call sees the new engine sha and probes again.
+     */
     val engineLock = Any()
 
     private var core: CookiePolicyGateCore? = null
@@ -161,7 +173,8 @@ internal object CookiePolicyGate {
             val failures = mutableListOf<String>()
             for (case in CookieProbeSpec.CASES) {
                 server.reset()
-                val timedOut = AtomicBoolean(false)
+                // One id per case, so a late cancel can only ever reach the case it was made for.
+                val processId = "$PROBE_PROCESS_ID-${probeSequence.incrementAndGet()}"
                 try {
                     val request =
                         YoutubeDLRequest(case.url)
@@ -171,21 +184,21 @@ internal object CookiePolicyGate {
                             .addOption("--socket-timeout", "10")
                             .addOption("-R", "0")
                             .addOption(IGNORE_CONFIG)
-                    // A stalled child never opens a socket, so the socket timeout cannot stop it. The watchdog
-                    // cancels this one invocation by id; the gate then denies cookies.
-                    runWithWatchdog(
+                    // A stalled child never opens a socket, so the socket timeout cannot stop it. The case runs on
+                    // a helper thread: if it has not finished in time the invocation is cancelled by id and this
+                    // call returns anyway, so the gate denies cookies and releases the engine lock even when
+                    // the cancel does not unblock the launcher.
+                    runWithDeadline(
                         PROBE_CASE_DEADLINE_MS,
-                        onTimeout = {
-                            timedOut.set(true)
-                            YoutubeDL.getInstance().destroyProcessById(PROBE_PROCESS_ID)
-                        },
+                        onTimeout = { YoutubeDL.getInstance().destroyProcessById(processId) },
                     ) {
-                        YoutubeDL.getInstance().execute(request, PROBE_PROCESS_ID)
+                        YoutubeDL.getInstance().execute(request, processId)
                     }
+                } catch (e: TimeoutException) {
+                    failures += "${case.name}: launcher did not finish in time"
+                    break
                 } catch (e: Exception) {
-                    failures +=
-                        if (timedOut.get()) "${case.name}: launcher did not finish in time"
-                        else "${case.name}: launcher failed (${e.javaClass.simpleName})"
+                    failures += "${case.name}: launcher failed (${e.javaClass.simpleName})"
                     continue
                 }
                 if (server.workerFailures() > 0) {
@@ -296,32 +309,29 @@ internal fun YoutubeDLRequest.enforceCookiePolicy(context: Context): YoutubeDLRe
 
 internal const val IGNORE_CONFIG = "--ignore-config"
 internal const val PROBE_PROCESS_ID = "cookie-policy-probe"
+private val probeSequence = AtomicInteger(0)
 
 /** Longest one probe case may run. A healthy case takes tens of seconds on a slow phone. */
 internal const val PROBE_CASE_DEADLINE_MS = 120_000L
 
 /**
- * Runs [block]. If it has not finished after [timeoutMs], calls [onTimeout] once from a helper thread.
- * The helper is stopped as soon as [block] returns or throws.
+ * Runs [block] on a helper thread and waits at most [timeoutMs]. On timeout it calls [onTimeout], interrupts the
+ * helper and throws [TimeoutException] without waiting for the helper, so the caller is released even if
+ * [block] ignores both. Other exceptions from [block] are rethrown as they were.
  */
-internal fun <T> runWithWatchdog(timeoutMs: Long, onTimeout: () -> Unit, block: () -> T): T {
-    val done = CountDownLatch(1)
-    val watchdog =
-        Thread {
-                try {
-                    if (!done.await(timeoutMs, TimeUnit.MILLISECONDS)) onTimeout()
-                } catch (e: InterruptedException) {
-                }
-            }
-            .apply {
-                isDaemon = true
-                start()
-            }
+internal fun <T> runWithDeadline(timeoutMs: Long, onTimeout: () -> Unit, block: () -> T): T {
+    val task = FutureTask(Callable { block() })
+    Thread(task).apply {
+        isDaemon = true
+        start()
+    }
     try {
-        return block()
-    } finally {
-        done.countDown()
-        watchdog.interrupt()
+        return task.get(timeoutMs, TimeUnit.MILLISECONDS)
+    } catch (e: ExecutionException) {
+        throw e.cause ?: e
+    } catch (e: TimeoutException) {
+        try { onTimeout() } finally { task.cancel(true) }
+        throw e
     }
 }
 
