@@ -253,8 +253,8 @@ object UpdateUtil {
         val result =
             runCatching {
                     ApkUpdateVerifier.verify(
-                        expectedFor(context, asset),
-                        archiveFacts(context, file),
+                        ApkArchiveReader.expectation(context, asset.size, asset.digest),
+                        ApkArchiveReader.archive(context, file),
                     )
                 }
                 .getOrElse { ApkUpdateVerifier.Result.Refused(ApkUpdateVerifier.Reason.UNREADABLE_ARCHIVE) }
@@ -262,58 +262,6 @@ object UpdateUtil {
             file.delete()
             throw UpdateRefusedException(result.reason)
         }
-    }
-
-    private fun expectedFor(context: Context, asset: AssetsItem): ApkUpdateVerifier.Expectation {
-        val info = installedInfo(context)
-        return ApkUpdateVerifier.Expectation(
-            packageName = context.packageName,
-            installedVersionCode = versionCodeOf(info),
-            installedSigningCertSha256 = certsOf(info),
-            assetSize = asset.size,
-            assetSha256 = asset.digest,
-        )
-    }
-
-    private fun archiveFacts(context: Context, file: File): ApkUpdateVerifier.Archive {
-        val info = archiveInfo(context, file)
-        return ApkUpdateVerifier.Archive(
-            packageName = info?.packageName,
-            versionCode = info?.let(::versionCodeOf),
-            signingCertSha256 = info?.let(::certsOf).orEmpty(),
-            fileSize = file.length(),
-            fileSha256 = ApkUpdateVerifier.sha256(file),
-        )
-    }
-
-    @Suppress("DEPRECATION")
-    private fun installedInfo(context: Context): android.content.pm.PackageInfo =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-            context.packageManager.getPackageInfo(
-                context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-        else context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
-
-    @Suppress("DEPRECATION")
-    private fun archiveInfo(context: Context, file: File): android.content.pm.PackageInfo? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-            context.packageManager.getPackageArchiveInfo(
-                file.absolutePath, PackageManager.GET_SIGNING_CERTIFICATES)
-        else context.packageManager.getPackageArchiveInfo(file.absolutePath, PackageManager.GET_SIGNATURES)
-
-    @Suppress("DEPRECATION")
-    private fun versionCodeOf(info: android.content.pm.PackageInfo): Long =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode
-        else info.versionCode.toLong()
-
-    /** Current signers only (the signing-lineage history is not trusted as an identity). */
-    @Suppress("DEPRECATION")
-    private fun certsOf(info: android.content.pm.PackageInfo): Set<String> {
-        val sigs =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                val si = info.signingInfo ?: return emptySet()
-                si.apkContentsSigners
-            } else info.signatures ?: return emptySet()
-        return sigs.map { ApkUpdateVerifier.sha256(it.toByteArray()) }.toSet()
     }
 
     private fun ResponseBody.downloadFileWithProgress(saveFile: File): Flow<DownloadStatus> =

@@ -1052,6 +1052,9 @@ jobs:
             grep -F 'OK (1 test)' update-page-result.txt
             ! grep -E 'FAILURES|INSTRUMENTATION_FAILED|shortMsg=' update-page-result.txt
             for s in available downloading verifying confirm refused; do adb exec-out run-as com.frpboy.seali.updaterfixture cat files/update-$s.png > update-$s.png; test -s update-$s.png; done
+            adb shell am instrument -w -r -e class com.frpboy.seali.ApkArchiveReaderFixtureTest com.frpboy.seali.updaterfixture.test/androidx.test.runner.AndroidJUnitRunner | tee update-extraction-result.txt
+            grep -F 'OK (2 tests)' update-extraction-result.txt
+            ! grep -E 'FAILURES|INSTRUMENTATION_FAILED|shortMsg=' update-extraction-result.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -1059,6 +1062,7 @@ jobs:
           path: |
             update-*.png
             update-page-result.txt
+            update-extraction-result.txt
             ui-qualification/build/outputs/androidTest-results/
           retention-days: 3
 

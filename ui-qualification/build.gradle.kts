@@ -7,11 +7,14 @@ plugins {
 // Deliberately a separate Gradle root: cannot include Seali App/Application, native libraries, secrets,
 // runtime installers or release tasks. The EXACT presentation source and test are copied, not rewritten.
 val presentationSources by tasks.registering(Sync::class) {
-    from("../app/src/main/java") { include("com/frpboy/seali/ui/page/UpdateProgressPage.kt") }
+    from("../app/src/main/java") { include("com/frpboy/seali/ui/page/UpdateProgressPage.kt")
+        include("com/frpboy/seali/util/ApkUpdateVerifier.kt")
+        include("com/frpboy/seali/util/ApkArchiveReader.kt") }
     into(layout.buildDirectory.dir("generated/presentation/main"))
 }
 val presentationTestSources by tasks.registering(Sync::class) {
-    from("../app/src/androidTest/java") { include("com/frpboy/seali/UpdateProgressPageTest.kt") }
+    from("../app/src/androidTest/java") { include("com/frpboy/seali/UpdateProgressPageTest.kt")
+        include("com/frpboy/seali/ApkArchiveReaderFixtureTest.kt") }
     into(layout.buildDirectory.dir("generated/presentation/androidTest"))
 }
 android {
