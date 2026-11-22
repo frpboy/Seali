@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -84,7 +85,32 @@ def main(root=None):
         state["image_revision"] = properties.get("Pkg.Revision", "").strip()
         if state["image_revision"] != "9":
             raise RuntimeError("IMAGE_REVISION_CHANGED_REVIEW_REQUIRED")
-        state["emulator_version"] = command_ok([str(sdk / "emulator/emulator"), "-version"], "emulator_version")[:1000]
+        # A plain emulator -version may launch the GUI backend even when the later boot is headless.
+        # Keep the control output, but qualify only the exact no-window/no-audio backend we intend to boot.
+        # These SDK-tool version/loader commands run before any emulator console or user app exists.
+        preflight = []
+        for label, flags in (("version_control", ["-version"]),
+                             ("version_headless", ["-no-window", "-no-audio", "-version"])):
+            result = run([str(sdk / "emulator/emulator"), *flags], seconds=30,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            output = result.stdout.decode("utf-8", "replace")[:8192]
+            preflight.append({"phase": label, "exit": result.returncode, "output": output})
+            state["phases"][label] = {"exit": result.returncode}
+            persist()
+        loader = shutil.which("ldd")
+        if loader:
+            for relative in ("emulator", "qemu/linux-x86_64/qemu-system-x86_64",
+                             "qemu/linux-x86_64/qemu-system-x86_64-headless"):
+                binary = sdk / "emulator" / relative
+                if binary.is_file():
+                    result = run([loader, str(binary)], seconds=15,
+                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                    preflight.append({"phase": "loader:" + relative, "exit": result.returncode,
+                                      "output": result.stdout.decode("utf-8", "replace")[:8192]})
+        (out / "sdk-preflight.json").write_text(json.dumps(preflight, indent=2) + "\n")
+        if state["phases"]["version_headless"]["exit"]:
+            raise RuntimeError("HEADLESS_EMULATOR_PREFLIGHT_FAILED")
+        state["emulator_version"] = preflight[1]["output"][:1000]
         command_ok([str(sdk / "cmdline-tools/latest/bin/avdmanager"), "create", "avd", "--force",
                     "--name", AVD, "--package", IMAGE, "--device", "pixel_2"], "create_avd", input=b"no\n")
         # No chmod, udev, sudo, group changes, KVM probing or hypervisor fallback.
@@ -167,6 +193,7 @@ def main(root=None):
         persist()
         # Publish only structured diagnostics, fixture screenshots and synthetic test output. Raw emulator
         # log stays ephemeral and is not in the artifact allowlist (it may include local console auth data).
+        # sdk-preflight.json contains ONLY SDK -version / ldd output captured before boot, bounded per command.
         print(json.dumps(state, indent=2))
     return 0 if state.get("passed") else 1
 
