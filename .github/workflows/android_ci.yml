@@ -14,7 +14,7 @@ on:
         required: false
         default: false
       expected_qualification_sha:
-        description: 'Exact reviewed isolated consumer commit, required for qualification mode'
+        description: 'Exact reviewed source SHA for Maven or updater UI qualification'
         type: string
         required: false
       build_release:
@@ -999,11 +999,11 @@ jobs:
           rm -f app/seali-play-upload-key.jks "$RUNNER_TEMP/seali-play-upload-key.base64" "$RUNNER_TEMP/seali-play-keystore-check.log" "$RUNNER_TEMP/seali-play-upload-key-check.csr" "$RUNNER_TEMP/seali-play-upload-key-nested.base64" "$RUNNER_TEMP/seali-play-upload-key-nested.bin"
           find app/build/outputs/bundle -type f -name '*.aab' -delete 2>/dev/null || true
 
-  updater-ui:
+  updater-ui-software:
     # Independent of history-ui: a historical failure never hides the updater's result.
     if: github.event_name == 'workflow_dispatch' && inputs.run_history_ui == true && inputs.qualify_maven_consumer != true
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1031,39 +1031,29 @@ jobs:
         with:
           packages: platform-tools platforms;android-36 build-tools;36.0.0
       - uses: gradle/actions/setup-gradle@v3
-      - name: Check runner-provided KVM (no host permission changes)
-        run: test -c /dev/kvm && test -r /dev/kvm && test -w /dev/kvm
-      - uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          arch: x86_64
-          profile: pixel_2
-          disable-animations: true
-          script: |
-            chmod +x gradlew
-            ./gradlew -p ui-qualification assembleDebug assembleDebugAndroidTest
-            APP=$(find ui-qualification/build/outputs/apk/debug -maxdepth 1 -name '*.apk')
-            TEST=$(find ui-qualification/build/outputs/apk/androidTest/debug -maxdepth 1 -name '*.apk')
-            test "$(printf '%s\n' "$APP" | wc -l)" = 1
-            test "$(printf '%s\n' "$TEST" | wc -l)" = 1
-            adb install -r "$APP"
-            adb install -r "$TEST"
-            adb shell am instrument -w -r -e class com.frpboy.seali.UpdateProgressPageTest com.frpboy.seali.updaterfixture.test/androidx.test.runner.AndroidJUnitRunner | tee update-page-result.txt
-            grep -F 'OK (1 test)' update-page-result.txt
-            ! grep -E 'FAILURES|INSTRUMENTATION_FAILED|shortMsg=' update-page-result.txt
-            for s in available downloading verifying confirm refused; do adb exec-out run-as com.frpboy.seali.updaterfixture cat files/update-$s.png > update-$s.png; test -s update-$s.png; done
-            adb shell am instrument -w -r -e class com.frpboy.seali.ApkArchiveReaderFixtureTest com.frpboy.seali.updaterfixture.test/androidx.test.runner.AndroidJUnitRunner | tee update-extraction-result.txt
-            grep -F 'OK (2 tests)' update-extraction-result.txt
-            ! grep -E 'FAILURES|INSTRUMENTATION_FAILED|shortMsg=' update-extraction-result.txt
+      - name: Install reviewed software-emulator image (no KVM or host permission changes)
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "system-images;android-35;google_apis;x86_64"
+      - name: Build isolated debug fixture only (no production Seali app)
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew -p ui-qualification --no-daemon assembleDebug assembleDebugAndroidTest
+      - name: Attempt bounded software-emulator fixture; unsupported TCG mode may time out
+        timeout-minutes: 32
+        run: python3 scripts/update-ui-qualification/run-software-fixture.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: update-page-presentation-evidence
+          name: update-page-software-fixture-evidence
           path: |
-            update-*.png
-            update-page-result.txt
-            update-extraction-result.txt
-            ui-qualification/build/outputs/androidTest-results/
+            update-ui-evidence/result.json
+            update-ui-evidence/update-*.png
+            update-ui-evidence/page-result.txt
+            update-ui-evidence/extraction-result.txt
           retention-days: 3
 
   history-ui:
