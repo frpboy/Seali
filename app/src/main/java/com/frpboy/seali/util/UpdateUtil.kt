@@ -215,6 +215,29 @@ object UpdateUtil {
             emptyFlow()
         }
 
+    /** A downloaded update that failed an integrity check. Carries a reason the UI can show; the file is already deleted. */
+    class UpdateRefusedException(val reason: ApkUpdateVerifier.Reason) :
+        Exception("Update refused: $reason")
+
+    /** Text for the failure toast: names the refusal when there is one, otherwise the generic failure. */
+    fun failureMessage(context: Context, t: Throwable): String =
+        if (t is UpdateRefusedException)
+            context.getString(R.string.app_update_refused, refusalText(t.reason))
+        else context.getString(R.string.app_update_failed)
+
+    fun refusalText(reason: ApkUpdateVerifier.Reason): String =
+        when (reason) {
+            ApkUpdateVerifier.Reason.NO_PUBLISHED_DIGEST -> "the release has no published checksum"
+            ApkUpdateVerifier.Reason.SIZE_MISMATCH,
+            ApkUpdateVerifier.Reason.DIGEST_MISMATCH -> "the download does not match the published file"
+            ApkUpdateVerifier.Reason.PACKAGE_MISMATCH -> "it is a different app package"
+            ApkUpdateVerifier.Reason.NOT_NEWER -> "it is not newer than the installed version"
+            ApkUpdateVerifier.Reason.CERTIFICATE_MISMATCH,
+            ApkUpdateVerifier.Reason.NO_ARCHIVE_CERTIFICATE,
+            ApkUpdateVerifier.Reason.NO_INSTALLED_CERTIFICATE -> "it is not signed by the same key as the installed app"
+            ApkUpdateVerifier.Reason.UNREADABLE_ARCHIVE -> "the downloaded file could not be read"
+        }
+
     /** Throws and deletes the file unless it passes [ApkUpdateVerifier]; the system installer is never reached otherwise. */
     private fun verifyOrDelete(context: Context, asset: AssetsItem, file: File) {
         val result =
@@ -227,7 +250,7 @@ object UpdateUtil {
                 .getOrElse { ApkUpdateVerifier.Result.Refused(ApkUpdateVerifier.Reason.UNREADABLE_ARCHIVE) }
         if (result is ApkUpdateVerifier.Result.Refused) {
             file.delete()
-            throw IllegalStateException("Update refused: ${result.reason}")
+            throw UpdateRefusedException(result.reason)
         }
     }
 

@@ -105,7 +105,7 @@ fun AppUpdater() {
                                 it.printStackTrace()
                                 currentDownloadStatus = UpdateUtil.DownloadStatus.NotYet
                                 ToastUtil.makeToastSuspend(
-                                    context.getString(R.string.app_update_failed)
+                                    UpdateUtil.failureMessage(context, it)
                                 )
                                 return@launch
                             }
@@ -113,6 +113,8 @@ fun AppUpdater() {
             },
             releaseNote = release.body.toString(),
             downloadStatus = currentDownloadStatus,
+            sizeLabel = UpdateUtil.updateSizeLabel(release),
+            dateLabel = UpdateUtil.releaseDateLabel(release),
         )
     }
 }
