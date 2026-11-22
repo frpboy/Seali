@@ -250,6 +250,12 @@ android {
             .java.srcDir("src/sentryTest/java")
     }
 
+    // Source boundary: only the Play flavor restricts sources (src/play); the others
+    // share an unrestricted no-op policy.
+    for (flavor in listOf("generic", "githubPreview", "fdroid")) {
+        sourceSets.maybeCreate(flavor).java.srcDir("src/unrestricted/java")
+    }
+
 
     lint { disable.addAll(listOf("MissingTranslation", "ExtraTranslation", "MissingQuantity")) }
 

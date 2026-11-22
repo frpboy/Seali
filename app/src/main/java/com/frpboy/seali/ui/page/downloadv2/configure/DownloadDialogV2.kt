@@ -116,6 +116,7 @@ import com.frpboy.seali.ui.page.settings.format.VideoQuickSettingsDialog
 import com.frpboy.seali.ui.page.settings.network.CookiesQuickSettingsDialog
 import com.frpboy.seali.ui.theme.SealTheme
 import com.frpboy.seali.util.SafeErrorReport
+import com.frpboy.seali.util.SourcePolicy
 import com.frpboy.seali.util.AUDIO_CONVERSION_FORMAT
 import com.frpboy.seali.util.AUDIO_CONVERT
 import com.frpboy.seali.util.AUDIO_FORMAT
@@ -1157,9 +1158,25 @@ private fun ActionButtons(
             Download
         }
 
+    // Play edition: the user confirms copying rights for this download before it can start.
+    var rightsConfirmed by remember { mutableStateOf(!SourcePolicy.REQUIRES_RIGHTS_CONFIRMATION) }
     val state = rememberLazyListState()
+    Column(modifier = modifier.fillMaxWidth()) {
+    if (SourcePolicy.REQUIRES_RIGHTS_CONFIRMATION) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            androidx.compose.material3.Checkbox(checked = rightsConfirmed, onCheckedChange = { rightsConfirmed = it })
+            Text(
+                text = stringResource(R.string.rights_confirmation),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+    }
     LazyRow(
-        modifier = modifier.fillMaxWidth().padding(top = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         horizontalArrangement = Arrangement.End,
         state = state,
         verticalAlignment = Alignment.CenterVertically,
@@ -1183,7 +1200,7 @@ private fun ActionButtons(
                     }
                 },
                 contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
-                enabled = canProceed,
+                enabled = canProceed && rightsConfirmed,
             ) {
                 AnimatedContent(
                     targetState = action,
@@ -1201,5 +1218,6 @@ private fun ActionButtons(
                 }
             }
         }
+    }
     }
 }

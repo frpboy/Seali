@@ -91,7 +91,8 @@ object DownloadUtil {
     ): Result<YoutubeDLInfo> =
         YoutubeDL.runCatching {
             ToastUtil.makeToastSuspend(context.getString(R.string.fetching_playlist_info))
-            val request = YoutubeDLRequest(playlistURL)
+            SourcePolicy.blockedReason(playlistURL)?.let { throw YoutubeDLException(it) }
+            val request = YoutubeDLRequest(playlistURL).applySourcePolicy()
             with(request) {
                 //            addOption("--compat-options", "no-youtube-unavailable-videos")
                 addOption("--flat-playlist")
@@ -118,7 +119,7 @@ object DownloadUtil {
                     }
                 }
             }
-            execute(request.enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads(), playlistURL).out.run {
+            execute(request.enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads().enforceCookiePolicy(context), playlistURL).out.run {
                 val playlistInfo = jsonFormat.decodeFromString<PlaylistResult>(this)
                 if (playlistInfo.type != "playlist") {
                     jsonFormat.decodeFromString<VideoInfo>(this)
@@ -133,7 +134,7 @@ object DownloadUtil {
     ): Result<VideoInfo> =
         request.runCatching {
             val response: YoutubeDLResponse =
-                YoutubeDL.getInstance().execute(request.enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads(), taskKey, null)
+                YoutubeDL.getInstance().execute(request.enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads().enforceCookiePolicy(context), taskKey, null)
             jsonFormat.decodeFromString(response.out)
         }
 
@@ -144,9 +145,10 @@ object DownloadUtil {
         taskKey: String? = null,
         preferences: DownloadPreferences = DownloadPreferences.createFromPreferences(),
     ): Result<VideoInfo> {
+        SourcePolicy.blockedReason(url)?.let { return Result.failure(YoutubeDLException(it)) }
         with(preferences) {
             val request =
-                YoutubeDLRequest(url).apply {
+                YoutubeDLRequest(url).applySourcePolicy().apply {
                     addOption("-o", BASENAME)
                     if (restrictFilenames) {
                         addOption("--restrict-filenames")
@@ -365,6 +367,10 @@ object DownloadUtil {
     /** Explicit user-driven write (cookie dialog or cookie page); never overwritten by the lazy export. */
     fun writeCookiesFile(content: String) =
         cookieFileRefresher.writeExplicit(content, context.getCookiesFile())
+
+    /** Play edition only: also exclude named platforms' extractors, so redirects cannot reach them. */
+    private fun YoutubeDLRequest.applySourcePolicy(): YoutubeDLRequest =
+        apply { SourcePolicy.extractorFilter?.let { addOption("--use-extractors", it) } }
 
     private fun YoutubeDLRequest.enableCookies(userAgentString: String): YoutubeDLRequest {
         cookieFileRefresher.ensureRefreshed(context.getCookiesFile())
@@ -707,7 +713,8 @@ object DownloadUtil {
                             Throwable(context.getString(R.string.fetch_info_error_msg))
                         )
                 }
-            val request = YoutubeDLRequest(url)
+            SourcePolicy.blockedReason(url)?.let { return Result.failure(YoutubeDLException(it)) }
+            val request = YoutubeDLRequest(url).applySourcePolicy()
             val pathBuilder = StringBuilder()
             val outputBuilder = StringBuilder()
             // yt-dlp reports a finished output path to a task-owned file (see
@@ -840,7 +847,7 @@ object DownloadUtil {
                 }
                 .runCatching {
                     YoutubeDL.getInstance()
-                        .execute(request = enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads(), processId = taskId, callback = progressCallback)
+                        .execute(request = enforceBundledJavascriptRuntime(context.applicationInfo.nativeLibraryDir).enforceNativeManifestDownloads().enforceCookiePolicy(context), processId = taskId, callback = progressCallback)
                 }
                 .onFailure { th ->
                     return if (
