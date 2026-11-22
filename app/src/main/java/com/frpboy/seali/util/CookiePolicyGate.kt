@@ -161,8 +161,8 @@ internal object CookiePolicyGate {
             try {
                 CookiePolicyPlugin.install(root)
             } catch (e: IllegalStateException) {
-                    throw CookiePolicyException("Cookies were not used: the cookie safety rule could not be installed (${e.message}).")
-                }
+                throw CookiePolicyException("Cookies were not used: the cookie safety rule could not be installed (${e.message}).")
+            }
             val gate = core ?: CookiePolicyGateCore { runProbe(context) }.also { core = it }
             // Measured by the library with the same rules a launch snapshot uses; the app keeps no copy of them.
             val measured =
