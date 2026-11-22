@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -120,6 +121,7 @@ object UpdateUtil {
             kotlin
                 .runCatching {
                     CandidateFeaturePolicy.requireAppUpdatesAvailable()
+                    requireGitHubDistribution()
                     val contentUri =
                         FileProvider.getUriForFile(this, getFileProvider(), getLatestApk())
                     val intent =
@@ -151,12 +153,38 @@ object UpdateUtil {
             }
         }
 
+    /** The asset for this device's preferred ABI, or null. */
+    fun selectAsset(release: Release, preferredArch: String): AssetsItem? =
+        release.assets?.find { it.name?.contains(preferredArch) == true && it.name.orEmpty().endsWith(".apk") }
+
+    /** "14.4 MB" style size of the asset this device would download, or null. */
+    fun updateSizeLabel(release: Release): String? =
+        Build.SUPPORTED_ABIS.firstOrNull()?.let { selectAsset(release, it) }?.size
+            ?.takeIf { it > 0 }
+            ?.let { "%.1f MB".format(it / 1_000_000.0) }
+
+    /** Release date as yyyy-MM-dd from GitHub's ISO timestamp, or null. */
+    fun releaseDateLabel(release: Release): String? =
+        (release.publishedAt ?: release.createdAt)?.take(10)?.takeIf { Regex("""\d{4}-\d{2}-\d{2}""").matches(it) }
+
+    private fun requireGitHubDistribution() {
+        check(!App.isPlayBuild() && !App.isFDroidBuild()) {
+            "In-app APK updates exist only in the GitHub build"
+        }
+    }
+
     suspend fun downloadApk(
         context: Context = App.context,
         release: Release,
     ): Flow<DownloadStatus> =
         withContext(Dispatchers.IO) {
             CandidateFeaturePolicy.requireAppUpdatesAvailable()
+            requireGitHubDistribution()
+            val abiList = Build.SUPPORTED_ABIS
+            val preferredArch = abiList.firstOrNull() ?: return@withContext emptyFlow()
+            val asset = selectAsset(release, preferredArch) ?: return@withContext emptyFlow()
+            val targetUrl = asset.browserDownloadUrl ?: return@withContext emptyFlow()
+
             val apkVersion =
                 context.packageManager
                     .getPackageArchiveInfo(context.getLatestApk().absolutePath, 0)
@@ -165,31 +193,95 @@ object UpdateUtil {
 
             Log.d(TAG, apkVersion.toString())
 
+            // A previously downloaded file is trusted no more than a new one: it goes through the same checks.
             if (apkVersion >= release.name.toVersion()) {
                 return@withContext flow<DownloadStatus> {
-                    emit(DownloadStatus.Finished(context.getLatestApk()))
+                    val file = context.getLatestApk()
+                    verifyOrDelete(context, asset, file)
+                    emit(DownloadStatus.Finished(file))
                 }
             }
 
-            val abiList = Build.SUPPORTED_ABIS
-            val preferredArch = abiList.firstOrNull() ?: return@withContext emptyFlow()
-
-            val targetUrl =
-                release.assets
-                    ?.find {
-                        return@find it.name?.contains(preferredArch) ?: false
-                    }
-                    ?.browserDownloadUrl ?: return@withContext emptyFlow()
             val request = Request.Builder().url(targetUrl).build()
             try {
                 val response = client.newCall(request).execute()
                 val responseBody = response.body
-                return@withContext responseBody.downloadFileWithProgress(context.getLatestApk())
+                return@withContext responseBody.downloadFileWithProgress(context.getLatestApk()).onEach {
+                    if (it is DownloadStatus.Finished) verifyOrDelete(context, asset, it.file)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
             emptyFlow()
         }
+
+    /** Throws and deletes the file unless it passes [ApkUpdateVerifier]; the system installer is never reached otherwise. */
+    private fun verifyOrDelete(context: Context, asset: AssetsItem, file: File) {
+        val result =
+            runCatching {
+                    ApkUpdateVerifier.verify(
+                        expectedFor(context, asset),
+                        archiveFacts(context, file),
+                    )
+                }
+                .getOrElse { ApkUpdateVerifier.Result.Refused(ApkUpdateVerifier.Reason.UNREADABLE_ARCHIVE) }
+        if (result is ApkUpdateVerifier.Result.Refused) {
+            file.delete()
+            throw IllegalStateException("Update refused: ${result.reason}")
+        }
+    }
+
+    private fun expectedFor(context: Context, asset: AssetsItem): ApkUpdateVerifier.Expectation {
+        val info = installedInfo(context)
+        return ApkUpdateVerifier.Expectation(
+            packageName = context.packageName,
+            installedVersionCode = versionCodeOf(info),
+            installedSigningCertSha256 = certsOf(info),
+            assetSize = asset.size,
+            assetSha256 = asset.digest,
+        )
+    }
+
+    private fun archiveFacts(context: Context, file: File): ApkUpdateVerifier.Archive {
+        val info = archiveInfo(context, file)
+        return ApkUpdateVerifier.Archive(
+            packageName = info?.packageName,
+            versionCode = info?.let(::versionCodeOf),
+            signingCertSha256 = info?.let(::certsOf).orEmpty(),
+            fileSize = file.length(),
+            fileSha256 = ApkUpdateVerifier.sha256(file),
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun installedInfo(context: Context): android.content.pm.PackageInfo =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            context.packageManager.getPackageInfo(
+                context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+        else context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+
+    @Suppress("DEPRECATION")
+    private fun archiveInfo(context: Context, file: File): android.content.pm.PackageInfo? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            context.packageManager.getPackageArchiveInfo(
+                file.absolutePath, PackageManager.GET_SIGNING_CERTIFICATES)
+        else context.packageManager.getPackageArchiveInfo(file.absolutePath, PackageManager.GET_SIGNATURES)
+
+    @Suppress("DEPRECATION")
+    private fun versionCodeOf(info: android.content.pm.PackageInfo): Long =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode
+        else info.versionCode.toLong()
+
+    /** Current signers only (the signing-lineage history is not trusted as an identity). */
+    @Suppress("DEPRECATION")
+    private fun certsOf(info: android.content.pm.PackageInfo): Set<String> {
+        val sigs =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val si = info.signingInfo ?: return emptySet()
+                if (si.hasMultipleSigners()) si.apkContentsSigners else si.signingCertificateHistory.takeLast(1).toTypedArray()
+            } else info.signatures ?: return emptySet()
+        return sigs.map { ApkUpdateVerifier.sha256(it.toByteArray()) }.toSet()
+    }
 
     private fun ResponseBody.downloadFileWithProgress(saveFile: File): Flow<DownloadStatus> =
         flow {
@@ -256,7 +348,9 @@ object UpdateUtil {
     data class AssetsItem(
         val name: String? = null,
         @SerialName("content_type") val contentType: String? = null,
-        val size: Int? = null,
+        val size: Long? = null,
+        /** GitHub's "sha256:<hex>" asset digest; the update is refused without one. */
+        val digest: String? = null,
         @SerialName("download_count") val downloadCount: Int? = null,
         @SerialName("created_at") val createdAt: String? = null,
         @SerialName("updated_at") val updatedAt: String? = null,

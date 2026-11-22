@@ -66,6 +66,8 @@ fun UpdateDialog(onDismissRequest: () -> Unit, release: UpdateUtil.Release) {
         },
         releaseNote = release.body.toString(),
         downloadStatus = currentDownloadStatus,
+        sizeLabel = UpdateUtil.updateSizeLabel(release),
+        dateLabel = UpdateUtil.releaseDateLabel(release),
     )
 }
 
@@ -76,6 +78,8 @@ fun UpdateDialogImpl(
     onConfirmUpdate: () -> Unit,
     releaseNote: String,
     downloadStatus: UpdateUtil.DownloadStatus,
+    sizeLabel: String? = null,
+    dateLabel: String? = null,
 ) {
     AlertDialog(
         onDismissRequest = {},
@@ -101,7 +105,16 @@ fun UpdateDialogImpl(
                 Text(text = stringResource(id = R.string.dismiss))
             }
         },
-        text = { Column(Modifier.verticalScroll(rememberScrollState())) { Text(releaseNote) } },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                sizeLabel?.let { Text("Update size: $it") }
+                dateLabel?.let { Text("Date: $it") }
+                if (downloadStatus is UpdateUtil.DownloadStatus.Progress) {
+                    Text("Downloading and verifying the update. Android will ask you to confirm the install.")
+                }
+                Text(releaseNote)
+            }
+        },
     )
 }
 
