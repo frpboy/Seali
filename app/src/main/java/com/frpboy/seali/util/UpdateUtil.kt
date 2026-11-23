@@ -19,7 +19,6 @@ import java.util.regex.Pattern
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.transform
@@ -163,6 +162,16 @@ object UpdateUtil {
             name.endsWith("-$preferredArch.apk") || name.endsWith("_$preferredArch.apk")
         }?.singleOrNull()
 
+    /** A missing or ambiguous asset is a visible error, never a silently empty download flow. */
+    fun requireDownloadAsset(release: Release, preferredArch: String?): AssetsItem {
+        val asset = preferredArch?.let { selectAsset(release, it) }
+            ?: error("No unique APK for this device")
+        check(!asset.browserDownloadUrl.isNullOrBlank()) { "The APK has no download URL" }
+        check(asset.size != null && asset.size > 0) { "The APK has no valid published size" }
+        check(asset.digest?.let { ApkUpdateVerifier.normalizeDigest(it) } != null) { "The APK has no published SHA256" }
+        return asset
+    }
+
     /** "14.4 MB" style size of the asset this device would download, or null. */
     fun updateSizeLabel(release: Release): String? =
         Build.SUPPORTED_ABIS.firstOrNull()?.let { selectAsset(release, it) }?.size
@@ -186,10 +195,8 @@ object UpdateUtil {
         withContext(Dispatchers.IO) {
             CandidateFeaturePolicy.requireAppUpdatesAvailable()
             requireGitHubDistribution()
-            val abiList = Build.SUPPORTED_ABIS
-            val preferredArch = abiList.firstOrNull() ?: return@withContext emptyFlow()
-            val asset = selectAsset(release, preferredArch) ?: return@withContext emptyFlow()
-            val targetUrl = asset.browserDownloadUrl ?: return@withContext emptyFlow()
+            val asset = requireDownloadAsset(release, Build.SUPPORTED_ABIS.firstOrNull())
+            val targetUrl = checkNotNull(asset.browserDownloadUrl)
 
             val apkVersion =
                 context.packageManager
