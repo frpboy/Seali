@@ -1,0 +1,114 @@
+[
+  {
+    "path": "build.gradle.kts",
+    "sha256": "159438c0a17a91322fa3b41fe846c902783a7fdc1976ae3aefcb5bd326df5a7d"
+  },
+  {
+    "path": "server.py",
+    "sha256": "f8826b57bd69991a65c4e1ba866e2f5bac5e9862a8db554cd4ce3868804ce3a1"
+  },
+  {
+    "path": "settings.gradle.kts",
+    "sha256": "52e86d1ba5bf895cea37a6283125fa15c32bf126d2cced901a5e23094a10e012"
+  },
+  {
+    "path": "gradlew",
+    "sha256": "63135287117a1e6d12c84580f1f49c61d1ba02218ecd28660605e97f976e7d65"
+  },
+  {
+    "path": "run-component.sh",
+    "sha256": "c15e25638a3c3dd078d4ad848095852ae575c249f73bdff61dae01d8101fd418"
+  },
+  {
+    "path": "gradle.properties",
+    "sha256": "c09c0eeac8e9df0eabb852f344d79d2518da2682b634a85a03b00fd363a0e1ca"
+  },
+  {
+    "path": "gradle/wrapper/gradle-wrapper.jar",
+    "sha256": "e996d452d2645e70c01c11143ca2d3742734a28da2bf61f25c82bdc288c9e637"
+  },
+  {
+    "path": "gradle/wrapper/gradle-wrapper.properties",
+    "sha256": "3fa193e4dc0219f69e5458974d22e615bf3a423747475c0c434d215e092fc36c"
+  },
+  {
+    "path": "host/build.gradle.kts",
+    "sha256": "5985d88f1654b6a93d051005b3dbc4377fb85f129ebaf466fb504389025b349d"
+  },
+  {
+    "path": "host/src/main/AndroidManifest.xml",
+    "sha256": "8d0cf66fdb10a105f2d7bee76e993ee87234004702b9c654feb8740044648dab"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/App.kt",
+    "sha256": "7424122373bcaa785d47932679c9a8105a6d722728f8733644e5c2d73dfcc3d2"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/ComponentInstrumentation.kt",
+    "sha256": "e0493cf609f9a84c437f5c0415ed60dcbcaf24d4c68542497f7aed367927a406"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/util/RuntimeUpdatePolicy.kt",
+    "sha256": "ee40070d3fa5f9aced536aa37ed118283b66cbaa5e39a99ea93c7c8f80fbf845"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/util/UpdateDownloadStream.kt",
+    "sha256": "ddec0ac9cc957574a94aa64ddf706c270fc0499e7f2acfb67758d0f0d1e7e1f7"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/util/ApkUpdateVerifier.kt",
+    "sha256": "6338be0656d8341818fdec9e0df8c2dca50e6cf4351be1c12a75b25fcca8a375"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/util/UpdateBlockingCall.kt",
+    "sha256": "6026cc4bd729b898d176ec2c67816bfa0870d14d4c0e6cd9192b7df20366e0fd"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/util/ApkArchiveReader.kt",
+    "sha256": "fdf0f2fe074a127e3950459b746c766a82ad38d1c331937effafbb8d2ed89e92"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/util/CandidateFeaturePolicy.kt",
+    "sha256": "81cb2e8d42f514a18088f900765b9df6c75a38bfbbfd5356517673db31df252b"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/util/UpdateUtil.kt",
+    "sha256": "1e490e11f5daa0dfd8d209b80602c891af91373dc400368089f4dbefeb8f2638"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/util/UpdateHttpDownload.kt",
+    "sha256": "e71fcde7546a4d26567501c7a92993e5b9e01281fbe51a9af210b0da471a42c4"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/util/UnusedAdapters.kt",
+    "sha256": "9987933a1dd6ec521e9ca37ac7a7203b27f8c54adc64933550defb02d8c80c11"
+  },
+  {
+    "path": "host/src/main/java/com/frpboy/seali/util/UpdateSessionState.kt",
+    "sha256": "8454cfd9ad4b886619eac220e5de2d856c06bcdc5f0fb3541e3854e549f9f4b7"
+  },
+  {
+    "path": "host/src/main/java/com/yausername/youtubedl_android/YoutubeDL.kt",
+    "sha256": "642926239c4cc4b2ea87d1e0b57aac8d70e30c20117297ca9e32e09dd62f5dbf"
+  },
+  {
+    "path": "host/src/main/res/xml/provider_paths.xml",
+    "sha256": "753f75daaf3387ddfeea162f4548637f4fadadbad791410d5f89e27bd78c2219"
+  },
+  {
+    "path": "host/src/main/res/values/strings.xml",
+    "sha256": "f78d78f489929dbfce273e07eba92e32c86b0f399fb59e372399c1eaedd593d6"
+  },
+  {
+    "path": "fixture/build.gradle.kts",
+    "sha256": "401f72ed40f5f1df3955a261909324e7989acedb520e4fc6aa45433a480cb020"
+  },
+  {
+    "path": "fixture/src/main/AndroidManifest.xml",
+    "sha256": "2e1c4402fe087ec320bd67e6f84b838456a21b5bf1e2540af0dee12b2b0e196e"
+  },
+  {
+    "path": "failclosed-emulator.sh",
+    "sha256": "f42b632cde4d684023df5086e5d9703bb72635e7c8f1b8e4f564fcf40498a175"
+  }
+]
