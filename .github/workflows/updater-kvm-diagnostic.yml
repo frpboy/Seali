@@ -1,0 +1,27 @@
+name: Hosted KVM prerequisite diagnosis only
+on:
+  push:
+    branches: [qualification/updater-kvm-diagnostic-20261124]
+permissions:
+  contents: read
+concurrency:
+  group: updater-kvm-diagnostic-20261124
+  cancel-in-progress: false
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Bind exact diagnostic identity
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = frpboy/Seali
+          test "$GITHUB_EVENT_NAME" = push
+          test "$GITHUB_REF" = refs/heads/qualification/updater-kvm-diagnostic-20261124
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo '8d01dc29619e37234e4333bc9195a6bc74f45b82af5fb9a2b39d34291ec0d828  qualification/kvm-diagnostic-20261124.sh' | sha256sum -c -
+      - name: Read KVM prerequisite outcomes without changing host
+        run: bash qualification/kvm-diagnostic-20261124.sh
