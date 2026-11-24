@@ -1,0 +1,72 @@
+name: Disposable updater component qualification
+on:
+  push:
+    branches: [qualification/updater-component-20261124-parity1]
+permissions:
+  contents: read
+concurrency:
+  group: updater-component-qualification-20261124
+  cancel-in-progress: false
+jobs:
+  component:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include:
+          - api: 26
+            target: default
+          - api: 36
+            target: google_apis
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Bind reviewed host and source
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = frpboy/Seali
+          test "$GITHUB_EVENT_NAME" = push
+          test "$GITHUB_REF" = refs/heads/qualification/updater-component-20261124-parity1
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo '42d59dde5a3acc6f6ca118e925ce3aae21cb564c5b893bc2cdf78c358148e5b1  qualification/updater-component/verify.py' | sha256sum -c -
+          python3 qualification/updater-component/verify.py
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install only Java Android build tools
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Grant only current runner UID ephemeral KVM access
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          stat -c '%F mode=%a uid=%u gid=%g' /dev/kvm
+          id
+          command -v setfacl
+          command -v getfacl
+          sudo setfacl -m "u:$(id -u):rw" /dev/kvm
+          getfacl /dev/kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
+          python3 -c 'import os; fd=os.open("/dev/kvm",os.O_RDWR); print("KVM_OPEN_RDWR_PASS"); os.close(fd)'
+      - name: Install exact official image and emulator packages, no boot
+        env:
+          SYSTEM_IMAGE: system-images;android-${{ matrix.api }};${{ matrix.target }};x86_64
+        run: |
+          set -euo pipefail
+          sdkmanager 'emulator' "$SYSTEM_IMAGE"
+          sdkmanager --list_installed | grep -E '(emulator|system-images|platforms;android-36|build-tools;36.0.0)'
+      - name: Fail-closed acceleration gate, then boot disposable emulator and run component checks
+        working-directory: qualification/updater-component
+        env:
+          SYSTEM_IMAGE: system-images;android-${{ matrix.api }};${{ matrix.target }};x86_64
+          EXPECTED_API: ${{ matrix.api }}
+          AVD_ABI: ${{ matrix.target }}/x86_64
+        run: bash failclosed-emulator.sh
