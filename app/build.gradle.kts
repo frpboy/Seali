@@ -1,6 +1,7 @@
 @file:Suppress("UnstableApiUsage")
 
 import com.android.build.api.variant.FilterConfiguration
+import com.android.build.api.variant.BuildConfigField
 import java.io.FileInputStream
 import java.util.Properties
 import org.gradle.api.GradleException
@@ -375,5 +376,26 @@ androidComponents {
                 dependsOn(verifyOwned)
             }
         }
+    }
+}
+
+// Source-only qualification admission. Never enables release, Play or F-Droid.
+// Packaging and native custody verification remain unchanged and mandatory.
+val qualifyUpdater = providers.gradleProperty("qualifyGitHubUpdater").orNull.let { value ->
+    require(value == null || value == "true" || value == "false") {
+        "qualifyGitHubUpdater must be exactly true or false"
+    }
+    value == "true"
+}
+androidComponents {
+    onVariants { variant ->
+        val githubFlavor = variant.productFlavors.any { (dimension, flavor) ->
+            dimension == "publishChannel" && flavor in setOf("generic", "githubPreview")
+        }
+        val admitted = qualifyUpdater && variant.buildType == "debug" && githubFlavor
+        requireNotNull(variant.buildConfigFields) { "Updater qualification requires generated BuildConfig" }.put(
+            "QUALIFY_GITHUB_UPDATER",
+            BuildConfigField("boolean", admitted.toString(), "Debug GitHub updater qualification only"),
+        )
     }
 }

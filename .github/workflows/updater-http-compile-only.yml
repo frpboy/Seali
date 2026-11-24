@@ -1,8 +1,8 @@
-name: Updater candidate source compile only
+name: Updater admission candidate source compile only
 on:
   push:
     branches:
-      - qualification/updater-http-compile-20261124-1854aa51
+      - qualification/updater-admission-compile-20261124-3287a6e6
 permissions:
   contents: read
 concurrency:
@@ -22,14 +22,14 @@ jobs:
           set -euo pipefail
           test "$GITHUB_EVENT_NAME" = push
           test "$GITHUB_REPOSITORY" = frpboy/Seali
-          test "$GITHUB_REF" = refs/heads/qualification/updater-http-compile-20261124-1854aa51
+          test "$GITHUB_REF" = refs/heads/qualification/updater-admission-compile-20261124-3287a6e6
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git diff --exit-code
           python3 - <<'PYVERIFY'
           import hashlib,json,pathlib,subprocess
           root=pathlib.Path('.')
           manifest=root/'scripts/ci/updater-http-source-manifest.json'
-          assert hashlib.sha256(manifest.read_bytes()).hexdigest()=='c7de7fa55c1c669eafb5c0df8cd9bbf60f104684caed523dcd9d3a27372d3a7c'
+          assert hashlib.sha256(manifest.read_bytes()).hexdigest()=='fd7336502113cc01c0197b9d0f0674badf97f964510a70ddb0a214f3d3e231ef'
           d=json.loads(manifest.read_text())
           tracked=set(subprocess.check_output(['git','ls-files','-z']).decode().rstrip('\0').split('\0'))
           expected={r['path'] for r in d['files']}
@@ -56,7 +56,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash gradlew :app:compileGenericDebugKotlin --no-daemon --no-configuration-cache --max-workers=2 --console=plain --dry-run | tee "$RUNNER_TEMP/updater-task-plan.log"
+          bash gradlew :app:compileGenericDebugKotlin -PqualifyGitHubUpdater=true --no-daemon --no-configuration-cache --max-workers=2 --console=plain --dry-run | tee "$RUNNER_TEMP/updater-task-plan.log"
           python3 - "$RUNNER_TEMP/updater-task-plan.log" <<'PY'
           import pathlib,re,sys
           text=pathlib.Path(sys.argv[1]).read_text()
@@ -65,7 +65,31 @@ jobs:
           forbidden=re.compile(r'native|jnilib|externalnative|cmake|ndk|assemble|sign|publish|upload|release|install|connected|test',re.I)
           assert not [t for t in tasks if forbidden.search(t) or ('bundle' in t.lower() and 'bundleLibCompileToJar' not in t)], 'unexpected effect in task plan'
           PY
+      - name: Generate and verify actual debug qualification fields, no packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          tasks=( :app:generateGenericDebugBuildConfig :app:generateGenericReleaseBuildConfig :app:generateGithubPreviewDebugBuildConfig :app:generateGithubPreviewReleaseBuildConfig :app:generatePlayDebugBuildConfig :app:generatePlayReleaseBuildConfig :app:generateFdroidDebugBuildConfig :app:generateFdroidReleaseBuildConfig )
+          for mode in default true; do
+            extra=()
+            if [ "$mode" = true ]; then extra=(-PqualifyGitHubUpdater=true); fi
+            bash gradlew "${tasks[@]}" "${extra[@]}" --no-daemon --no-configuration-cache --max-workers=2 --console=plain
+            python3 - "$mode" <<'PYFIELDS'
+          import pathlib,re,sys
+          mode=sys.argv[1]
+          root=pathlib.Path('app/build/generated/source/buildConfig')
+          paths=list(root.rglob('BuildConfig.java'))
+          assert len(paths)==8, f'expected eight generated variants, got {len(paths)}'
+          for p in sorted(paths):
+              variant=p.relative_to(root).as_posix().split('/com/')[0]
+              text=p.read_text()
+              value=re.search(r'QUALIFY_GITHUB_UPDATER = (true|false)',text).group(1)
+              expected=mode=='true' and variant in ('generic/debug','githubPreview/debug')
+              assert (value=='true')==expected, (mode,variant,value)
+              print(mode,variant,'QUALIFY_GITHUB_UPDATER='+value)
+          PYFIELDS
+          done
       - name: Compile actual candidate app, no packaging or tests
-        run: bash gradlew :app:compileGenericDebugKotlin --no-daemon --no-configuration-cache --max-workers=2 --console=plain -Dorg.gradle.jvmargs=-Xmx4096m -Pkotlin.compiler.execution.strategy=in-process
+        run: bash gradlew :app:compileGenericDebugKotlin -PqualifyGitHubUpdater=true --no-daemon --no-configuration-cache --max-workers=2 --console=plain -Dorg.gradle.jvmargs=-Xmx4096m -Pkotlin.compiler.execution.strategy=in-process
       # No secrets, producer workflow, native build/staging, Maven publication,
       # APK/AAB, signing, install, upload-artifact, release, tag or deployment.

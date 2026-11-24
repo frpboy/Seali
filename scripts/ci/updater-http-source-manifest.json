@@ -215,7 +215,7 @@
     },
     {
       "path": "app/build.gradle.kts",
-      "sha256": "ea0cfed49d8ffd1db26a0a520a0378b80b614d7f0a383660e7c1775f569b0a25"
+      "sha256": "68f9b3016e7a1d889ba5c8d79a25ef49a7b4bd6efe10326d26afd57131ac5f29"
     },
     {
       "path": "app/proguard-rules.pro",
@@ -1135,7 +1135,7 @@
     },
     {
       "path": "app/src/main/java/com/frpboy/seali/util/CandidateFeaturePolicy.kt",
-      "sha256": "a83d6ae1267d5fe7e43dabe3f715a287e37077f7557d0b69a3a8a66d7879a656"
+      "sha256": "81cb2e8d42f514a18088f900765b9df6c75a38bfbbfd5356517673db31df252b"
     },
     {
       "path": "app/src/main/java/com/frpboy/seali/util/ChromiumCookieMapper.kt",
