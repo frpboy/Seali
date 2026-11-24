@@ -6,4 +6,6 @@
     <exclude domain="database" path="app_database-wal" />
     <!-- The built-in WebView keeps site logins (cookies, storage) under app_webview. -->
     <exclude domain="root" path="app_webview" />
+    <!-- APK blobs, temporary files and retention accounting must not restore on another installation. -->
+    <exclude domain="file" path="update-apks/" />
 </full-backup-content>

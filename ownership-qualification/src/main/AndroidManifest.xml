@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- No INTERNET or REQUEST_INSTALL_PACKAGES: all external effects explicitly substituted. No Seali App. -->
+    <application android:label="Updater ownership fixture" android:allowBackup="false"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name="com.frpboy.seali.fixture.OwnershipFixtureActivity" android:exported="false" />
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.provider"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/fixture_provider_paths" />
+        </provider>
+    </application>
+</manifest>

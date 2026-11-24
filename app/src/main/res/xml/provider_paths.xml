@@ -6,4 +6,5 @@
     <cache-path
         name="cache"
         path="." />
+    <files-path name="verified_updates" path="update-apks/verified/" />
 </paths>

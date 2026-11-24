@@ -18,8 +18,6 @@ import java.io.File
 import java.util.regex.Pattern
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
@@ -28,7 +26,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.ResponseBody
 
 object UpdateUtil {
 
@@ -85,21 +82,30 @@ object UpdateUtil {
         }
 
     private fun getLatestRelease(): Release =
-        client.newCall(requestForReleases).execute().body.use {
-            val releaseList = jsonFormat.decodeFromString<List<Release>>(it.string())
-            val stable = UPDATE_CHANNEL.getInt() == STABLE
-            val latestRelease =
-                releaseList
-                    .filter { if (stable) it.name.toVersion() is Version.Stable else true }
-                    .maxByOrNull { it.name.toVersion() } ?: throw Exception("null response")
-            latestRelease
+        client.newCall(requestForReleases).execute().use { response ->
+            check(response.isSuccessful) { "Release listing is unavailable" }
+            val releaseList = jsonFormat.decodeFromString<List<Release>>(response.body.string())
+            selectLatestRelease(releaseList, UPDATE_CHANNEL.getInt() == STABLE)
+                ?: error("No eligible release for this update channel")
+        }
+
+    /** App release channel only. This does NOT change yt-dlp's separate explicit Nightly consent. */
+    fun selectLatestRelease(releases: List<Release>, stableOnly: Boolean): Release? =
+        releases.filter { release ->
+            release.draft != true && releaseVersionLabel(release) != null &&
+                (!stableOnly || (release.preRelease != true && releaseVersionLabel(release).toVersion() is Version.Stable))
+        }.maxByOrNull { releaseVersionLabel(it).toVersion() }
+
+    fun releaseVersionLabel(release: Release): String? =
+        listOfNotNull(release.tagName, release.name).firstOrNull {
+            Regex("""v?\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?""").matches(it)
         }
 
     fun checkForUpdate(context: Context = App.context): Release? {
         CandidateFeaturePolicy.requireAppUpdatesAvailable()
         val currentVersion = context.getCurrentVersion()
         val latestRelease = getLatestRelease()
-        val latestVersion = latestRelease.name.toVersion()
+        val latestVersion = releaseVersionLabel(latestRelease).toVersion()
         return if (currentVersion < latestVersion) latestRelease else null
     }
 
@@ -115,26 +121,19 @@ object UpdateUtil {
 
     private fun Context.getLatestApk() = File(getExternalFilesDir("apk"), "latest.apk")
 
-    fun installLatestApk(context: Context = App.context) =
-        context.run {
-            kotlin
-                .runCatching {
-                    CandidateFeaturePolicy.requireAppUpdatesAvailable()
-                    val contentUri =
-                        FileProvider.getUriForFile(this, getFileProvider(), getLatestApk())
-                    val intent =
-                        Intent(Intent.ACTION_VIEW).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            setDataAndType(contentUri, "application/vnd.android.package-archive")
-                        }
-                    startActivity(intent)
-                }
-                .onFailure { throwable: Throwable ->
-                    throwable.printStackTrace()
-                    ToastUtil.makeToast(R.string.app_update_failed)
-                }
+    /** Prepare only, no launch from IO. Caller must recheck active session on MAIN before startActivity. */
+    internal fun installerIntent(release: Release, file: File, context: Context): Intent {
+        CandidateFeaturePolicy.requireAppUpdatesAvailable()
+        requireGitHubDistribution()
+        val asset = requireDownloadAsset(release, Build.SUPPORTED_ABIS.firstOrNull())
+        verifyArchive(context, asset, file)
+        val uri = FileProvider.getUriForFile(context, context.getFileProvider(), file)
+        return Intent(Intent.ACTION_VIEW).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            setDataAndType(uri, "application/vnd.android.package-archive")
         }
+    }
 
     suspend fun deleteOutdatedApk(context: Context = App.context) =
         context.runCatching {
@@ -151,93 +150,97 @@ object UpdateUtil {
             }
         }
 
-    suspend fun downloadApk(
+    /** The asset for this device's preferred ABI, or null. */
+    fun selectAsset(release: Release, preferredArch: String): AssetsItem? =
+        release.assets?.filter { asset ->
+            val name = asset.name.orEmpty()
+            name.endsWith("-$preferredArch.apk") || name.endsWith("_$preferredArch.apk")
+        }?.singleOrNull()
+
+    /** A missing or ambiguous asset is a visible error, never a silently empty download flow. */
+    fun requireDownloadAsset(release: Release, preferredArch: String?): AssetsItem {
+        val asset = preferredArch?.let { selectAsset(release, it) }
+            ?: error("No unique APK for this device")
+        check(!asset.browserDownloadUrl.isNullOrBlank()) { "The APK has no download URL" }
+        check(asset.size != null && asset.size > 0) { "The APK has no valid published size" }
+        check(asset.digest?.let { ApkUpdateVerifier.normalizeDigest(it) } != null) { "The APK has no published SHA256" }
+        return asset
+    }
+
+    /** "14.4 MB" style size of the asset this device would download, or null. */
+    fun updateSizeLabel(release: Release): String? =
+        Build.SUPPORTED_ABIS.firstOrNull()?.let { selectAsset(release, it) }?.size
+            ?.takeIf { it > 0 }
+            ?.let { "%.1f MB".format(it / 1_000_000.0) }
+
+    /** Release date as yyyy-MM-dd from GitHub's ISO timestamp, or null. */
+    fun releaseDateLabel(release: Release): String? =
+        (release.publishedAt ?: release.createdAt)?.take(10)?.takeIf { Regex("""\d{4}-\d{2}-\d{2}""").matches(it) }
+
+    private fun requireGitHubDistribution() {
+        check(!App.isPlayBuild() && !App.isFDroidBuild()) {
+            "In-app APK updates exist only in the GitHub build"
+        }
+    }
+
+    internal suspend fun downloadApk(
         context: Context = App.context,
         release: Release,
+        target: File,
     ): Flow<DownloadStatus> =
         withContext(Dispatchers.IO) {
             CandidateFeaturePolicy.requireAppUpdatesAvailable()
-            val apkVersion =
-                context.packageManager
-                    .getPackageArchiveInfo(context.getLatestApk().absolutePath, 0)
-                    ?.versionName
-                    .toVersion()
+            requireGitHubDistribution()
+            val asset = requireDownloadAsset(release, Build.SUPPORTED_ABIS.firstOrNull())
+            val targetUrl = checkNotNull(asset.browserDownloadUrl)
 
-            Log.d(TAG, apkVersion.toString())
-
-            if (apkVersion >= release.name.toVersion()) {
-                return@withContext flow<DownloadStatus> {
-                    emit(DownloadStatus.Finished(context.getLatestApk()))
-                }
+            return@withContext UpdateHttpDownload.download(client, targetUrl, target, checkNotNull(asset.size)) { file ->
+                verifyOrDelete(context, asset, file)
             }
-
-            val abiList = Build.SUPPORTED_ABIS
-            val preferredArch = abiList.firstOrNull() ?: return@withContext emptyFlow()
-
-            val targetUrl =
-                release.assets
-                    ?.find {
-                        return@find it.name?.contains(preferredArch) ?: false
-                    }
-                    ?.browserDownloadUrl ?: return@withContext emptyFlow()
-            val request = Request.Builder().url(targetUrl).build()
-            try {
-                val response = client.newCall(request).execute()
-                val responseBody = response.body
-                return@withContext responseBody.downloadFileWithProgress(context.getLatestApk())
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-            emptyFlow()
         }
 
-    private fun ResponseBody.downloadFileWithProgress(saveFile: File): Flow<DownloadStatus> =
-        flow {
-                emit(DownloadStatus.Progress(0))
+    /** A downloaded update that failed an integrity check. Carries a reason the UI can show; the file is already deleted. */
+    class UpdateRefusedException(val reason: ApkUpdateVerifier.Reason) :
+        Exception("Update refused: $reason")
 
-                var deleteFile = true
+    /** Text for the failure toast: names the refusal when there is one, otherwise the generic failure. */
+    fun failureMessage(context: Context, t: Throwable): String =
+        if (t is UpdateRefusedException)
+            context.getString(R.string.app_update_refused, refusalText(t.reason))
+        else context.getString(R.string.app_update_failed)
 
-                try {
-                    byteStream().use { inputStream ->
-                        saveFile.outputStream().use { outputStream ->
-                            val totalBytes = contentLength()
-                            val data = ByteArray(8_192)
-                            var progressBytes = 0L
+    fun refusalText(reason: ApkUpdateVerifier.Reason): String =
+        when (reason) {
+            ApkUpdateVerifier.Reason.NO_PUBLISHED_DIGEST -> "the release has no published checksum"
+            ApkUpdateVerifier.Reason.SIZE_MISMATCH,
+            ApkUpdateVerifier.Reason.DIGEST_MISMATCH -> "the download does not match the published file"
+            ApkUpdateVerifier.Reason.PACKAGE_MISMATCH -> "it is a different app package"
+            ApkUpdateVerifier.Reason.NOT_NEWER -> "it is not newer than the installed version"
+            ApkUpdateVerifier.Reason.CERTIFICATE_MISMATCH,
+            ApkUpdateVerifier.Reason.NO_ARCHIVE_CERTIFICATE,
+            ApkUpdateVerifier.Reason.NO_INSTALLED_CERTIFICATE -> "it is not signed by the same key as the installed app"
+            ApkUpdateVerifier.Reason.UNREADABLE_ARCHIVE -> "the downloaded file could not be read"
+        }
 
-                            while (true) {
-                                val bytes = inputStream.read(data)
+    /** Throws and deletes the file unless it passes [ApkUpdateVerifier]; the system installer is never reached otherwise. */
+    private fun verifyOrDelete(context: Context, asset: AssetsItem, file: File) {
+        try { verifyArchive(context, asset, file) }
+        catch (e: Exception) { file.delete(); throw e }
+    }
 
-                                if (bytes == -1) {
-                                    break
-                                }
-
-                                outputStream.channel
-                                outputStream.write(data, 0, bytes)
-                                progressBytes += bytes
-                                emit(
-                                    DownloadStatus.Progress(
-                                        percent = ((progressBytes * 100) / totalBytes).toInt()
-                                    )
-                                )
-                            }
-
-                            when {
-                                progressBytes < totalBytes -> throw Exception("missing bytes")
-                                progressBytes > totalBytes -> throw Exception("too many bytes")
-                                else -> deleteFile = false
-                            }
-                        }
-                    }
-
-                    emit(DownloadStatus.Finished(saveFile))
-                } finally {
-                    if (deleteFile) {
-                        saveFile.delete()
-                    }
+    private fun verifyArchive(context: Context, asset: AssetsItem, file: File) {
+        val result =
+            runCatching {
+                    ApkUpdateVerifier.verify(
+                        ApkArchiveReader.expectation(context, asset.size, asset.digest),
+                        ApkArchiveReader.archive(context, file),
+                    )
                 }
-            }
-            .flowOn(Dispatchers.IO)
-            .distinctUntilChanged()
+                .getOrElse { ApkUpdateVerifier.Result.Refused(ApkUpdateVerifier.Reason.UNREADABLE_ARCHIVE) }
+        if (result is ApkUpdateVerifier.Result.Refused) {
+            throw UpdateRefusedException(result.reason)
+        }
+    }
 
     @Serializable
     data class Release(
@@ -256,7 +259,9 @@ object UpdateUtil {
     data class AssetsItem(
         val name: String? = null,
         @SerialName("content_type") val contentType: String? = null,
-        val size: Int? = null,
+        val size: Long? = null,
+        /** GitHub's "sha256:<hex>" asset digest; the update is refused without one. */
+        val digest: String? = null,
         @SerialName("download_count") val downloadCount: Int? = null,
         @SerialName("created_at") val createdAt: String? = null,
         @SerialName("updated_at") val updatedAt: String? = null,
@@ -265,6 +270,7 @@ object UpdateUtil {
 
     sealed class DownloadStatus {
         object NotYet : DownloadStatus()
+        object Verifying : DownloadStatus()
 
         data class Progress(val percent: Int) : DownloadStatus()
 

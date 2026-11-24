@@ -81,6 +81,24 @@ private val TopDestinations =
 
 @Composable
 fun AppEntry(dialogViewModel: DownloadDialogViewModel) {
+    val activity = androidx.compose.ui.platform.LocalContext.current as androidx.activity.ComponentActivity
+    val updateOwner = remember(activity) {
+        androidx.lifecycle.ViewModelProvider(activity, object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                check(modelClass == UpdateCoordinator::class.java)
+                @Suppress("UNCHECKED_CAST")
+                return UpdateCoordinator(activity.application, ProductionUpdateEnvironment(activity.application)) as T
+            }
+        })[UpdateCoordinator::class.java]
+    }
+    androidx.compose.runtime.CompositionLocalProvider(LocalUpdateCoordinator provides updateOwner) {
+        AppEntryOwned(dialogViewModel)
+        UpdateCoordinatorHost(updateOwner)
+    }
+}
+
+@Composable
+private fun AppEntryOwned(dialogViewModel: DownloadDialogViewModel) {
 
     val navController = rememberNavController()
     val context = LocalContext.current
