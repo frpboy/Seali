@@ -548,7 +548,7 @@ jobs:
           python3 scripts/build-contract/custody-inputs.py download --output "$RUNNER_TEMP/seali-alpha7-arm64-inputs.tar"
           python3 scripts/build-contract/stage-alpha7-inputs.py --archive "$RUNNER_TEMP/seali-alpha7-arm64-inputs.tar" --root "$GITHUB_WORKSPACE" --lock scripts/build-contract/alpha7-input-lock.json
           python3 scripts/build-contract/test-fetch-alpha7-maven.py
-          python3 scripts/build-contract/fetch-alpha7-maven.py --root "$GITHUB_WORKSPACE"
+          python3 scripts/build-contract/fetch-alpha7-maven.py --root "$GITHUB_WORKSPACE" --lock scripts/build-contract/alpha8-maven-lock.json
           python3 scripts/build-contract/verify-alpha7-inputs.py --root "$GITHUB_WORKSPACE"
 
       - name: Build generic release APK variants
@@ -1071,7 +1071,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: frpboy/youtubedl-android
-          ref: 03deec547243ebe120a537e38d667a3a1ffc588e
+          ref: 8f86400423c0acfb14630bec7ffb47b0fb0b6578
           path: .qualification/producer
           persist-credentials: false
       - name: Verify producer source and self-contained policy tests
@@ -1103,14 +1103,14 @@ jobs:
           set -euo pipefail
           chmod +x gradlew
           ./gradlew --no-daemon :common:publishReleasePublicationToStagingRepository :library:publishReleasePublicationToStagingRepository :ffmpeg:publishReleasePublicationToStagingRepository :library:testReleaseUnitTest
-          python3 scripts/verify-publication.py --repository build/staging-deploy --group io.github.frpboy.youtubedl-android --version 0.1.0-alpha.7 --engine-sha256 "$(cat engine-sha256.txt)" --engine-checker-sha256 "$(cat engine-checker-sha256.txt)"
+          python3 scripts/verify-publication.py --repository build/staging-deploy --group io.github.frpboy.youtubedl-android --version 0.1.0-alpha.8 --engine-sha256 "$(cat engine-sha256.txt)" --engine-checker-sha256 "$(cat engine-checker-sha256.txt)"
       - name: Require exact reviewed artifact bytes without automatic lock regeneration
         run: |
           set -euo pipefail
           test ! -e .qualification/maven
           cp -R .qualification/producer/build/staging-deploy .qualification/maven
-          python3 scripts/build-contract/verify-alpha7-maven.py --root . --lock scripts/build-contract/alpha7-maven-lock.json
-          python3 scripts/build-contract/test-maven-inputs.py
+          python3 scripts/build-contract/verify-alpha7-maven.py --root . --lock scripts/build-contract/alpha8-maven-lock.json
+          python3 scripts/build-contract/test-alpha8-maven-inputs.py
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
         with:
           distribution: temurin

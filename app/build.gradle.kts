@@ -330,10 +330,10 @@ dependencies {
 
     implementation(libs.okhttp)
 
-    implementation("io.github.frpboy.youtubedl-android:library:0.1.0-alpha.7")
-    implementation("io.github.frpboy.youtubedl-android:ffmpeg:0.1.0-alpha.7")
-    implementation("io.github.frpboy.youtubedl-android:common:0.1.0-alpha.7")
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.21.8")
+    implementation("io.github.frpboy.youtubedl-android:library:0.1.0-alpha.8")
+    implementation("io.github.frpboy.youtubedl-android:ffmpeg:0.1.0-alpha.8")
+    implementation("io.github.frpboy.youtubedl-android:common:0.1.0-alpha.8")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.21.9")
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.21")
     implementation("commons-io:commons-io:2.22.0")
     implementation("org.apache.commons:commons-compress:1.28.0")
@@ -364,7 +364,7 @@ androidComponents {
         }.files
         val verifyOwned = tasks.register<VerifyAlpha7MavenTask>("verify${upperName}ReviewedMaven") {
             selectedAars.from(ownedAars)
-            artifactLock.set(rootProject.layout.projectDirectory.file("scripts/build-contract/alpha7-maven-lock.json"))
+            artifactLock.set(rootProject.layout.projectDirectory.file("scripts/build-contract/alpha8-maven-lock.json"))
             verifierScript.set(rootProject.layout.projectDirectory.file("scripts/build-contract/verify-alpha7-maven.py"))
             repositoryRoot.set(rootProject.layout.projectDirectory)
         }

@@ -50,7 +50,7 @@ class OwnedNamespaceBoundaries(unittest.TestCase):
         self.assertNotIn('io.github.junkfood02.youtubedl-android',(ROOT/'gradle/libs.versions.toml').read_text())
         app=(ROOT/'app/build.gradle.kts').read_text()
         for module in ['common','library','ffmpeg']:
-            self.assertIn('implementation("io.github.frpboy.youtubedl-android:'+module+':0.1.0-alpha.7")',app)
+            self.assertIn('implementation("io.github.frpboy.youtubedl-android:'+module+':0.1.0-alpha.8")',app)
             self.assertNotIn('implementation(project(":frpboy-'+module+'"))',app)
         settings=(ROOT/'settings.gradle.kts').read_text()
         self.assertIn('content { includeGroup("io.github.frpboy.youtubedl-android") }',settings)
@@ -62,6 +62,6 @@ class OwnedNamespaceBoundaries(unittest.TestCase):
         self.assertIn("app/src/main/assets/functional-engine/yt-dlp",text)
         self.assertNotIn('dependencies/frpboy-library/src/main/res/raw/ytdlp',text)
         lock=json.loads((ROOT/'scripts/build-contract/alpha7-input-lock.json').read_text())
-        self.assertEqual(lock['maven_lock'],'scripts/build-contract/alpha7-maven-lock.json')
+        self.assertEqual(lock['maven_lock'],'scripts/build-contract/alpha8-maven-lock.json')
         self.assertNotIn('dependencies/frpboy-library/src/main/res/raw/ytdlp',lock['files'])
 if __name__=='__main__':unittest.main()

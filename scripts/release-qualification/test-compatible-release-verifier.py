@@ -23,7 +23,7 @@ def synthetic_maven_fixture():
   pom=directory/(module+'.pom');pom.write_text('<project xmlns="http://maven.apache.org/POM/4.0.0"><dependencies>'+''.join('<dependency><groupId>'+group+'</groupId><artifactId>'+name+'</artifactId><version>'+version+'</version></dependency>' for name in own)+'</dependencies></project>')
   metadata=directory/(module+'.module');metadata.write_text(json.dumps({'component':{'group':group,'module':module,'version':version},'variants':[{'attributes':{'org.gradle.category':'library','org.gradle.usage':'java-runtime'},'dependencies':[{'group':group,'module':name,'version':{'requires':version}} for name in own]}]}))
   lock['artifacts'].append({'module':module,'coordinate':group+':'+module+':'+version,'aar':str(aar),'files':{str(p):{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in [aar,pom,metadata]}})
- (custody/'alpha7-maven-lock.json').write_text(json.dumps(lock))
+ (custody/'alpha8-maven-lock.json').write_text(json.dumps(lock))
 CERT='88774e5211b61f7827db0ba6991a668000ceab9a9e9490648054b8a19b6e070f'
 class Guards(unittest.TestCase):
  def fixture(self,change):
@@ -36,7 +36,7 @@ class Guards(unittest.TestCase):
     data={'lib/arm64-v8a/libqjs.so':b'qjs','assets/functional-engine/yt-dlp':ENGINE,'res/raw/ytdlp':ENGINE,'assets/seali-engine/verify-runtime-engine.py':CHECKER}
     synthetic_maven_fixture()
     custody=pathlib.Path('scripts/build-contract')
-    if change=='missingmavenlock':(custody/'alpha7-maven-lock.json').unlink()
+    if change=='missingmavenlock':(custody/'alpha8-maven-lock.json').unlink()
     if change=='wrongchecker':data['assets/seali-engine/verify-runtime-engine.py']=b'wrong'
     if change=='renamed':data['res/Nc']=data.pop('res/raw/ytdlp')
     if change=='wrongraw':data['res/raw/ytdlp']=b'wrong'

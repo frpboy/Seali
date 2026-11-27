@@ -4,7 +4,7 @@ plugins {
 }
 // Local project module, no public registry or account required.
 group = "com.frpboy.seali.dependencies"
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8"
 android {
     namespace = "com.yausername.youtubedl_common"
     compileSdk = 36
