@@ -22,6 +22,18 @@ import org.junit.Test
  */
 class FunctionalEngineMigrationTest {
     private fun isolated(block: (ContextWrapper, File) -> Unit) {
+        // Fail-closed lane precondition: this class only produces meaningful results in
+        // the skip lane. Without the arg the app init binds the real directory and every
+        // install fails on the guard; say so explicitly instead of letting the failures
+        // read as product bugs. This is a hard assertion, not an Assume/skip.
+        assertEquals(
+            "FunctionalEngineMigrationTest must run in the skip lane " +
+                "(--environment-variables skipAppEngineInit=true); without it the app " +
+                "engine-init binds the real directory first and every failure here is a " +
+                "mis-dispatched lane, not a product result",
+            "true",
+            InstrumentationRegistry.getArguments().getString("skipAppEngineInit"),
+        )
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val dir = File(context.cacheDir, "engine-migration-test")
         dir.deleteRecursively()
