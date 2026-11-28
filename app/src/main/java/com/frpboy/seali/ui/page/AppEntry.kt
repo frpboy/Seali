@@ -225,9 +225,8 @@ fun AppEntry(dialogViewModel: DownloadDialogViewModel) {
     }
     if (showOnboarding) {
         OnboardingDialog(
-            onFinished = { completed ->
-                if (completed) OnboardingController.markDone()
-                else OnboardingController.markDeclined()
+            onFinished = { result ->
+                OnboardingController.finish(result)
                 showOnboarding = false
             }
         )

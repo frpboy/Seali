@@ -42,10 +42,10 @@ import com.frpboy.seali.R
  * First-launch tour: feature guide, then one rationale page per optional permission
  * the flavor and Android version actually use. Every system prompt or settings screen
  * is reached only after its rationale page; declining any page never blocks the app.
- * [onFinished] reports true when the last page was completed, false when skipped.
+ * [onFinished] reports how the showing ended (see OnboardingResult).
  */
 @Composable
-fun OnboardingDialog(onFinished: (completed: Boolean) -> Unit) {
+fun OnboardingDialog(onFinished: (OnboardingResult) -> Unit) {
     val pages =
         onboardingPages(
             sdkInt = Build.VERSION.SDK_INT,
@@ -57,14 +57,17 @@ fun OnboardingDialog(onFinished: (completed: Boolean) -> Unit) {
     val isLast = pageIndex == pages.lastIndex
     val advance = {
         launchFailed = false
-        if (isLast) onFinished(true) else pageIndex += 1
+        if (isLast) onFinished(OnboardingResult.DONE) else pageIndex += 1
     }
-    // Dismissal follows the same rule as the visible buttons: leaving page 1 is a
-    // decline, leaving any later page counts as completed (the user saw the guide).
-    val dismiss = { if (pageIndex == 0) onFinished(false) else onFinished(true) }
-
+    // Back = INTERRUPTED at any page (state-honest: neither a decline nor a
+    // completion). Outside-tap dismissal is disabled so there is no ambiguous exit.
     AlertDialog(
-        onDismissRequest = dismiss,
+        onDismissRequest = { onFinished(OnboardingResult.INTERRUPTED) },
+        properties =
+            androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+            ),
         title = {
             Text(
                 stringResource(
@@ -102,8 +105,8 @@ fun OnboardingDialog(onFinished: (completed: Boolean) -> Unit) {
         },
         dismissButton = {
             if (page == OnboardingPage.WELCOME) {
-                // Only leaving page 1 counts as declined.
-                TextButton(onClick = { onFinished(false) }) {
+                // The only explicit decline in the tour.
+                TextButton(onClick = { onFinished(OnboardingResult.SKIPPED) }) {
                     Text(stringResource(R.string.onboarding_skip))
                 }
             } else {
@@ -126,12 +129,19 @@ private fun PageAction(page: OnboardingPage, advance: () -> Unit, onLaunchFailed
             context.startActivity(intent)
             advance()
         } catch (e: ActivityNotFoundException) {
-            try {
-                context.startActivity(Intent(Settings.ACTION_SETTINGS))
-                advance()
-            } catch (e2: ActivityNotFoundException) {
-                onLaunchFailed()
-            }
+            fallbackSettings()
+        } catch (e: SecurityException) {
+            fallbackSettings()
+        }
+    }
+    fun fallbackSettings() {
+        try {
+            context.startActivity(Intent(Settings.ACTION_SETTINGS))
+            advance()
+        } catch (e: ActivityNotFoundException) {
+            onLaunchFailed()
+        } catch (e: SecurityException) {
+            onLaunchFailed()
         }
     }
     when (page) {

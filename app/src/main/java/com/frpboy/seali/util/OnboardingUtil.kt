@@ -2,13 +2,18 @@ package com.frpboy.seali.util
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
+import com.frpboy.seali.ui.page.onboarding.OnboardingResult
 
-/** "Get started" was pressed and the tour ran to its last page. */
+/** "Get started" was pressed and the tour ran to its last page. Means the user walked
+ * through the guide; never means any permission was granted. */
 const val ONBOARDING_DONE = "onboarding_done"
 
-/** "Skip tour" was pressed on the first page. Declines are preserved separately
- * from completion so Settings copy can distinguish them and neither is auto-shown again. */
+/** "Skip tour" was pressed on page 1. Distinct from completion and interruption. */
 const val ONBOARDING_DECLINED = "onboarding_declined"
+
+/** The tour was left via Back. Also suppresses auto-show, without mislabeling the
+ * leave as a decline or a completion. */
+const val ONBOARDING_INTERRUPTED = "onboarding_interrupted"
 
 /** -1 unknown (never computed), 0 not eligible, 1 eligible. Computed once and persisted
  * so later app updates never change an install's answer. */
@@ -46,11 +51,20 @@ object OnboardingEligibility {
             else -> NOT_ELIGIBLE
         }
 
-    fun shouldAutoShow(done: Boolean, declined: Boolean, eligible: Int): Boolean =
-        eligible == ELIGIBLE && !done && !declined
+    fun shouldAutoShow(done: Boolean, declined: Boolean, interrupted: Boolean, eligible: Int): Boolean =
+        eligible == ELIGIBLE && !done && !declined && !interrupted
 }
 
-/** Android-glue around the pure eligibility rules. */
+/** Android-glue around the pure eligibility rules.
+ *
+ * Persisted state (MMKV, restored by Android Auto Backup on a new device and honored
+ * exactly like a locally written value):
+ *   outcome DONE        -> ONBOARDING_DONE        -> never auto-shows again
+ *   outcome SKIPPED     -> ONBOARDING_DECLINED    -> never auto-shows again
+ *   outcome INTERRUPTED -> ONBOARDING_INTERRUPTED -> never auto-shows again
+ *   no outcome          -> (all false)            -> auto-shows only when ELIGIBLE
+ * ONBOARDING_AUTO_SHOW_ELIGIBLE: -1 unknown, 0 no, 1 yes; computed once, never recomputed.
+ */
 object OnboardingController {
 
     /** Set by Settings "Replay app tour"; observed and cleared by AppEntry. Replay never
@@ -62,6 +76,7 @@ object OnboardingController {
         OnboardingEligibility.shouldAutoShow(
             done = ONBOARDING_DONE.getBoolean(),
             declined = ONBOARDING_DECLINED.getBoolean(),
+            interrupted = ONBOARDING_INTERRUPTED.getBoolean(),
             eligible = resolveAndPersistEligibility(context),
         )
 
@@ -88,7 +103,11 @@ object OnboardingController {
         return resolved
     }
 
-    fun markDone() = ONBOARDING_DONE.updateBoolean(true)
-
-    fun markDeclined() = ONBOARDING_DECLINED.updateBoolean(true)
+    fun finish(result: OnboardingResult) {
+        when (result) {
+            OnboardingResult.DONE -> ONBOARDING_DONE.updateBoolean(true)
+            OnboardingResult.SKIPPED -> ONBOARDING_DECLINED.updateBoolean(true)
+            OnboardingResult.INTERRUPTED -> ONBOARDING_INTERRUPTED.updateBoolean(true)
+        }
+    }
 }

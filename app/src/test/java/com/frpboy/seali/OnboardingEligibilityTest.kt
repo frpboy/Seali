@@ -73,33 +73,48 @@ class OnboardingEligibilityTest {
     }
 
     @Test
-    fun `auto show only for eligible installs that neither finished nor declined`() {
-        fun show(done: Boolean, declined: Boolean, eligible: Int) =
-            OnboardingEligibility.shouldAutoShow(done, declined, eligible)
+    fun `auto show only for eligible installs with no recorded outcome`() {
+        fun show(done: Boolean, declined: Boolean, interrupted: Boolean, eligible: Int) =
+            OnboardingEligibility.shouldAutoShow(done, declined, interrupted, eligible)
 
-        assertTrue(show(done = false, declined = false, eligible = OnboardingEligibility.ELIGIBLE))
-        assertFalse(show(done = true, declined = false, eligible = OnboardingEligibility.ELIGIBLE))
-        assertFalse(show(done = false, declined = true, eligible = OnboardingEligibility.ELIGIBLE))
-        assertFalse(
-            show(done = false, declined = false, eligible = OnboardingEligibility.NOT_ELIGIBLE)
+        assertTrue(
+            show(done = false, declined = false, interrupted = false, eligible = OnboardingEligibility.ELIGIBLE)
         )
-        assertFalse(show(done = false, declined = false, eligible = OnboardingEligibility.UNKNOWN))
-        // Restored prefs from a backup carry done/declined across reinstalls.
-        assertTrue(show(done = true, declined = false, eligible = OnboardingEligibility.ELIGIBLE).not())
+        assertFalse(
+            show(done = true, declined = false, interrupted = false, eligible = OnboardingEligibility.ELIGIBLE)
+        )
+        assertFalse(
+            show(done = false, declined = true, interrupted = false, eligible = OnboardingEligibility.ELIGIBLE)
+        )
+        // Interrupted tours also never auto-show again (no nagging).
+        assertFalse(
+            show(done = false, declined = false, interrupted = true, eligible = OnboardingEligibility.ELIGIBLE)
+        )
+        assertFalse(
+            show(done = false, declined = false, interrupted = false, eligible = OnboardingEligibility.NOT_ELIGIBLE)
+        )
+        assertFalse(
+            show(done = false, declined = false, interrupted = false, eligible = OnboardingEligibility.UNKNOWN)
+        )
+        // Restored prefs from a backup carry done/declined/interrupted across reinstalls.
+        assertFalse(
+            show(done = true, declined = false, interrupted = false, eligible = OnboardingEligibility.ELIGIBLE)
+        )
     }
 
     @Test
     fun `restored eligibility answers are honored as persisted answers`() {
         // android:allowBackup is on and the backup rules do not exclude MMKV prefs, so
-        // ONBOARDING_AUTO_SHOW_ELIGIBLE can be restored onto a new device. Chosen
-        // semantics: a restored answer is honored exactly like a locally computed one
-        // (resolveEligibility never recomputes a persisted value). A restored ELIGIBLE
-        // with neither done nor declined still auto-shows on the new device; restored
-        // done or declined suppresses it. Documented for review.
+        // ONBOARDING_AUTO_SHOW_ELIGIBLE and the outcome flags can be restored onto a new
+        // device. Chosen semantics: a restored answer is honored exactly like a locally
+        // computed one (resolveEligibility never recomputes a persisted value). A
+        // restored ELIGIBLE with no recorded outcome still auto-shows on the new device;
+        // any restored outcome suppresses it. Documented for review.
         assertTrue(
             OnboardingEligibility.shouldAutoShow(
                 done = false,
                 declined = false,
+                interrupted = false,
                 eligible = OnboardingEligibility.resolveEligibility(
                     OnboardingEligibility.ELIGIBLE, // restored
                     firstInstallTimeMs = 2_000_000_000_000L,
@@ -111,6 +126,7 @@ class OnboardingEligibilityTest {
             OnboardingEligibility.shouldAutoShow(
                 done = true, // restored completion
                 declined = false,
+                interrupted = false,
                 eligible = OnboardingEligibility.ELIGIBLE,
             )
         )
@@ -118,6 +134,15 @@ class OnboardingEligibilityTest {
             OnboardingEligibility.shouldAutoShow(
                 done = false,
                 declined = true, // restored decline
+                interrupted = false,
+                eligible = OnboardingEligibility.ELIGIBLE,
+            )
+        )
+        assertFalse(
+            OnboardingEligibility.shouldAutoShow(
+                done = false,
+                declined = false,
+                interrupted = true, // restored interruption
                 eligible = OnboardingEligibility.ELIGIBLE,
             )
         )

@@ -3,6 +3,18 @@ package com.frpboy.seali.ui.page.onboarding
 /** Single source for the generic flavor name (build.gradle.kts productFlavors). */
 const val GENERIC_FLAVOR = "generic"
 
+/**
+ * How a tour showing ended. DONE means the user walked through the guide to the last
+ * page; it says nothing about whether any permission was granted. SKIPPED is only the
+ * explicit "Skip tour" on page 1. INTERRUPTED is leaving via Back. All three suppress
+ * automatic re-showing (no nagging); Settings > "Replay app tour" always works.
+ */
+enum class OnboardingResult {
+    DONE,
+    SKIPPED,
+    INTERRUPTED,
+}
+
 /** Pages of the first-launch tour, in order. */
 enum class OnboardingPage {
     WELCOME,
