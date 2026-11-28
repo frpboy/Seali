@@ -104,6 +104,8 @@ object OnboardingController {
     }
 
     fun finish(result: OnboardingResult) {
+        // Flags accumulate across replays: they are suppression records (never auto-show
+        // again), not a record of the latest outcome.
         when (result) {
             OnboardingResult.DONE -> ONBOARDING_DONE.updateBoolean(true)
             OnboardingResult.SKIPPED -> ONBOARDING_DECLINED.updateBoolean(true)

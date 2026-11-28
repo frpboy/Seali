@@ -124,16 +124,6 @@ fun OnboardingDialog(onFinished: (OnboardingResult) -> Unit) {
 @Composable
 private fun PageAction(page: OnboardingPage, advance: () -> Unit, onLaunchFailed: () -> Unit) {
     val context = LocalContext.current
-    fun launchSettings(intent: Intent) {
-        try {
-            context.startActivity(intent)
-            advance()
-        } catch (e: ActivityNotFoundException) {
-            fallbackSettings()
-        } catch (e: SecurityException) {
-            fallbackSettings()
-        }
-    }
     fun fallbackSettings() {
         try {
             context.startActivity(Intent(Settings.ACTION_SETTINGS))
@@ -142,6 +132,16 @@ private fun PageAction(page: OnboardingPage, advance: () -> Unit, onLaunchFailed
             onLaunchFailed()
         } catch (e: SecurityException) {
             onLaunchFailed()
+        }
+    }
+    fun launchSettings(intent: Intent) {
+        try {
+            context.startActivity(intent)
+            advance()
+        } catch (e: ActivityNotFoundException) {
+            fallbackSettings()
+        } catch (e: SecurityException) {
+            fallbackSettings()
         }
     }
     when (page) {
