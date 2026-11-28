@@ -67,8 +67,10 @@ import com.frpboy.seali.ui.page.settings.network.CookieProfilePage
 import com.frpboy.seali.ui.page.settings.network.CookiesViewModel
 import com.frpboy.seali.ui.page.settings.network.NetworkPreferences
 import com.frpboy.seali.ui.page.settings.network.WebViewPage
+import com.frpboy.seali.ui.page.onboarding.OnboardingDialog
 import com.frpboy.seali.ui.page.settings.troubleshooting.TroubleShootingPage
 import com.frpboy.seali.ui.page.videolist.VideoListPage
+import com.frpboy.seali.util.OnboardingController
 import com.frpboy.seali.util.PreferenceUtil
 import com.frpboy.seali.util.UI_STYLE_CLASSIC
 import kotlinx.coroutines.launch
@@ -207,6 +209,28 @@ fun AppEntry(dialogViewModel: DownloadDialogViewModel) {
             AppUpdater()
             YtdlpUpdater()
         }
+    }
+
+    // First-launch tour: auto-shows only on installs Android reports as never-updated
+    // (see OnboardingEligibility), or when Settings -> "Replay app tour" asks for it.
+    var showOnboarding by rememberSaveable {
+        mutableStateOf(OnboardingController.shouldAutoShow(context))
+    }
+    val replayOnboarding = OnboardingController.replayRequested.value
+    LaunchedEffect(replayOnboarding) {
+        if (replayOnboarding) {
+            OnboardingController.replayRequested.value = false
+            showOnboarding = true
+        }
+    }
+    if (showOnboarding) {
+        OnboardingDialog(
+            onFinished = { completed ->
+                if (completed) OnboardingController.markDone()
+                else OnboardingController.markDeclined()
+                showOnboarding = false
+            }
+        )
     }
 }
 

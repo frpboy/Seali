@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.SettingsApplications
 import androidx.compose.material.icons.rounded.SignalCellular4Bar
 import androidx.compose.material.icons.rounded.SignalWifi4Bar
 import androidx.compose.material.icons.rounded.Terminal
+import androidx.compose.material.icons.rounded.Tour
 import androidx.compose.material.icons.rounded.VideoFile
 import androidx.compose.material.icons.rounded.ViewComfy
 import androidx.compose.material.icons.rounded.VolunteerActivism
@@ -48,6 +49,7 @@ import com.frpboy.seali.App
 import com.frpboy.seali.R
 import com.frpboy.seali.ui.common.Route
 import com.frpboy.seali.ui.common.intState
+import com.frpboy.seali.util.OnboardingController
 import com.frpboy.seali.ui.component.BackButton
 import com.frpboy.seali.ui.component.PreferencesHintCard
 import com.frpboy.seali.ui.component.SettingItem
@@ -230,6 +232,16 @@ fun SettingsPage(onNavigateBack: () -> Unit, onNavigateTo: (String) -> Unit) {
                     icon = Icons.Rounded.Info,
                 ) {
                     onNavigateTo(Route.ABOUT)
+                }
+            }
+            item {
+                SettingItem(
+                    title = stringResource(id = R.string.replay_app_tour),
+                    description = stringResource(id = R.string.replay_app_tour_desc),
+                    icon = Icons.Rounded.Tour,
+                ) {
+                    OnboardingController.replayRequested.value = true
+                    onNavigateBack()
                 }
             }
         }
