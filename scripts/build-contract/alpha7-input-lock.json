@@ -56,5 +56,5 @@
     "name": "custody: seali alpha7c arm64 inputs (licensed candidate a7960d4b)",
     "target_commitish": "ebadbb54fbf9012afe4405c031d186f776029977"
   },
-  "maven_lock": "scripts/build-contract/alpha7-maven-lock.json"
+  "maven_lock": "scripts/build-contract/alpha8-maven-lock.json"
 }

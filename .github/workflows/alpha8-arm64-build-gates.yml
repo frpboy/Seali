@@ -1,0 +1,224 @@
+name: Alpha8 consumer ARM64 build and static gates
+
+# REVIEW DRAFT - manual qualification only. No signing, no APK publication, no
+# release, no public Maven effects. Static lane only: rebuilds the pinned
+# public producer into a run-local file Maven repository (same proven block as
+# the source-only consumer qualification in android_ci.yml), enforces every
+# fail-closed static gate (producer pin, Maven byte lock, resolved-graph lock,
+# producer 38 units, app serialization units), stages the unchanged reviewed
+# alpha7 ARM64 custody inputs, then assembles the debug app and
+# instrumentation APKs, verifies the assembled payloads against the reviewed
+# locks, and retains the pair privately as the run evidence. A green run
+# proves assembly plus static custody/graph gates only.
+#
+# On-device execution is deliberately NOT a CI job here. Verified platform
+# facts (2026-11-13): the owned native payloads exist only as reviewed ARM64
+# bytes (no x86_64 payload set exists; the base packaging gate refuses
+# split/other-ABI builds); GitHub-hosted ARM64 runners do not expose /dev/kvm
+# (maintainer statement, actions/runner-images#14062); Google's SDK repository
+# ships no linux-arm64 emulator build. So no free hosted emulator route can
+# execute these payloads. Any real-device qualification is a separate
+# proposal that needs its own effect/authority review; nothing about it is
+# approved or implied by this file.
+#
+# Pins below bind the published Maven Central candidate: producer commit
+# 8f864004 (PUBLISHED 2026-11-25), coordinates 0.1.0-alpha.8, lock bound to
+# the published bytes (15/15 sha-verified from repo1.maven.org on 2026-11-25),
+# rebuilt by CI from the pinned source. The alpha8 AARs carry no native
+# binaries; the on-device natives are the unchanged reviewed alpha7 ARM64
+# custody set staged below (alpha7-input-lock.json, whose maven_lock
+# cross-reference binds it to alpha8-maven-lock.json).
+#
+# Scope vs the alpha7 lane (alpha7-api26-runtime.yml): that lane remains the
+# alpha7 reproduction lane and fails closed on post-switch refs by design.
+# This lane is the alpha8 counterpart for build and static-gate evidence. It
+# has no push trigger: it runs only by explicit manual dispatch, which
+# requires the workflow on the default branch, i.e. after the consumer switch
+# is merged. Pre-merge use is a separate owner-approved push of the reviewed
+# candidate to a qualification branch; nothing here approves or performs that
+# push.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-gates-and-build:
+    # Draft custody asset read and private retain need the push-level token,
+    # exposed solely to the two pinned custody steps below; gradle/build
+    # steps receive no token and checkout persists no credentials.
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Check out public producer at reviewed immutable source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: frpboy/youtubedl-android
+          ref: 8f86400423c0acfb14630bec7ffb47b0fb0b6578
+          path: .qualification/producer
+          persist-credentials: false
+      - name: Verify producer source and self-contained policy tests
+        run: |
+          set -euo pipefail
+          python3 scripts/build-contract/check-pinned-producer.py --root . --producer .qualification/producer
+          python3 scripts/ci/test_verification_boundary.py
+          python3 scripts/release-qualification/test-compatible-release-verifier.py
+          python3 scripts/release-qualification/test-version-expectation.py
+          python3 scripts/test_safe_error_report_boundary.py
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          log-accepted-android-sdk-licenses: false
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+      - name: Install compile platform
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Build public producer locally and execute its 38 units
+        working-directory: .qualification/producer
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon :common:publishReleasePublicationToStagingRepository :library:publishReleasePublicationToStagingRepository :ffmpeg:publishReleasePublicationToStagingRepository :library:testReleaseUnitTest
+          python3 scripts/verify-publication.py --repository build/staging-deploy --group io.github.frpboy.youtubedl-android --version 0.1.0-alpha.8 --engine-sha256 "$(cat engine-sha256.txt)" --engine-checker-sha256 "$(cat engine-checker-sha256.txt)"
+      - name: Require exact reviewed artifact bytes without automatic lock regeneration
+        run: |
+          set -euo pipefail
+          test ! -e .qualification/maven
+          cp -R .qualification/producer/build/staging-deploy .qualification/maven
+          python3 scripts/build-contract/verify-alpha7-maven.py --root . --lock scripts/build-contract/alpha8-maven-lock.json
+          python3 scripts/build-contract/test-alpha8-maven-inputs.py
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Capture actual resolved runtime graph and require reviewed baseline
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon --no-configuration-cache -I scripts/build-contract/resolved-graph.init.gradle -PfunctionalAlphaCandidate :app:writeGenericDebugRuntimeClasspathGraph
+          python3 scripts/build-contract/verify-runtime-graph.py --lock scripts/build-contract/alpha8-runtime-graph-lock.json --report app/build/reports/resolved-graph/genericDebugRuntimeClasspath.json
+      # Locked reviewed ARM64 custody inputs are never in git (.gitignore by
+      # design); a fresh checkout lacks all 9. Stage through the repo's own
+      # fail-closed chain (identical calls to android_ci.yml build_release)
+      # before any packaging task can run. The native payload set is the
+      # unchanged reviewed alpha7 custody; the alpha8 switch changes only the
+      # Maven-consumed library bytes verified above.
+      - name: Stage locked unpublished ARM64 custody inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/build-contract/test-inputs.py
+          python3 scripts/build-contract/custody-inputs.py download --output "$RUNNER_TEMP/seali-alpha7-arm64-inputs.tar"
+          python3 scripts/build-contract/stage-alpha7-inputs.py --archive "$RUNNER_TEMP/seali-alpha7-arm64-inputs.tar" --root "$GITHUB_WORKSPACE" --lock scripts/build-contract/alpha7-input-lock.json
+          python3 scripts/build-contract/verify-alpha7-inputs.py --root "$GITHUB_WORKSPACE"
+      # App-level serialization units in the same JVM lane, after the byte
+      # lock and custody staging and before any packaging: the merge gate binding TaskBackupCodec and the
+      # Task.kt @SerialName pins together. Task name grounded in the
+      # publishChannel flavor config: generic (default) + debug =>
+      # :app:testGenericDebugUnitTest. JUnit XML counts are parsed and printed
+      # as the retained proof; the step fails closed on any failure, error,
+      # skip, missing result file, or count drift.
+      - name: Run app serialization units together with XML count proof
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon :app:testGenericDebugUnitTest --tests 'com.frpboy.seali.util.TaskBackupMigrationTest' --tests 'com.frpboy.seali.download.TaskSerializationCompatibilityTest'
+          python3 - <<'PYEOF'
+          import glob, sys, xml.etree.ElementTree as ET
+          expected = {
+              "com.frpboy.seali.util.TaskBackupMigrationTest": 7,
+              "com.frpboy.seali.download.TaskSerializationCompatibilityTest": 1,
+          }
+          seen = {}
+          for cls, want in expected.items():
+              paths = glob.glob(f"app/build/test-results/testGenericDebugUnitTest/TEST-{cls}.xml")
+              if len(paths) != 1:
+                  sys.exit(f"::error::expected exactly one result XML for {cls}, found {len(paths)}")
+              root = ET.parse(paths[0]).getroot()
+              tests = int(root.get("tests", 0)); failures = int(root.get("failures", 0))
+              errors = int(root.get("errors", 0)); skipped = int(root.get("skipped", 0))
+              print(f"{cls}: tests={tests} failures={failures} errors={errors} skipped={skipped}")
+              if failures or errors or skipped or tests == 0:
+                  sys.exit(f"::error::{cls} not clean: tests={tests} failures={failures} errors={errors} skipped={skipped}")
+              seen[cls] = tests
+          if seen != expected:
+              sys.exit(f"::error::test-count drift: {seen} != {expected}")
+          print("app serialization units: 8/8 clean across both classes")
+          PYEOF
+      - name: Assemble ARM64 app and instrumentation APKs
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon assembleGenericDebug assembleGenericDebugAndroidTest
+          mapfile -t app_apk < <(find app/build/outputs/apk/generic/debug -maxdepth 1 -name '*.apk' | sort)
+          mapfile -t test_apk < <(find app/build/outputs/apk/androidTest/generic/debug -maxdepth 1 -name '*.apk' | sort)
+          if [ "${#app_apk[@]}" -ne 1 ] || [ "${#test_apk[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one app APK and one androidTest APK, got ${#app_apk[@]} and ${#test_apk[@]}"
+            find app/build/outputs/apk -name '*.apk' -printf '%f\n'
+            exit 1
+          fi
+          sha256sum "${app_apk[0]}" "${test_apk[0]}" | tee apks.sha256
+      # Post-assembly evidence: the instrumentation APK is only useful if the
+      # app APK is the right one. Verify the built app APK carries the alpha8
+      # library engine/checker payloads (existing verifier against the alpha8
+      # lock), and that its native set is exactly the locked arm64-v8a custody
+      # set with no other ABI (same single-ABI contract as the release gate).
+      - name: Verify assembled app APK payloads and native custody set
+        run: |
+          set -euo pipefail
+          app_apk="$(find app/build/outputs/apk/generic/debug -maxdepth 1 -name '*.apk' | sort | head -1)"
+          if unzip -l "$app_apk" | awk '{print $4}' | grep '^lib/' | grep -v '^lib/arm64-v8a/' | grep -q .; then
+            echo "::error::Debug APK carries non-arm64-v8a native entries"
+            unzip -l "$app_apk" | grep 'lib/'
+            exit 1
+          fi
+          # Resolve the exact default raw/ytdlp resource through the APK table
+          # (same approach as verify-compatible-release.py), never by scanning.
+          raw_path="$(python3 - "$app_apk" <<'PYEOF'
+          import pathlib,re,subprocess,sys,os
+          bt=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/36.0.0'
+          resources=subprocess.check_output([str(bt/'aapt2'),'dump','resources',sys.argv[1]],text=True)
+          matches=list(re.finditer(r'^    resource (0x[0-9a-fA-F]+) raw/ytdlp\s*\n((?:      .*\n?)*)',resources,re.M))
+          assert len(matches)==1,'exactly one raw/ytdlp resource required'
+          assert int(matches[0][1],16)>>24==0x7f,'application resource ID required'
+          paths=re.findall(r'^      \(\) \(file\) (\S+)\s*$',matches[0][2],re.M)
+          assert len(paths)==1 and len(matches[0][2].strip().splitlines())==1,'one default raw engine, no alternate configs'
+          raw=paths[0]
+          assert raw.startswith('res/') and '..' not in pathlib.PurePosixPath(raw).parts
+          print(raw)
+          PYEOF
+          )"
+          python3 scripts/build-contract/verify-alpha7-maven.py --root . --lock scripts/build-contract/alpha8-maven-lock.json --apk "$app_apk" --raw-path "$raw_path"
+          # Native set gate reuses the release gate's exact want construction
+          # (custody payload manifest + platform JNI rows incl. libmmkv.so),
+          # with strict set equality, per-entry hashes and libqjs presence.
+          python3 scripts/build-contract/test-debug-apk-native-set.py
+          python3 scripts/build-contract/verify-debug-apk-native-set.py --apk "$app_apk"
+      # APK bytes stay private: retained as new run-bound assets on the same
+      # pinned unpublished draft release. The retain script re-checks custody
+      # identity before every upload, binds both files to the count-guarded
+      # apks.sha256 manifest, verifies each APK's actual single signer is not
+      # the production certificate, refuses any existing name, and never
+      # deletes, retries or overwrites. Only hashes leave publicly.
+      - name: Retain debug APK pair in unpublished custody only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/build-contract/retain-debug-artifacts.py --manifest apks.sha256 --apksigner "$ANDROID_HOME/build-tools/36.0.0/apksigner" --receipt-out "$RUNNER_TEMP/retain-receipt.json"
+          cat "$RUNNER_TEMP/retain-receipt.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4 (verified tag target 2026-11-13)
+        with:
+          name: alpha8-arm64-build-evidence
+          if-no-files-found: error
+          retention-days: 7
+          path: apks.sha256

@@ -21,6 +21,16 @@ name: Alpha7 integrated API26 runtime qualification
 # 03deec54 (Central deployment d6355972-038b-499b-8682-2325a70532f2, PUBLISHED
 # 2026-11-14), coordinates 0.1.0-alpha.7, lock bound to the published bytes
 # (15/15 sha-verified from repo1.maven.org), rebuilt by CI from the pinned source.
+#
+# Alpha7 repro lane scope after the alpha8 consumer switch: the repo checkout
+# above takes the dispatched ref; only the producer checkout is pinned. For
+# alpha7 reproduction dispatch this lane at the pre-switch consumer main
+# bd156a2409511648e90853d5713206f81d2b7214 (or push the pinned qualification
+# branch below). On post-switch main this lane fails closed by design, never
+# silently: check-pinned-producer expects the alpha8 producer source while the
+# producer checkout here is 03deec54, and the graph/Maven/native-input locks at
+# the dispatched ref are the active alpha8 custody. That failure is the guard
+# working; it is not a regression and not an alpha7 qualification.
 
 on:
   workflow_dispatch:

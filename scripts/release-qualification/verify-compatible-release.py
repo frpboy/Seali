@@ -49,7 +49,7 @@ with zipfile.ZipFile(apk) as z:
     for name in ['assets/functional-engine/yt-dlp', raw_path]:
         assert hashlib.sha256(z.read(name)).hexdigest() == 'e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3'
 # This isolated consumer lane requires its artifact lock. Missing custody fails closed.
-maven_lock = pathlib.Path('scripts/build-contract/alpha7-maven-lock.json')
+maven_lock = pathlib.Path('scripts/build-contract/alpha8-maven-lock.json')
 assert maven_lock.is_file(), 'required Maven artifact custody lock missing'
 import importlib.util
 spec=importlib.util.spec_from_file_location('alpha7_maven','scripts/build-contract/verify-alpha7-maven.py')
