@@ -243,6 +243,7 @@ private val IntPreferenceDefaults =
         DOWNLOAD_TYPE_INITIALIZATION to USE_PREVIOUS_SELECTION,
         YT_DLP_UPDATE_CHANNEL to YT_DLP_STABLE,
         DOWNLOAD_TYPE to DownloadType.Video.ordinal,
+        ONBOARDING_AUTO_SHOW_ELIGIBLE to -1, // -1 unknown: eligibility computed once on first run
     )
 
 private val LongPreferenceDefaults = mapOf(YT_DLP_UPDATE_INTERVAL to DEFAULT_INTERVAL)

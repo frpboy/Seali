@@ -90,6 +90,21 @@
     <string name="close_never_show_again">Don\'t show up again</string>
     <string name="user_guide">User guide</string>
     <string name="open_settings">Open settings</string>
+    <string name="onboarding_welcome_title">Welcome to Seali</string>
+    <string name="onboarding_skip">Skip tour</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_not_now">Not now</string>
+    <string name="onboarding_notifications_title">Download notifications</string>
+    <string name="onboarding_notifications_desc">Seali shows progress and completion in notifications, so you can leave the app while downloads run. Android asks for permission next.</string>
+    <string name="onboarding_allow_notifications">Allow notifications</string>
+    <string name="onboarding_battery_title">Keep downloads running</string>
+    <string name="onboarding_battery_desc">To finish long downloads reliably, exclude Seali from battery optimization. This opens the system battery settings.</string>
+    <string name="onboarding_storage_title">Files and updates</string>
+    <string name="onboarding_storage_desc">To save downloads where you choose and update its download engine, Seali needs file access and permission to install updates. Android shows its own prompts next.</string>
+    <string name="onboarding_allow_files">Allow file access</string>
+    <string name="onboarding_allow_updates">Allow installing updates</string>
+    <string name="replay_app_tour">Replay app tour</string>
+    <string name="replay_app_tour_desc">Show the first-launch guide and permission steps again</string>
     <string name="paste_desc">Click \"Paste\" to get video link from your clipboard.</string>
     <string name="download_desc">Then click \"Download\" after adjusting its settings.
     </string>
