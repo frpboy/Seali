@@ -1078,6 +1078,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/build-contract/check-pinned-producer.py --root . --producer .qualification/producer
+          python3 scripts/build-contract/test-check-pinned-producer.py
           python3 scripts/ci/test_verification_boundary.py
           python3 scripts/ci/test_play_variant_separation.py
           python3 scripts/ci/test_download_service_type.py
