@@ -118,7 +118,7 @@ class FunctionalEngineMigrationTest {
             )
             assertFalse(
                 "must not be the engine guard refusal: $failure",
-                failure.message.orEmpty().contains("Engine guard is already bound"),
+                failure?.message.orEmpty().contains("Engine guard is already bound"),
             )
         } finally {
             alias.delete()
@@ -145,7 +145,7 @@ class FunctionalEngineMigrationTest {
         )
         assertFalse(
             "must not be the engine guard refusal: $failure",
-            failure.message.orEmpty().contains("Engine guard is already bound"),
+            failure?.message.orEmpty().contains("Engine guard is already bound"),
         )
         assertEquals("old-preserved", bin.readText())
         assertFalse(File(root, "seali-functional-engine-state/functional-alpha-engine-version").exists())
@@ -172,7 +172,7 @@ class FunctionalEngineMigrationTest {
             assertNotNull("a second, different engine directory must be refused", failure)
             assertTrue(
                 "expected the engine guard refusal, was: $failure",
-                failure.message.orEmpty().contains("Engine guard is already bound"),
+                failure?.message.orEmpty().contains("Engine guard is already bound"),
             )
         } finally {
             other.deleteRecursively()
