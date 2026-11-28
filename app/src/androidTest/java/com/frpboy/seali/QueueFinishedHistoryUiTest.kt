@@ -1,11 +1,16 @@
 package com.frpboy.seali
 
+import android.util.Log
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.printToLog
 import androidx.test.platform.app.InstrumentationRegistry
 import com.frpboy.seali.database.objects.DownloadedVideoInfo
 import com.frpboy.seali.download.Task
@@ -26,6 +31,8 @@ import org.junit.Test
  */
 class QueueFinishedHistoryUiTest {
     @get:Rule val compose = createComposeRule()
+
+    private val TAG = "QueueFinishedHistoryUiTest"
 
     private fun row(id: Int, title: String) =
         DownloadedVideoInfo(
@@ -56,10 +63,45 @@ class QueueFinishedHistoryUiTest {
                 DownloadPageImplV2(taskDownloadStateMap = states, onActionPost = { _, _ -> })
             }
         }
-        compose.onNodeWithText("All (2)").assertIsDisplayed()
-        compose.onNodeWithText("Finished (2)").assertIsDisplayed().performClick()
-        compose.onNodeWithText("First saved download").assertIsDisplayed()
-        compose.onNodeWithText("Second saved download").assertIsDisplayed()
+        // Diagnostics added after the first device execution (FTL matrix-2f38mbviiohff)
+        // failed at the original first assertion with "Assert failed: The component is
+        // not displayed!". Per compose ui-test semantics (Assertions.kt: the node is
+        // fetched first; a missing node fails with "Failed: assertExists" instead), that
+        // message means the "All (2)" node EXISTED but was not composed-and-placed with
+        // visible bounds at query time, while logcat showed the host activity's first
+        // frame completing only at teardown. The bounded wait + bounds/semantics/pixel
+        // evidence below distinguishes never-appeared from late-placed vs clipped. The
+        // exact count and display assertions are unchanged; the wait is a diagnostic
+        // boundary, not a fix, and the two W DocumentFile NPEs (no document provider in
+        // the bare host for the entries' file-existence checks) remain expected noise.
+        try {
+            compose.waitUntil(timeoutMillis = 10_000) {
+                compose
+                    .onAllNodesWithText("All (2)", useUnmergedTree = true)
+                    .fetchSemanticsNodes()
+                    .isNotEmpty()
+            }
+            val all2 = compose.onNodeWithText("All (2)")
+            all2.assertExists()
+            Log.i(TAG, "root boundsInRoot=" + compose.onRoot().fetchSemanticsNode().boundsInRoot)
+            val node = all2.fetchSemanticsNode()
+            Log.i(
+                TAG,
+                "All(2) boundsInRoot=" + node.boundsInRoot +
+                    " boundsInWindow=" + node.boundsInWindow +
+                    " positionInRoot=" + node.positionInRoot,
+            )
+            compose.onRoot().printToLog(TAG)
+            capture("queue-history-preassert.png")
+            compose.onNodeWithText("All (2)").assertIsDisplayed()
+            compose.onNodeWithText("Finished (2)").assertIsDisplayed().performClick()
+            compose.onNodeWithText("First saved download").assertIsDisplayed()
+            compose.onNodeWithText("Second saved download").assertIsDisplayed()
+        } catch (t: Throwable) {
+            runCatching { compose.onRoot().printToLog(TAG) }
+            runCatching { capture("queue-history-failure.png") }
+            throw t
+        }
         capture("queue-history-restart.png")
     }
 
