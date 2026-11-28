@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -87,9 +86,10 @@ class QueueFinishedHistoryUiTest {
             // reported as such, not as a clean reproduction of the original check.
             Log.i(TAG, "All(2) existed after " + (System.currentTimeMillis() - waitStart) + " ms (wait-assisted pass)")
             val all2 = compose.onNodeWithText("All (2)")
-            all2.assertExists()
-            Log.i(TAG, "root boundsInRoot=" + compose.onRoot().fetchSemanticsNode().boundsInRoot)
+            // ui-test 1.8 dropped assertExists(); fetchSemanticsNode() is the same
+            // existence gate: it throws "Failed: assertExists." when absent.
             val node = all2.fetchSemanticsNode()
+            Log.i(TAG, "root boundsInRoot=" + compose.onRoot().fetchSemanticsNode().boundsInRoot)
             Log.i(
                 TAG,
                 "All(2) boundsInRoot=" + node.boundsInRoot +
