@@ -60,7 +60,7 @@ import org.koin.dsl.module
 // restart. Content is an enum plus pid only: never error text.
 private const val SEALI_INIT_STATUS_FILE = "seali-init-status"
 
-class App : Application() {
+open class App : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashReporting.init(this)
@@ -93,6 +93,31 @@ class App : Application() {
         clipboard = getSystemService()!!
         connectivityManager = getSystemService()!!
 
+        initializeEnginesAtStartup()
+
+        videoDownloadDir = VIDEO_DIRECTORY.getString(getExternalDownloadDirectory().absolutePath)
+
+        audioDownloadDir = AUDIO_DIRECTORY.getString(File(videoDownloadDir, "Audio").absolutePath)
+        if (!PreferenceUtil.containsKey(COMMAND_DIRECTORY)) {
+            COMMAND_DIRECTORY.updateString(videoDownloadDir)
+        }
+        if (Build.VERSION.SDK_INT >= 26) NotificationUtil.createNotificationChannel()
+
+        // Chain to any previously installed handler (e.g. crash reporting) so
+        // fatal JVM exceptions are both shown locally and reported.
+        val previousCrashHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, e ->
+            startCrashReportActivity(e)
+            previousCrashHandler?.uncaughtException(thread, e)
+        }
+    }
+
+    /**
+     * Async engine initialization. Default body is exactly the production behavior;
+     * test Applications may override it (per instrumentation run) so isolated engine
+     * fixtures never race the process-global engine guard binding the real directory.
+     */
+    protected open fun initializeEnginesAtStartup() {
         runCatching { File(filesDir, SEALI_INIT_STATUS_FILE).delete() }
         applicationScope.launch((Dispatchers.IO)) {
             try {
@@ -113,22 +138,6 @@ class App : Application() {
                 }
                 withContext(Dispatchers.Main) { startCrashReportActivity(th) }
             }
-        }
-
-        videoDownloadDir = VIDEO_DIRECTORY.getString(getExternalDownloadDirectory().absolutePath)
-
-        audioDownloadDir = AUDIO_DIRECTORY.getString(File(videoDownloadDir, "Audio").absolutePath)
-        if (!PreferenceUtil.containsKey(COMMAND_DIRECTORY)) {
-            COMMAND_DIRECTORY.updateString(videoDownloadDir)
-        }
-        if (Build.VERSION.SDK_INT >= 26) NotificationUtil.createNotificationChannel()
-
-        // Chain to any previously installed handler (e.g. crash reporting) so
-        // fatal JVM exceptions are both shown locally and reported.
-        val previousCrashHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, e ->
-            startCrashReportActivity(e)
-            previousCrashHandler?.uncaughtException(thread, e)
         }
     }
 

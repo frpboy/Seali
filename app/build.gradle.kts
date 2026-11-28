@@ -143,7 +143,7 @@ android {
         check(versionCode == currentVersionCode)
 
         versionName = baseVersionName
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.frpboy.seali.SealiTestRunner"
         vectorDrawables { useSupportLibrary = true }
 
         if (splitApks) {
