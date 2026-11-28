@@ -75,12 +75,17 @@ class QueueFinishedHistoryUiTest {
         // boundary, not a fix, and the two W DocumentFile NPEs (no document provider in
         // the bare host for the entries' file-existence checks) remain expected noise.
         try {
+            val waitStart = System.currentTimeMillis()
             compose.waitUntil(timeoutMillis = 10_000) {
                 compose
                     .onAllNodesWithText("All (2)", useUnmergedTree = true)
                     .fetchSemanticsNodes()
                     .isNotEmpty()
             }
+            // Elapsed ms to existence: the number that separates late placement from
+            // never-appearing. Any pass of this test is wait-assisted and must be
+            // reported as such, not as a clean reproduction of the original check.
+            Log.i(TAG, "All(2) existed after " + (System.currentTimeMillis() - waitStart) + " ms (wait-assisted pass)")
             val all2 = compose.onNodeWithText("All (2)")
             all2.assertExists()
             Log.i(TAG, "root boundsInRoot=" + compose.onRoot().fetchSemanticsNode().boundsInRoot)
